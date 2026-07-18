@@ -66,7 +66,7 @@ instance instOnePFunctor : One PFunctor where one := PFunctor.one
 end one
 
 /-- The constant polynomial functor `P(X) = A X^ PEmpty = A` -/
-protected abbrev C (A : Type uA) : PFunctor := monomial A PEmpty
+abbrev const (A : Type uA) : PFunctor := monomial A PEmpty
 
 /-- The linear polynomial functor `P(X) = A X` -/
 abbrev linear (A : Type uA) : PFunctor := monomial A PUnit

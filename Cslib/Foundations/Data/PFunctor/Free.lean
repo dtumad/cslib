@@ -81,7 +81,7 @@ namespace PFunctor
 /-- The free monad on a polynomial functor: the W-type of the polynomial functor obtained by\
 adjoining a constant shape for each pure value to `P`. -/
 def FreeM (P : PFunctor.{uA, uB}) (α : Type v) : Type (max uA uB v) :=
-  PFunctor.W (P.add (.C α))
+  PFunctor.W (P.add (.const α))
 
 namespace FreeM
 
