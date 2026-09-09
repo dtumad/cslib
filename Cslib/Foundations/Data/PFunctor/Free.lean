@@ -167,15 +167,12 @@ instance : MonadLift P (P.FreeM) where
 
 lemma monadLift_eq_liftObj (x : P.Obj α) : (x : P.FreeM α) = FreeM.liftObj x := rfl
 
-set_option linter.unusedVariables false in
-/-- An override for the default induction principle that is in simp-normal form.
-
-Note that when `α` and `P.B a` are in the same universe, this simplifies slightly further. -/
+/-- Induction with monadic pure and operation constructors in their simplifier normal form. -/
 @[induction_eliminator]
 protected theorem induction {motive : P.FreeM α → Prop}
     (pure : ∀ a, motive (pure a))
-    (lift_bind : ∀ (a : P.A) (cont : P.B a → P.FreeM α) (ih : ∀ i, motive (cont i)),
-      motive ((FreeM.lift a).bind cont)) : ∀ x, motive x
+    (lift_bind : ∀ (a : P.A) (cont : P.B a → P.FreeM α) (_ih : ∀ i, motive (cont i)),
+      motive (FreeM.liftBind a cont)) : ∀ x, motive x
   | .pure a => pure a
   | liftBind a cont => lift_bind a cont fun u => FreeM.induction pure lift_bind (cont u)
 
@@ -314,7 +311,7 @@ monad `m`, and that it extends the interpretation of individual operations given
 structure Interprets (handler : (a : P.A) → m (P.B a)) (eval : P.FreeM α → m α) : Prop where
   apply_pure (a : α) : eval (.pure a) = pure a
   apply_lift_bind (a : P.A) (cont : P.B a → P.FreeM α) :
-    eval ((FreeM.lift a).bind cont) = handler a >>= fun x => eval (cont x)
+    eval (FreeM.liftBind a cont) = handler a >>= fun x => eval (cont x)
 
 theorem Interprets.eq {handler : (a : P.A) → m (P.B a)} {eval : P.FreeM α → m α}
     (h : Interprets handler eval) :
@@ -323,9 +320,7 @@ theorem Interprets.eq {handler : (a : P.A) → m (P.B a)} {eval : P.FreeM α →
   induction x with
   | pure a => exact h.apply_pure a
   | lift_bind a cont ih =>
-    rw [h.apply_lift_bind]
-    conv_rhs => simp only [bind_eq_bind, liftM_lift_bind]
-    simp only [ih]
+    simp only [h.apply_lift_bind, liftM_liftBind, ih]
 
 theorem Interprets.liftM (handler : (a : P.A) → m (P.B a)) :
     Interprets handler (·.liftM handler : P.FreeM α → _) where
@@ -350,12 +345,8 @@ lemma liftM_bind {α β : Type uB} (x : P.FreeM α) (f : α → P.FreeM β) :
   induction x with
   | pure _ => simp only [liftM_pure, LawfulMonad.pure_bind]
   | lift_bind a cont h =>
-    simp_rw [bind_eq_bind]
-    rw [LawfulMonad.bind_assoc, liftM_lift_bind]
-    simp_rw [liftM_lift_bind, LawfulMonad.bind_assoc]
-    congr 1
-    funext u
-    exact h u
+    simp only [liftM_liftBind, LawfulMonad.bind_assoc]
+    exact congrArg (fun k => interp a >>= k) (funext h)
 
 @[simp]
 lemma liftM_map {α β : Type uB} (f : α → β) (x : P.FreeM α) :
