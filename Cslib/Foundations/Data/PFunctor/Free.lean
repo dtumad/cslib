@@ -128,9 +128,26 @@ instance : Functor (P.FreeM) where
 theorem map_eq_map {α β : Type v} :
     FreeM.map (P := P) (α := α) (β := β) = Functor.map := rfl
 
+/-- Mapping a free constructor preserves its operation and maps its continuations. -/
 @[simp]
+theorem liftBind_map {X Y : Type v} (f : X → Y) (a : P.A)
+    (cont : P.B a → P.FreeM X) :
+    f <$> FreeM.liftBind a cont = FreeM.liftBind a (fun b => f <$> cont b) := rfl
+
 lemma liftBind_eq (a : P.A) (cont : P.B a → P.FreeM α) :
     FreeM.liftBind a cont = (FreeM.lift a).bind cont := rfl
+
+/-- A lifted operation followed by its continuation is a free constructor. Keeping constructor
+form preserves the indices of dependent path and strategy families under simplification. -/
+@[simp]
+theorem lift_bind {X : Type uB} (a : P.A) (cont : P.B a → P.FreeM X) :
+    (FreeM.lift a >>= cont) = FreeM.liftBind a cont := rfl
+
+/-- The named bind also preserves constructor form when the result and direction universes
+differ. -/
+@[simp]
+theorem lift_bind_eq_liftBind (a : P.A) (cont : P.B a → P.FreeM α) :
+    (FreeM.lift a).bind cont = FreeM.liftBind a cont := rfl
 
 /-- Lift an object of the base polynomial functor into the free monad.
 
@@ -143,10 +160,10 @@ instance : MonadLift P (P.FreeM) where
   monadLift x := FreeM.liftObj x
 
 @[simp] lemma liftObj_ne_pure (x : P.Obj α) (y : α) :
-    (liftObj x : P.FreeM α) ≠ pure y := by simp [liftObj, lift, map, -liftBind_eq]
+    (liftObj x : P.FreeM α) ≠ pure y := by simp [liftObj, lift, map]
 
 @[simp] lemma pure_ne_liftObj (x : P.Obj α) (y : α) :
-    pure y ≠ (liftObj x : P.FreeM α) := by simp [liftObj, lift, map, -liftBind_eq]
+    pure y ≠ (liftObj x : P.FreeM α) := by simp [liftObj, lift, map]
 
 lemma monadLift_eq_liftObj (x : P.Obj α) : (x : P.FreeM α) = FreeM.liftObj x := rfl
 
@@ -166,7 +183,7 @@ protected theorem bind_assoc (x : P.FreeM α) (f : α → P.FreeM β) (g : β �
     (x.bind f).bind g = x.bind (fun a => (f a).bind g) := by
   induction x with
   | pure a => rfl
-  | lift_bind a cont ih => simp [← liftBind_eq, FreeM.bind, ih] at *
+  | lift_bind a cont ih => simp [FreeM.bind, ih] at *
 
 /-- `.pure a` followed by `bind` collapses immediately. -/
 @[simp]
@@ -186,9 +203,7 @@ lemma bind_pure_comp (f : α → β) : ∀ x : P.FreeM α, x.bind (pure ∘ f) =
 
 @[simp]
 lemma liftBind_bind (a : P.A) (cont : P.B a → P.FreeM β) (f : β → P.FreeM γ) :
-    ((FreeM.lift a).bind cont).bind f = (FreeM.lift a).bind (fun u ↦ (cont u).bind f) := by
-  simp only [lift]
-  exact FreeM.bind_assoc (FreeM.liftBind a pure) cont f
+    (FreeM.liftBind a cont).bind f = FreeM.liftBind a (fun u ↦ (cont u).bind f) := rfl
 
 @[simp]
 lemma liftObj_bind (x : P.Obj α) (f : α → P.FreeM β) :
@@ -275,12 +290,18 @@ variable [Monad m] (interp : (a : P.A) → m (P.B a))
 @[simp]
 lemma liftM_pure (a : α) : (Pure.pure a : P.FreeM α).liftM interp = Pure.pure a := rfl
 
-@[simp]
 lemma liftM_lift_bind (a : P.A) (cont : P.B a → P.FreeM α) :
     FreeM.liftM interp (FreeM.lift a >>= cont) =
       (do let u ← interp a; (cont u).liftM interp) := by
   dsimp only [FreeM.liftM, FreeM.bind, FreeM.lift]
   rfl
+
+/-- Folding a constructor executes its operation and folds the selected continuation. -/
+@[simp]
+theorem liftM_liftBind (a : P.A) (cont : P.B a → P.FreeM α) :
+    FreeM.liftM interp (FreeM.liftBind a cont) =
+      (interp a >>= fun b => FreeM.liftM interp (cont b)) :=
+  liftM_lift_bind interp a cont
 
 /--
 A predicate stating that `eval : P.FreeM α → m α` is an interpreter for the polynomial
