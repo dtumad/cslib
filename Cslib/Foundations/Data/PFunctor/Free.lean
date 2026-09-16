@@ -91,7 +91,15 @@ instance : Pure (P.FreeM) where pure := .pure
 @[simp]
 theorem pure_eq_pure : (FreeM.pure : α → P.FreeM α) = pure := rfl
 
-/-- Lift a shape of the base polynomial functor into the free monad. -/
+/-- Lift a shape of the base polynomial functor into the free monad.
+
+`lift`, `bind` and `map` are implicit-reducible: the simp normal form of an operation node is
+`(lift a).bind cont` (see `liftBind_eq`), and that spelling appears inside type parameters — for
+instance in families indexed by a `FreeM` tree — where metavariable assignments are compared at
+implicit transparency. Unfolding at that level lets such indices unify with the constructor
+`liftBind a cont` they reduce to, and makes `liftBind_eq` a `rfl` lemma whose two sides agree at
+implicit transparency. -/
+@[implicit_reducible]
 def lift (a : P.A) : P.FreeM (P.B a) := FreeM.liftBind a pure
 
 @[simp] lemma lift_ne_pure (a : P.A) (y : P.B a) :
@@ -102,7 +110,9 @@ def lift (a : P.A) : P.FreeM (P.B a) := FreeM.liftBind a pure
 
 /-- Bind operation for the `FreeM` monad.
 
-The builtin `>>=` notation should be preferred when `α` and `β` are in the same universe. -/
+The builtin `>>=` notation should be preferred when `α` and `β` are in the same universe.
+Implicit-reducible for the reason recorded at `lift`. -/
+@[implicit_reducible]
 protected def bind : P.FreeM α → (α → P.FreeM β) → P.FreeM β
   | FreeM.pure a, f => f a
   | FreeM.liftBind a cont, f => FreeM.liftBind a (fun u ↦ FreeM.bind (cont u) f)
@@ -116,7 +126,9 @@ theorem bind_eq_bind {α β : Type v} :
 
 /-- Map a function over a `FreeM` computation.
 
-The builtin `<$>` notation should be preferred when `α` and `β` are in the same universe. -/
+The builtin `<$>` notation should be preferred when `α` and `β` are in the same universe.
+Implicit-reducible for the reason recorded at `lift`. -/
+@[implicit_reducible]
 def map (f : α → β) : P.FreeM α → P.FreeM β
   | .pure a => .pure (f a)
   | .liftBind a cont => .liftBind a fun u => FreeM.map f (cont u)
@@ -250,6 +262,18 @@ lemma pure_inj (a b : α) : (pure a : P.FreeM α) = pure b ↔ a = b := by
     cases h
     rfl
   · rintro rfl; rfl
+
+/-- `bind_eq_pure_iff` in the `>>=` spelling that simplification produces when `α` and `β` share
+a universe. -/
+@[simp] lemma monadBind_eq_pure_iff {α β : Type v} (x : P.FreeM α) (f : α → P.FreeM β) (b : β) :
+    x >>= f = pure b ↔ ∃ a, x = pure a ∧ f a = pure b :=
+  bind_eq_pure_iff x f b
+
+/-- `pure_eq_bind_iff` in the `>>=` spelling that simplification produces when `α` and `β` share
+a universe. -/
+@[simp] lemma pure_eq_monadBind_iff {α β : Type v} (x : P.FreeM α) (f : α → P.FreeM β) (b : β) :
+    pure b = x >>= f ↔ ∃ a, x = pure a ∧ pure b = f a :=
+  pure_eq_bind_iff x f b
 
 lemma liftBind_inj (a a' : P.A)
     (cont : P.B a → P.FreeM α) (cont' : P.B a' → P.FreeM α) :
