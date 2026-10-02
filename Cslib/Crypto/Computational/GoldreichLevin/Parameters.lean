@@ -1,0 +1,164 @@
+/-
+Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Samuel Schlesinger
+-/
+
+module
+
+public import Cslib.Crypto.Computational.GoldreichLevin.Reduction
+public import Cslib.Crypto.Computational.Basic
+public import Cslib.Foundations.Data.Nat.PolynomialBound
+public import Mathlib.Data.Nat.Log
+
+/-!
+# Goldreich–Levin parameters and the asymptotic reduction
+
+The decoder uses `maskCount n p = log₂ (2 * n * p² + 1) + 1` base masks at precision `1 / p`.
+This satisfies the finite recovery bound, while enumerating at most `4 * n * p² + 2` guesses.
+For the fixed-degree precision `(n + 1)^degree`, both the list size and random-mask length are
+polynomially bounded. These are explicit size bounds, not machine-runtime certificates.
+
+The prediction advantage is at most `1 / p + 8 * inversion_success`. Consequently, if the
+inverter at each fixed precision degree has negligible success, prediction bias is negligible.
+Each degree defines one inverter for all lengths. No length-dependent choice of adversary or
+sign of the bias is used. One-wayness can discharge these success hypotheses once the
+word-based game correspondence and uniform PPT certificates for the inverters are proved.
+-/
+
+@[expose] public section
+
+namespace Cslib.Crypto.GoldreichLevin
+open Probability
+
+/-- A computable number of base masks sufficient for prediction bias at least `1 / precision`. -/
+def maskCount (n precision : ℕ) : ℕ := Nat.log 2 (2 * n * precision ^ 2 + 1) + 1
+
+/-- At least one base mask is used, including at dimension zero. -/
+theorem maskCount_pos (n precision : ℕ) : 0 < maskCount n precision := by
+  simp [maskCount]
+
+/-- The subset masks meet the recovery theorem's required count. -/
+theorem subsetCount_maskCount_ge (n precision : ℕ) :
+    2 * n * precision ^ 2 ≤ 2 ^ maskCount n precision - 1 := by
+  have h := Nat.lt_pow_succ_log_self (by decide : 1 < 2) (2 * n * precision ^ 2 + 1)
+  change 2 * n * precision ^ 2 + 1 < 2 ^ maskCount n precision at h
+  omega
+
+/-- Rounding the mask count up costs at most a factor of two in the number of guesses. -/
+theorem guessCount_maskCount_le (n precision : ℕ) :
+    2 ^ maskCount n precision ≤ 4 * n * precision ^ 2 + 2 := by
+  have h := Nat.pow_log_le_self 2 (x := 2 * n * precision ^ 2 + 1) (by omega)
+  unfold maskCount
+  rw [pow_succ]
+  calc
+    _ ≤ (2 * n * precision ^ 2 + 1) * 2 := Nat.mul_le_mul_right 2 h
+    _ = _ := by ring
+
+/-- A simple polynomial upper bound also controls the base-mask count. -/
+theorem maskCount_le (n precision : ℕ) : maskCount n precision ≤ 2 * n * precision ^ 2 + 1 := by
+  have h := Nat.log_lt_self 2 (x := 2 * n * precision ^ 2 + 1) (by omega)
+  unfold maskCount
+  omega
+
+/-- The chosen count satisfies the exact real-valued inequality used by the finite reduction. -/
+theorem maskCount_sufficient (n precision : ℕ) (hp : 0 < precision) :
+    (n : ℝ) ≤ 2 * ((1 / (precision : ℝ)) / 2) ^ 2 *
+      (2 ^ maskCount n precision - 1 : ℕ) := by
+  have h := subsetCount_maskCount_ge n precision
+  have hreal : 2 * (n : ℝ) * (precision : ℝ) ^ 2 ≤
+      (2 ^ maskCount n precision - 1 : ℕ) := by exact_mod_cast h
+  have hpReal : (0 : ℝ) < precision := by exact_mod_cast hp
+  have heq : 2 * ((1 / (precision : ℝ)) / 2) ^ 2 *
+      (2 ^ maskCount n precision - 1 : ℕ) =
+      (2 ^ maskCount n precision - 1 : ℕ) / (2 * (precision : ℝ) ^ 2) := by
+    field_simp
+  rw [heq, le_div_iff₀ (by positivity)]
+  nlinarith
+
+/-- The same inverter bounds all prediction biases, with an additive error of `1 / precision`.
+When the actual bias exceeds that error, the recovery bound applies to the actual bias itself. -/
+theorem invertSigned_advantage_le {n : ℕ} {Coins : Type*} [Finite Coins]
+    (f : BitString n → BitString n)
+    (predictor : BitString n → Coins → BitString n → Bool)
+    (coins : PMF Coins) (precision : ℕ) (hp : 0 < precision) :
+    |(predictionExperiment f predictor coins true).toReal - 1 / 2| ≤
+      1 / (precision : ℝ) +
+        8 * (inversionExperiment f
+          (invertSigned f predictor coins (maskCount n precision)) true).toReal := by
+  let bias := |(predictionExperiment f predictor coins true).toReal - 1 / 2|
+  have hpReal : (0 : ℝ) < precision := by exact_mod_cast hp
+  have hsuccess : 0 ≤ (inversionExperiment f
+      (invertSigned f predictor coins (maskCount n precision)) true).toReal :=
+    ENNReal.toReal_nonneg
+  by_cases h : 1 / (precision : ℝ) ≤ bias
+  · have hb : 0 < bias := lt_of_lt_of_le (by positivity) h
+    have hsize : (n : ℝ) ≤
+        2 * (bias / 2) ^ 2 * (2 ^ maskCount n precision - 1 : ℕ) := by
+      apply (maskCount_sufficient n precision hp).trans
+      gcongr
+    have hi := invertSigned_success_ge f predictor coins bias hb
+      (maskCount_pos n precision) le_rfl hsize
+    change bias ≤ _
+    linarith [one_div_pos.mpr hpReal]
+  · change bias ≤ _
+    linarith
+
+/-- A fixed degree selects an inverse-polynomial accuracy for every input length. -/
+def precision (degree n : ℕ) : ℕ := (n + 1) ^ degree
+
+/-- The precision denominator never vanishes. -/
+theorem precision_pos (degree n : ℕ) : 0 < precision degree n := by
+  simp [precision]
+
+/-- Enumerating the guesses uses a polynomial-size list at any fixed precision degree. -/
+theorem guessCount_polynomial (degree : ℕ) :
+    PolynomiallyBounded (fun n => 2 ^ maskCount n (precision degree n)) := by
+  have hp : PolynomiallyBounded (precision degree) :=
+    (PolynomiallyBounded.id.add (PolynomiallyBounded.const 1)).pow degree
+  exact (((PolynomiallyBounded.const 4).mul PolynomiallyBounded.id).mul (hp.pow 2)
+    |>.add (PolynomiallyBounded.const 2)).mono (fun n => guessCount_maskCount_le n _)
+
+/-- Storing all base masks uses polynomially many bits at any fixed precision degree. -/
+theorem randomMaskBits_polynomial (degree : ℕ) :
+    PolynomiallyBounded (fun n => n * maskCount n (precision degree n)) := by
+  have hp : PolynomiallyBounded (precision degree) :=
+    (PolynomiallyBounded.id.add (PolynomiallyBounded.const 1)).pow degree
+  apply PolynomiallyBounded.id.mul
+  exact (((PolynomiallyBounded.const 2).mul PolynomiallyBounded.id).mul (hp.pow 2)
+    |>.add (PolynomiallyBounded.const 1)).mono (fun n => maskCount_le n _)
+
+
+/-- If every fixed-precision inverter has negligible success, prediction bias is negligible.
+For each power, multiply the pointwise reduction by that power of the parameter. The precision
+term is at most one and the inversion term tends to zero, giving superpolynomial decay. -/
+theorem negligible_prediction_of_negligible_inversion
+    {Coins : ℕ → Type*} [∀ n, Finite (Coins n)]
+    (f : (n : ℕ) → BitString n → BitString n)
+    (predictor : (n : ℕ) → BitString n → Coins n → BitString n → Bool)
+    (coins : (n : ℕ) → PMF (Coins n))
+    (hinversion : ∀ degree, Negligible (fun n =>
+      (inversionExperiment (f n)
+        (invertSigned (f n) (predictor n) (coins n)
+          (maskCount n (precision degree n))) true).toReal)) :
+    Negligible (fun n =>
+      |(predictionExperiment (f n) (predictor n) (coins n) true).toReal - 1 / 2|) := by
+  apply (Asymptotics.superpolynomialDecay_iff_abs_isBoundedUnder _
+    tendsto_natCast_atTop_atTop).mpr
+  intro degree
+  refine ⟨9, Filter.eventually_map.mpr ?_⟩
+  filter_upwards [(hinversion degree degree).eventually_lt_const (by norm_num : (0 : ℝ) < 1)]
+    with n hsmall
+  rw [abs_of_nonneg (mul_nonneg (pow_nonneg (Nat.cast_nonneg n) _) (abs_nonneg _))]
+  have h := mul_le_mul_of_nonneg_left
+    (invertSigned_advantage_le (f n) (predictor n) (coins n)
+      (precision degree n) (precision_pos degree n))
+    (pow_nonneg (Nat.cast_nonneg n : (0 : ℝ) ≤ n) degree)
+  have hprecision : (n : ℝ) ^ degree * (1 / (precision degree n : ℝ)) ≤ 1 := by
+    rw [mul_one_div, div_le_one (by exact_mod_cast precision_pos degree n)]
+    simp only [precision, Nat.cast_pow, Nat.cast_add, Nat.cast_one]
+    gcongr
+    linarith
+  nlinarith
+
+end Cslib.Crypto.GoldreichLevin

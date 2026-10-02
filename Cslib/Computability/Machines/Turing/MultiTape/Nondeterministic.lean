@@ -1,14 +1,14 @@
 /-
 Copyright (c) 2026 Aviv Bar Natan. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Aviv Bar Natan
+Authors: Aviv Bar Natan, Samuel Schlesinger
 -/
 
 module
 
 public import Mathlib.Algebra.BigOperators.Group.Finset.Defs
 public import Mathlib.Order.RelSeries
-public import Cslib.Computability.Machines.Turing.MultiTape.Configuration
+public import Cslib.Computability.Machines.Turing.MultiTape.Machine
 
 /-!
 # Nondeterministic Multi-Tape Turing Machines
@@ -56,19 +56,45 @@ variable {k : ℕ} {State Symbol : Type*} {input : List Symbol}
 /--
 A nondeterministic multi-tape Turing machine with `k` work tapes over the alphabet of
 `Option Symbol` (where `none` is the blank symbol). Neither `Symbol` nor `State` is required to be
-finite.
+finite. This is the common machine core with an empty oracle-operation type and relational choice.
 -/
-structure MultiTapeNTM (k : ℕ) (Symbol State : Type*) where
-  /-- initial state -/
-  q₀ : State
-  /-- transition relation: which combinations of state, current input symbol, tuple of work head
-  symbols and resulting actions are valid transitions -/
-  Tr (q : State) (input : Option Symbol) (work : Fin k → Option Symbol)
-    (action : Action k Symbol State) : Prop
+abbrev MultiTapeNTM (k : ℕ) (Symbol State : Type*) :=
+  MultiTapeMachine k Symbol State Empty Set
 
 namespace MultiTapeNTM
 
 variable {ntm : MultiTapeNTM k Symbol State}
+
+/-- Construct an oracle-free nondeterministic machine from an ordinary transition relation. -/
+def mk (q₀ : State) (Tr : State → Option Symbol → (Fin k → Option Symbol) →
+    Action k Symbol State → Prop) : MultiTapeNTM k Symbol State where
+  initial := q₀
+  tr q symbol work _ action :=
+    Tr q symbol work (MultiTapeMachine.emptyActionEquiv k Symbol State action)
+
+/-- The initial state, in the ordinary NTM interface. -/
+def q₀ (ntm : MultiTapeNTM k Symbol State) : State := ntm.initial
+
+/-- The permitted ordinary actions. Empty oracle observations carry no additional information. -/
+def Tr (ntm : MultiTapeNTM k Symbol State) (q : State) (symbol : Option Symbol)
+    (work : Fin k → Option Symbol) (action : Action k Symbol State) : Prop :=
+  ntm.tr q symbol work Empty.elim
+    ((MultiTapeMachine.emptyActionEquiv k Symbol State).symm action)
+
+@[simp] theorem tr_mk (q₀ q : State) (Tr : State → Option Symbol → (Fin k → Option Symbol) →
+    Action k Symbol State → Prop) (symbol : Option Symbol) (work : Fin k → Option Symbol)
+    (action : Action k Symbol State) :
+    (mk q₀ Tr).Tr q symbol work action ↔ Tr q symbol work action := Iff.rfl
+
+/-- The ordinary NTM interface describes every machine in the empty-oracle specialization. -/
+theorem mk_q₀_Tr (ntm : MultiTapeNTM k Symbol State) : mk ntm.q₀ ntm.Tr = ntm := by
+  cases ntm with
+  | mk initial tr =>
+    simp only [mk, q₀, Tr, Equiv.symm_apply_apply]
+    congr 1
+    funext q symbol work answer
+    have hanswer : answer = Empty.elim := funext fun oracle => oracle.elim
+    rw [hanswer]
 
 /-- The one-step relation on configurations. A halted configuration steps to itself; a running one
 steps by any permitted transition. -/

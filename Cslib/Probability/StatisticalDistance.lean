@@ -6,7 +6,7 @@ Authors: Samuel Schlesinger
 
 module
 
-public import Cslib.Init
+public import Cslib.Probability.PMF
 public import Mathlib.Probability.ProbabilityMassFunction.Constructions
 public import Mathlib.Topology.MetricSpace.Defs
 
@@ -62,20 +62,6 @@ open scoped NNReal
 universe u v
 
 variable {α : Type u} {β : Type v}
-
-private theorem sum_toReal [Fintype α] (p : PMF α) :
-    ∑ a, (p a).toReal = 1 := by
-  rw [← ENNReal.toReal_one, ← p.tsum_coe, tsum_fintype,
-    ENNReal.toReal_sum fun a _ => p.apply_ne_top a]
-
-private theorem bind_apply_toReal [Fintype α] (p : PMF α)
-    (kernel : α → PMF β) (b : β) :
-    (p.bind kernel b).toReal =
-      ∑ a, (p a).toReal * (kernel a b).toReal := by
-  rw [PMF.bind_apply, tsum_fintype,
-    ENNReal.toReal_sum fun a _ =>
-      ENNReal.mul_ne_top (p.apply_ne_top a) ((kernel a).apply_ne_top b)]
-  simp
 
 /-- Statistical distance makes the PMFs on a finite type a metric space
 ([BonehShoup2023], Definition 3.5). -/

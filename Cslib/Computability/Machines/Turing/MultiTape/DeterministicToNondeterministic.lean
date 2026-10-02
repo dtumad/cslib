@@ -34,9 +34,8 @@ namespace Turing
 variable {k : ℕ} {State Symbol : Type*} {input : List Symbol}
 
 /-- Every deterministic machine is a nondeterministic one whose relation is a singleton. -/
-def MultiTapeTM.toNTM (tm : MultiTapeTM k Symbol State) : MultiTapeNTM k Symbol State where
-  q₀ := tm.q₀
-  Tr q input work action := action = tm.tr q input work
+def MultiTapeTM.toNTM (tm : MultiTapeTM k Symbol State) : MultiTapeNTM k Symbol State :=
+  MultiTapeNTM.mk tm.q₀ fun q input work action => action = tm.tr q input work
 
 namespace MultiTapeTM
 

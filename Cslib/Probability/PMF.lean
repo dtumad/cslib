@@ -28,6 +28,7 @@ the Mathlib module instead.
 - `Cslib.Probability.PMF.bind_pair_tsum_fst`: marginalizing over the first component
 - `Cslib.Probability.PMF.uniformOfFintype_map_equiv`:
   a uniform distribution is invariant under equivalence
+- `Cslib.Probability.PMF.uniformOfFintype_prod`: a uniform pair is two independent uniform samples
 - `Cslib.Probability.PMF.posteriorDist`: the posterior as a `PMF`
 - `Cslib.Probability.PMF.posteriorDist_eq_prior_of_outputIndist`:
   if the output distribution does not depend on the input, conditioning does
@@ -42,6 +43,34 @@ open ENNReal
 
 universe u v
 variable {α : Type u} {β : Type v}
+
+/-- The real-valued probabilities of a finite distribution sum to one. -/
+theorem sum_toReal [Fintype α] (p : PMF α) :
+    ∑ a, (p a).toReal = 1 := by
+  rw [← ENNReal.toReal_one, ← p.tsum_coe, tsum_fintype,
+    ENNReal.toReal_sum fun a _ => p.apply_ne_top a]
+
+/-- The probability of an outcome after a finite random choice is its weighted average. -/
+theorem bind_apply_toReal [Fintype α] (p : PMF α)
+    (kernel : α → PMF β) (b : β) :
+    (p.bind kernel b).toReal =
+      ∑ a, (p a).toReal * (kernel a b).toReal := by
+  rw [PMF.bind_apply, tsum_fintype,
+    ENNReal.toReal_sum fun a _ =>
+      ENNReal.mul_ne_top (p.apply_ne_top a) ((kernel a).apply_ne_top b)]
+  simp
+
+/-- A continuation only needs to agree on outcomes which the preceding distribution can produce. -/
+theorem bind_congr_on_support (p : PMF α) (f g : α → PMF β)
+    (h : ∀ a ∈ p.support, f a = g a) : p.bind f = p.bind g := by
+  ext b
+  simp only [PMF.bind_apply]
+  apply tsum_congr
+  intro a
+  by_cases ha : a ∈ p.support
+  · rw [h a ha]
+  · have hz : p a = 0 := by simpa only [PMF.mem_support_iff, not_not] using ha
+    simp [hz]
 
 /-- Evaluating the "pairing" bind `(do let a ← p; return (a, ← f a))` at `(a, b)`
 gives the product `p a * f a b`. -/
@@ -67,6 +96,15 @@ theorem uniformOfFintype_map_equiv {γ : Type v} [Fintype α] [Fintype γ] [None
   rw [PMF.map_apply, tsum_eq_single (e.symm c)]
   · simp [Fintype.card_congr e]
   · exact fun a ha => ite_eq_right fun h => ha (by simp [h])
+
+/-- A uniform pair consists of two independent uniform samples. -/
+theorem uniformOfFintype_prod [Fintype α] [Fintype β] [Nonempty α] [Nonempty β] :
+    PMF.uniformOfFintype (α × β) = (PMF.uniformOfFintype α).bind
+      (fun a => (PMF.uniformOfFintype β).map (fun b => (a, b))) := by
+  ext ⟨a, b⟩
+  simp only [PMF.map, Function.comp_def, bind_pair_apply, PMF.uniformOfFintype_apply,
+    Fintype.card_prod, Nat.cast_mul]
+  rw [ENNReal.mul_inv] <;> simp
 
 /-- The posterior distribution `Pr[A = a | B = b]` as a `PMF`,
 given `a ← p`, `b ← f a`, and that `b` has positive marginal probability:
