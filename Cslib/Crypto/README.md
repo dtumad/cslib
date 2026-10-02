@@ -23,6 +23,9 @@ To this end, we expect to leverage the combination of `Crypto` and [Languages](.
 
 ### Computational security
 
+For a guided introduction, proof roadmap, and small Lean examples, start with the
+[computational cryptography guide](Computational/README.md).
+
 [`Computational`](Computational) provides definitions of one-way functions and permutations,
 pseudorandom generators,
 and pseudorandom functions, following Arora and Barak, Boneh and Shoup, and Goldreich, Goldwasser,
