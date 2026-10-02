@@ -45,9 +45,25 @@ noncomputable def inversionGame (f : Word → Word) (adversary : Inverter) (n : 
 
 /-- A polynomial-time computable function that every uniform PPT inverter fails to invert,
 except with negligible probability over the uniform input and the inverter's random coins. -/
-def OneWay (f : Word → Word) : Prop :=
-  IsPolyTime id f ∧ ∀ adversary : Inverter, IsPPT wordEncoding adversary →
-    Negligible (fun n => winProbability (inversionGame f adversary n))
+structure OneWay (f : Word → Word) : Prop where
+  /-- A single deterministic polynomial-time algorithm evaluates the function. -/
+  polyTime : IsPolyTime id f
+  /-- Inversion is indistinguishable from certain failure in the common game calculus. -/
+  secure : Game.Secure (fun adversary n => ProbComp.eval (inversionGame f adversary n))
+    (fun _ _ => PMF.pure false) (IsPPT wordEncoding)
+
+/-- The common security definition gives the usual negligible inversion probability. -/
+theorem OneWay.inversion_negligible {f : Word → Word} (h : OneWay f)
+    (adversary : Inverter) (hPPT : IsPPT wordEncoding adversary) :
+    Negligible (fun n => winProbability (inversionGame f adversary n)) := by
+  simpa only [Game.advantage_pure_false, winProbability] using h.secure adversary hPPT
+
+/-- Establish one-wayness by bounding every efficient inverter's success probability. -/
+theorem OneWay.of_inversion_negligible {f : Word → Word} (hf : IsPolyTime id f)
+    (h : ∀ adversary : Inverter, IsPPT wordEncoding adversary →
+      Negligible (fun n => winProbability (inversionGame f adversary n))) : OneWay f := by
+  refine ⟨hf, fun adversary hPPT => ?_⟩
+  simpa only [Game.advantage_pure_false, winProbability] using h adversary hPPT
 
 /-- A length-preserving permutation that is one-way against every uniform PPT inverter. -/
 structure OneWayPermutation (f : Word → Word) : Prop where
@@ -102,10 +118,11 @@ theorem not_oneWay_of_inverse (f inverse : Word → Word)
     (hPPT : IsPPT wordEncoding (fun _ y => pure (inverse y)))
     (hinv : ∀ x, f (inverse (f x)) = f x) : ¬ OneWay f := by
   intro h
-  have hnegl := h.2 _ hPPT
+  have hnegl := h.inversion_negligible _ hPPT
   apply not_negligible_const (c := 1) one_ne_zero
-  simpa only [winProbability, eval_inversionGame_of_rightInverse f inverse hinv,
-    PMF.pure_apply_self, ENNReal.toReal_one] using hnegl
+  simpa only [winProbability, Game.winProbability,
+    eval_inversionGame_of_rightInverse f inverse hinv, PMF.pure_apply_self,
+    ENNReal.toReal_one] using hnegl
 
 /-- Constant functions are not one-way: the empty word is always a preimage. -/
 theorem not_oneWay_const (word : Word) : ¬ OneWay (fun _ => word) :=

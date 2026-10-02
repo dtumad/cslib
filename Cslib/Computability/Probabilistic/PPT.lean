@@ -36,6 +36,9 @@ any finite control type; an enumeration by `Fin` is supplied internally. The PPT
 the length of every supported output, including in the presence of arbitrary oracle states.
 `IsPPTOn` exposes the input encoding for typed program composition; `IsPPT` specializes it to the
 usual unary security parameter and auxiliary input, via `isPPT_iff_on`.
+`Cslib.Computability.Probabilistic.Oracle` gives the multi-operation `IsOraclePPTOn` contract and
+its proved equivalence with the single-operation `IsOraclePPT` specialization. Typed request and
+reply representations are certified in `Cslib.Computability.Probabilistic.OracleEncoding`.
 
 These are semantic predicates; this module does not supply an automatic compiler or closure
 theorems for arbitrary high-level compositions. Uniform bit sampling is certified separately in
@@ -133,19 +136,12 @@ def IsPPTOn {α β : Type} (input : α → Word) (output : β ↪ Word)
 /-- A uniform PPT realization of a family of closed probabilistic programs. Supplying only an
 empty-answer oracle to the machine provides no external computational power. -/
 def IsPPT {α : Type} (encode : α ↪ Word) (program : ℕ → Word → ProbComp α) : Prop :=
-  ∃ (k states : ℕ) (machine : Turing.OracleTM k (Fin states)) (c d : ℕ),
-    ∀ security input,
-      (ProbComp.eval (program security input)).map encode =
-        OracleComp.eval (fun _ => PMF.pure [])
-          (machine.run (c * ((parameterInput security input).length + 1) ^ d)
-            (parameterInput security input))
+  IsPPTOn parameterEncoding encode (fun pair => program pair.1 pair.2)
 
 /-- The cryptographic interface is the encoded-input contract with a unary security parameter. -/
 theorem isPPT_iff_on {α : Type} {encode : α ↪ Word} {program : ℕ → Word → ProbComp α} :
     IsPPT encode program ↔
-      IsPPTOn parameterEncoding encode (fun pair => program pair.1 pair.2) := by
-  simp only [IsPPT, IsPPTOn, Prod.forall, parameterEncoding]
-  rfl
+      IsPPTOn parameterEncoding encode (fun pair => program pair.1 pair.2) := Iff.rfl
 
 /-- Expose the input encoding of a cryptographic PPT certificate. -/
 theorem IsPPT.on {α : Type} {encode : α ↪ Word} {program : ℕ → Word → ProbComp α}
@@ -315,8 +311,8 @@ theorem IsPPT.map_bool {program : ℕ → Word → ProbComp Bool}
     IsPPT boolEncoding (fun n input => f <$> program n input) := by
   obtain ⟨k, states, machine, c, d, h⟩ := h
   refine ⟨k, states, machine.mapOutput f, c, d, ?_⟩
-  intro n input
-  rw [Turing.OracleTM.run_mapOutput, OracleComp.eval_map, ← h n input]
+  intro pair
+  rw [Turing.OracleTM.run_mapOutput, OracleComp.eval_map, ← h pair]
   simp [ProbComp.eval_map, PMF.map_comp, Function.comp_def, boolEncoding]
 
 /-- Boolean postprocessing preserves oracle PPT and the final state of every oracle. -/
@@ -350,14 +346,14 @@ def returnBitMachine (bit : Bool) : Turing.OracleTM 0 (Fin 1) :=
 /-- The empty output has a zero-step PPT realization. -/
 theorem isPPT_empty : IsPPT wordEncoding (fun _ _ => pure []) := by
   refine ⟨0, 1, returnBitMachine false, 0, 0, ?_⟩
-  intro n x
+  intro pair
   simp [Turing.OracleTM.run, Turing.OracleTM.initialConfig,
     wordEncoding, PMF.pure_map]
 
 /-- A constant Boolean program has a one-step PPT realization. -/
 theorem isPPT_const_bool (bit : Bool) : IsPPT boolEncoding (fun _ _ => pure bit) := by
   refine ⟨0, 1, returnBitMachine bit, 1, 0, ?_⟩
-  intro n x
+  intro pair
   simp [Turing.OracleTM.run, Turing.OracleTM.runFrom_succ,
     Turing.OracleTM.initialConfig,
     returnBitMachine, Turing.OracleTM.Config.step, Turing.Action.apply, OracleComp.uniform,

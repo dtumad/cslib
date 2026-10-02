@@ -148,12 +148,12 @@ theorem isOraclePPT_sampleBits :
 /-- Sampling a uniform binary string is PPT under the fair-coin machine definition. -/
 theorem isPPT_sampleBits : IsPPT wordEncoding (fun n _ => OracleComp.sampleBits n) := by
   refine ⟨0, 1, uniformBitsMachine, 1, 1, ?_⟩
-  intro n input
+  rintro ⟨n, input⟩
   have h := congrArg (PMF.map Prod.fst) (runState_uniformBitsMachine
     (fun _ (s : Unit) => (PMF.pure ([] : Word)).map (fun a => (a, s))) n input
-      (1 * ((parameterInput n input).length + 1) ^ 1) (by simp; omega) ())
+      (1 * ((parameterInput n input).length + 1) ^ 1) (by simp; lia) ())
   rw [OracleComp.runState_stateless] at h
-  simpa [ProbComp.eval, OracleComp.eval_sampleBits, wordEncoding, PMF.map,
+  simpa [ProbComp.eval, OracleComp.eval_sampleBits, wordEncoding, parameterEncoding, PMF.map,
     Function.comp_def] using h.symm
 
 /-- An abstract uniform sample has the same PPT realization as the fair-bit program. -/

@@ -6,8 +6,10 @@ Authors: Samuel Schlesinger
 
 module
 
-public import Cslib.Crypto.Computational.Basic
 public import Cslib.Probability.BitString
+public import Cslib.Computability.Probabilistic.Encoding
+public import Cslib.Foundations.Data.BitString
+public import Cslib.Crypto.Game
 
 /-!
 # Pseudorandom functions
@@ -35,25 +37,8 @@ namespace Cslib.Crypto
 
 open Probability
 
-/-- Fixed-width binary words, used to describe the finite ideal function space. -/
-abbrev Bits (n : ℕ) := Fin n → Bool
-
 /-- An adaptive oracle distinguisher, with an optional auxiliary input. -/
 abbrev OracleDistinguisher := ℕ → Word → OracleComp Word (fun _ => Word) Bool
-
-/-- Encode a pair by prefixing the unary length of the first word. -/
-def encodePair (pair : Word × Word) : Word :=
-  parameterInput pair.1.length (pair.1 ++ pair.2)
-
-/-- The evaluator's input encoding loses neither the key nor the query. -/
-theorem encodePair_injective : Function.Injective encodePair := by
-  intro ⟨key, query⟩ ⟨key', query'⟩ h
-  obtain ⟨hlen, hwords⟩ := parameterInput_inj.mp h
-  have hk : key = key' := by
-    have ht := congrArg (List.take key.length) hwords
-    simpa [hlen] using ht
-  subst key'
-  exact Prod.ext rfl (by simpa using hwords)
 
 /-- The keyed oracle rejects queries outside the `n`-bit domain. -/
 def prfOracle (family : Word → Word → Word) (n : ℕ) (key query : Word) : Word :=
@@ -61,7 +46,7 @@ def prfOracle (family : Word → Word → Word) (n : ℕ) (key query : Word) : W
 
 /-- A single fixed random table, extended to malformed queries by the same rejection convention
 as the real oracle. Reading with `getD` is used only under the exact-length guard. -/
-def randomFunctionOracle (n : ℕ) (table : Bits n → Bits n) (query : Word) : Word :=
+def randomFunctionOracle (n : ℕ) (table : BitString n → BitString n) (query : Word) : Word :=
   if query.length = n then List.ofFn (table (fun i => query[i.val]?.getD false)) else []
 
 /-- Sample one key and use it for all calls made by the adversary. -/
@@ -72,15 +57,18 @@ noncomputable def prfRealGame (family : Word → Word → Word) (adversary : Ora
 
 /-- Sample one uniformly random function, retaining it across adaptive and repeated calls. -/
 noncomputable def prfIdealGame (adversary : OracleDistinguisher) (n : ℕ) : ProbComp Bool := do
-  let table ← OracleComp.uniform (Bits n → Bits n)
+  let table ← OracleComp.uniform (BitString n → BitString n)
   OracleComp.simulate (fun query => pure (randomFunctionOracle n table query)) (adversary n [])
 
 /-- A polynomial-time evaluable keyed family indistinguishable from a random function by every
 uniform oracle PPT adversary. This interface has `n`-bit keys, inputs and outputs. -/
-def PseudorandomFunction (family : Word → Word → Word) : Prop :=
-  IsPolyTime encodePair (fun pair => family pair.1 pair.2) ∧
-  (∀ key query, query.length = key.length → (family key query).length = key.length) ∧
-  ∀ adversary : OracleDistinguisher, IsOraclePPT boolEncoding adversary →
-    Negligible (fun n => advantage (prfRealGame family adversary n) (prfIdealGame adversary n))
+structure PseudorandomFunction (family : Word → Word → Word) : Prop where
+  /-- The shared pair encoding supplies the key and query to one efficient evaluator. -/
+  polyTime : IsPolyTime (pairEncoding wordEncoding wordEncoding) (fun pair => family pair.1 pair.2)
+  /-- Valid queries receive answers of the declared length. -/
+  length_eq : ∀ key query, query.length = key.length → (family key query).length = key.length
+  /-- The real and ideal oracle experiments use the common game security calculus. -/
+  secure : Game.Secure (fun adversary n => ProbComp.eval (prfRealGame family adversary n))
+    (fun adversary n => ProbComp.eval (prfIdealGame adversary n)) (IsOraclePPT boolEncoding)
 
 end Cslib.Crypto

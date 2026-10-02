@@ -9,6 +9,7 @@ module
 public import Cslib.Computability.Probabilistic.Output
 public import Cslib.Crypto.Computational.Hybrid
 public import Cslib.Crypto.Computational.GoldreichLevin.HardCore
+public import Cslib.Crypto.Computational.Statistical
 
 /-!
 # A small computational cryptography walkthrough
@@ -105,7 +106,24 @@ theorem generatorExperiment_eq (generator : Word → Word) (adversary : Distingu
     ProbComp.eval (generatorExperiment generator adversary n) =
       ProbComp.eval (prgRealGame generator adversary n) := by
   simp [generatorExperiment, randomSeed_distribution, prgRealGame, distinguishingGame,
-    generatorEnsemble, PMF.bind_map, Function.comp_def]
+    generatorEnsemble, PRG.Generator.outputDist, PMF.bind_map, Function.comp_def]
+
+/-- A fixed leading bit is insecure: an efficient first-bit test has constant advantage.
+This uses the shared semantic security field and a program-based PPT certificate. -/
+theorem fixedBit_is_insecure :
+    ¬ PseudorandomGenerator (fun seed => false :: seed) (fun n => n + 1) := by
+  intro h
+  let test : ℕ → Word → PMF Bool := fun _ word => PMF.pure (word.headD false)
+  have hPPT : IsPPTTest test := by
+    apply (isPPTTest_eval (adversary := fun _ word => pure (word.headD false))).mpr
+    ppt
+  have hnegl := h.secure test hPPT
+  apply not_negligible_const (c := 1 / 2) (by norm_num)
+  convert hnegl using 1
+  funext n
+  simp [test, Game.advantage, Game.winProbability, PRG.Generator.realExperiment,
+    PRG.Generator.idealExperiment, PRG.Generator.outputDist, uniformBits_succ,
+    PMF.bind_map, PMF.bind_bind, Function.comp_def, PMF.bind_const, PMF.uniformOfFintype_apply]
 
 /-- The ideal side of the one-bit construction uses a fresh bit independent of the seed. -/
 def idealPermutationOutput (f : Word → Word) (n : ℕ) : ProbComp Word := do
@@ -213,6 +231,13 @@ theorem quadratic_hybrid (games : ℕ → ℕ → ProbComp Bool) (ε : ℕ → �
     (hstep : ∀ n i, i < n ^ 2 → advantage (games n i) (games n (i + 1)) ≤ ε n) :
     Negligible (fun n => advantage (games n 0) (games n (n ^ 2))) :=
   negligible_hybrid (PolynomiallyBounded.id.pow 2) hε hε₀ hstep
+
+/-- A statistical approximation and a computational reduction compose in the same game proof. -/
+theorem statistical_then_computational (real approximate ideal : ℕ → PMF Word)
+    (happrox : StatisticallyIndistinguishable real approximate)
+    (hsecure : ComputationallyIndistinguishable approximate ideal) :
+    ComputationallyIndistinguishable real ideal :=
+  happrox.computationallyIndistinguishable.trans hsecure
 
 /-- PRG challenge lengths meet the convention needed for time polynomial in the parameter. -/
 example (generator : Word → Word) (size : ℕ → ℕ)

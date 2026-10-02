@@ -31,7 +31,7 @@ def coinMachine : Turing.OracleTM 0 (Fin 1) :=
 
 example : IsPPT boolEncoding (fun _ _ => OracleComp.uniform Bool) := by
   refine ⟨0, 1, coinMachine, 1, 0, ?_⟩
-  intro n x
+  intro pair
   simp [Turing.OracleTM.run, Turing.OracleTM.runFrom_succ,
     Turing.OracleTM.initialConfig, Turing.OracleTM.initial_mk, Turing.OracleTM.transition_mk,
     coinMachine, Turing.OracleTM.Config.step, Turing.Action.apply, OracleComp.uniform,
@@ -153,11 +153,11 @@ def repeatQuery : OracleDistinguisher := fun n _ => do
 
 example (family : Word → Word → Word) (n : ℕ) :
     ProbComp.eval (prfRealGame family repeatQuery n) = PMF.pure true := by
-  simp [prfRealGame, repeatQuery, ProbComp.eval, OracleComp.eval_simulate, PMF.map,
+  simp [prfRealGame, repeatQuery, ProbComp.eval, PMF.map,
     Function.comp_def]
 
 example (n : ℕ) : ProbComp.eval (prfIdealGame repeatQuery n) = PMF.pure true := by
-  simp [prfIdealGame, repeatQuery, ProbComp.eval, OracleComp.eval_simulate, OracleComp.uniform,
+  simp [prfIdealGame, repeatQuery, ProbComp.eval, OracleComp.uniform,
     PMF.map, Function.comp_def]
 
 /-- Fresh independent answers pass the repeated-query test with probability one half. -/

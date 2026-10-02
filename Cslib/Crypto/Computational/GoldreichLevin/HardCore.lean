@@ -137,7 +137,7 @@ PPT reductions handle even and odd seed lengths; no length-dependent adversary i
 theorem padded_hardCore {f : Word → Word} (hf : OneWay f)
     (hlen : ∀ word, (f word).length = word.length) :
     HardCore (paddedFunction f) paddedPredicate := by
-  refine ⟨paddedPredicate_isPolyTime, ?_⟩
+  apply HardCore.of_unpredictable paddedPredicate_isPolyTime
   intro adversary hPPT
   have heven := negligible_parityPrediction hf hlen _ (paddedPredictor_isPPT hPPT 0)
   have hodd := negligible_parityPrediction hf hlen _ (paddedPredictor_isPPT hPPT 1)
@@ -169,7 +169,7 @@ theorem OneWayPermutation.pseudorandomGenerator {f : Probability.Word → Probab
     (hf : OneWayPermutation f) :
     PseudorandomGenerator (generator f) (fun n => n + 1) :=
   (padded_hardCore hf.oneWay hf.length_eq).pseudorandomGenerator
-    (paddedFunction_isPolyTime hf.oneWay.1) (paddedFunction_length hf.length_eq)
+    (paddedFunction_isPolyTime hf.oneWay.polyTime) (paddedFunction_length hf.length_eq)
     (paddedFunction_uniform hf)
 
 end Cslib.Crypto

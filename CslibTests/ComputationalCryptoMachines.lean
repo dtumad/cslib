@@ -13,6 +13,7 @@ public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.RestoreWork
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.TapeCall
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.UnaryRepeat
 public import Cslib.Computability.Probabilistic.Iteration
+public import Cslib.Tactic.PPT
 
 /-!
 # Checks for the shared probabilistic machine core
@@ -113,6 +114,40 @@ def twoChannelMachine : MultiTapePTM 0 Bool (Fin 3) Operation where
         output := some (answer .left == some false && answer .right == some true)
         state := none }
       (fun _ => none) (fun _ => 0)
+
+/-- The value-level program retains both answers while using the same private oracle state. -/
+def twoChannelProgram : Probability.WordOracleComp Operation Bool := do
+  let first ← OracleComp.query (.left, [])
+  let second ← OracleComp.query (.right, [])
+  return first[0]? == some false && second[0]? == some true
+
+/-- A single certificate covers all inputs and every stateful interpretation of both operations. -/
+theorem twoChannelProgram_isPPT : Probability.IsOraclePPTOn id Probability.boolEncoding
+    (fun _ : Probability.Word => twoChannelProgram) := by
+  refine ⟨inferInstance, 0, Fin 3, inferInstance, twoChannelMachine, 3, 0, ?_⟩
+  intro input State oracle s
+  simp [twoChannelProgram, MultiTapePTM.run, MultiTapePTM.runFrom, MultiTapePTM.runConfigFrom,
+    twoChannelMachine, MultiTapeMachine.initialConfig, MultiTapeMachine.Config.step,
+    MultiTapeMachine.Config.receive, MultiTapeMachine.Config.answerSymbols,
+    MultiTapeMachine.Channel.answerSymbol, Cfg.init, Action.apply, OracleComp.uniform,
+    Probability.boolEncoding, PMF.map, Function.comp_def]
+
+open Probability in
+/-- An oracle call cannot return an arbitrarily long word for free. The machine must write it. -/
+example : ¬ IsOraclePPTOn (fun _ : Unit => []) wordEncoding
+    (fun _ => (OracleComp.query (.left, []) : WordOracleComp Operation Word)) := by
+  intro h
+  obtain ⟨c, d, hbound⟩ := h.length_le
+  have hlength := hbound () Unit
+    (fun _ state => PMF.pure (List.replicate (c + 1) true, state)) () ()
+    (List.replicate (c + 1) true) (by simp)
+  simp [wordEncoding] at hlength
+
+/-- Oracle postprocessing is synthesized from the existing certificate. -/
+example : Probability.IsOraclePPTOn id Probability.boolEncoding
+    (fun _ : Probability.Word => Bool.not <$> twoChannelProgram) := by
+  have h := twoChannelProgram_isPPT
+  ppt
 
 /-- The two operations share this state; the second call observes the first call's update. -/
 noncomputable def alternating (_ : Operation × List Bool) : StateT Bool PMF (List Bool) :=
@@ -351,7 +386,7 @@ end CslibTests.ComputationalCryptoMachines.Loops
 
 /- A single-bit lazy random oracle, shared between two typed game operations. -/
 namespace CslibTests.ComputationalCryptoMachines.SharedRandomOracle
-open Cslib
+open Cslib Cslib.Probability
 
 inductive Operation where
   | hash
@@ -396,12 +431,95 @@ def experiment (message : List Bool) : Game Bool := do
   let pair : Bool × Bool ← call .hashPair (message, message)
   pure (first == pair.1 && first == pair.2)
 
+/-- Serialize a payload according to its operation. -/
+def requestWord : Query → Word
+  | ⟨.hash, message⟩ => message
+  | ⟨.hashPair, pair⟩ => pairEncoding wordEncoding wordEncoding pair
+
+/-- Typed operations use the shared word and pair encodings. Replies have fixed layouts;
+the total decoder reads a bounded number of cells even on malformed replies. -/
+def encoding : OracleEncoding Operation Query (fun query => Response query.1 query.2) where
+  request := ⟨fun q => (q.1, requestWord q), by
+    rintro ⟨op, request⟩ ⟨op', request'⟩ h
+    have hop : op = op' := congrArg Prod.fst h
+    subst op'
+    have hw := congrArg Prod.snd h
+    cases op with
+    | hash =>
+      change request = request' at hw
+      cases hw
+      rfl
+    | hashPair =>
+      have hp := (pairEncoding wordEncoding wordEncoding).injective hw
+      cases hp
+      rfl⟩
+  response q := match q with
+    | ⟨.hash, _⟩ => boolEncoding
+    | ⟨.hashPair, _⟩ => pairEncoding boolEncoding boolEncoding
+  decode q word := match q with
+    | ⟨.hash, _⟩ => word.headD false
+    | ⟨.hashPair, _⟩ => (word[1]?.getD false, word[3]?.getD false)
+  decode_response := by
+    rintro ⟨op, request⟩ answer
+    cases op <;> simp [boolEncoding, pairEncoding, List.BitPair.encode, List.BitPair.tagged]
+
+/-- A finite controller for the fixed empty-message experiment. It writes the pair delimiter
+and reads the relevant answer cells explicitly, including when replies are malformed. -/
+def experimentMachine : Turing.MultiTapePTM 0 Bool (Fin 7 × Bool) Operation where
+  initial := (0, false)
+  tr state _ _ answer _ :=
+    if state.1 = 0 then .query .hash (1, false)
+    else if state.1 = 1 then .step
+      { inputTape := 0, workTapes := Fin.elim0, output := none, state := some (2, false) }
+      (fun op => if op = .hashPair then some false else none) (fun _ => 0)
+    else if state.1 = 2 then .query .hashPair (3, false)
+    else if state.1 = 3 then .step
+      { inputTape := 0, workTapes := Fin.elim0, output := none, state := some (4, false) }
+      (fun _ => none) (fun op => if op = .hashPair then 1 else 0)
+    else if state.1 = 4 then .step
+      { inputTape := 0, workTapes := Fin.elim0, output := none
+        state := some (5, (answer .hash).getD false == (answer .hashPair).getD false) }
+      (fun _ => none) (fun op => if op = .hashPair then 1 else 0)
+    else if state.1 = 5 then .step
+      { inputTape := 0, workTapes := Fin.elim0, output := none, state := some (6, state.2) }
+      (fun _ => none) (fun op => if op = .hashPair then 1 else 0)
+    else .step
+      { inputTape := 0, workTapes := Fin.elim0
+        output := some (state.2 && (answer .hash).getD false == (answer .hashPair).getD false)
+        state := none }
+      (fun _ => none) (fun _ => 0)
+
+/-- The typed two-operation program is PPT against all word replies, with all decoding charged. -/
+theorem experiment_isPPT : encoding.IsPPTOn id boolEncoding (fun _ : Word => experiment []) := by
+  refine ⟨inferInstance, 0, Fin 7 × Bool, inferInstance, experimentMachine, 7, 0, ?_⟩
+  intro input State oracle s
+  simp [OracleEncoding.encodeProgram, experiment, call, encoding, requestWord,
+    Turing.MultiTapePTM.run, Turing.MultiTapePTM.runFrom, Turing.MultiTapePTM.runConfigFrom,
+    experimentMachine, Turing.MultiTapeMachine.initialConfig, Turing.MultiTapeMachine.Config.step,
+    Turing.MultiTapeMachine.Config.receive, Turing.MultiTapeMachine.Config.answerSymbols,
+    Turing.MultiTapeMachine.Channel.answerSymbol, Turing.Cfg.init, Turing.Action.apply,
+    OracleComp.uniform, boolEncoding, wordEncoding, pairEncoding, List.BitPair.encode,
+    List.BitPair.tagged,
+    List.headD_eq_head?_getD, List.head?_eq_getElem?, PMF.map, Function.comp_def]
+
+example : encoding.IsPPTOn id boolEncoding (fun _ : Word => Bool.not <$> experiment []) := by
+  have h := experiment_isPPT
+  ppt
+
 theorem shared_cache (message : List Bool) :
     OracleComp.runState handler (experiment message) (fun _ => none) =
       (PMF.uniformOfFintype Bool).map
         (fun answer => (true, Function.update (fun _ => none) message (some answer))) := by
   simp [experiment, call, OracleComp.runState_bind, OracleComp.runState_query,
     handler, hash, PMF.map, Function.comp_def]
+
+/-- Encoding preserves the shared lazy cache, including the calls made inside `hashPair`. -/
+example (message : Word) :
+    OracleComp.runState (encoding.encodeOracle handler)
+      (encoding.encodeProgram (experiment message))
+      (fun _ => none) = (PMF.uniformOfFintype Bool).map
+        (fun answer => (true, Function.update (fun _ => none) message (some answer))) := by
+  rw [encoding.runState_encode, shared_cache]
 end CslibTests.ComputationalCryptoMachines.SharedRandomOracle
 
 namespace CslibTests.ComputationalCryptoMachines.Transducers

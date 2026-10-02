@@ -309,7 +309,7 @@ theorem negligible_parityPrediction {f : Word → Word}
   apply negligible_prediction_of_negligible_inversion
   intro degree
   simpa only [winProbability, eval_wordInversionGame f hlen] using
-    hf.2 _ (wordInverter_isPPT hf.1 hefficient c d degree)
+    hf.inversion_negligible _ (wordInverter_isPPT hf.polyTime hefficient c d degree)
 
 
 /-- The predictor's random-tape budget is polynomial in the security parameter. -/

@@ -70,18 +70,39 @@ Cryptographic definitions live in `Cslib.Crypto`; efficiency predicates and enco
 
 | Module | Main interface |
 | --- | --- |
-| [Basic](Basic.lean) | `Negligible`, `winProbability`, `advantage`, and `ComputationallyIndistinguishable`. |
+| [Game](../Game.lean) and [Basic](Basic.lean) | Shared `Negligible`, game probabilities and advantages, `IsPPTTest`, and `ComputationallyIndistinguishable`. |
 | [Ensemble](Ensemble.lean) | Polynomial bounds on sample lengths, connecting time polynomial in parameter plus input length to time polynomial in the parameter. |
 | [Hybrid](Hybrid.lean) | Polynomially many game hops with a common negligible bound on adjacent advantages. |
+| [Statistical](Statistical.lean) | Negligible statistical distance implies computational indistinguishability, including word ensembles. |
 | [OneWay](OneWay.lean) | `OneWay`, `OneWayPermutation`, and the inversion game, which accepts any preimage. |
 | [HardCore](HardCore.lean) | `HardCore`, the prediction game, and PRG security from a hard-core predicate. |
-| [PseudorandomGenerator](PseudorandomGenerator.lean) | `PseudorandomGenerator`, its real and ideal games, and polynomial bounds on their sample lengths. |
+| [PseudorandomGenerator](PseudorandomGenerator.lean) | `PseudorandomGenerator`: efficient evaluation, length expansion, and the shared `PRG.Family.Secure` property. |
 | [PseudorandomFunction](PseudorandomFunction.lean) | `PseudorandomFunction` and adaptive oracle games with `n`-bit keys, queries, and answers. |
 
 A closed game has type `ProbComp Bool`; `winProbability` is its probability of returning `true`.
 Distinguishing advantage is the absolute difference of two acceptance probabilities. `Negligible`
 uses Mathlib's superpolynomial decay. Security quantifies over an entire uniform adversary before
 requiring its advantage to be negligible, so the negligible bound may depend on that adversary.
+
+One-wayness, hard-core security, PRG security, and PRF security all use `Game.Secure`.
+For inversion the ideal game always rejects; for prediction it returns a fair coin.
+The familiar success-probability and prediction-bias formulations remain available as
+`OneWay.inversion_negligible` and `HardCore.unpredictable`. Security records expose named
+efficiency and security fields, rather than nested conjunctions.
+
+The [semantic game calculus](../Game/Hybrid.lean) supplies symmetry, transitivity, reductions,
+polynomial losses with negligible error, and polynomial hybrid arguments independently of machines.
+[Statistical security](../Game/Statistical.lean) uses the same calculus: Boolean advantage equals
+statistical distance, and every randomized test contracts that distance. The metric works on
+arbitrary PMFs, including infinite word spaces and families whose sample type changes with `n`.
+
+PRG security uses the same [`PRG.Family.Secure`](../Primitives/PRG/Asymptotic.lean) definition as
+finite semantic generators. Its seed and ideal distributions are `uniformBits n` and
+`uniformBits (length n)`, and `IsPPTTest` supplies the uniform computational restriction.
+`PseudorandomGenerator` adds named `polyTime`, `length_eq`, and `stretch` fields to this `secure`
+field. A reduction can construct it with `PseudorandomGenerator.of_indistinguishable` and recover
+the program-based security statement with `.indistinguishable`. The equivalence is proved for all
+word ensembles, without an efficient-sampling assumption on either ensemble.
 
 For polynomial hybrid arguments, one negligible bound must cover every hop at each security
 parameter. Separate negligibility statements for each fixed hop do not suffice. The interface
@@ -121,7 +142,7 @@ The [PPT contracts](../../Computability/Probabilistic/PPT.lean) provide three en
 
 - `IsPolyTime inputEncoding f` certifies a deterministic computation returning a binary word.
 - `IsPPTOn inputEncoding outputEncoding program` supports typed inputs and results.
-- `IsPPT outputEncoding adversary` specializes to a security parameter and auxiliary word input.
+- `IsPPT outputEncoding adversary` is definitionally `IsPPTOn` with `parameterEncoding`.
 
 Use [`polytime`](../../Tactic/PolyTime.lean) for supported deterministic combinations and
 [`ppt`](../../Tactic/PPT.lean) for closed probabilistic programs. Calls to supplied algorithms
@@ -143,6 +164,9 @@ also needs this size control to yield a polynomial-time algorithm.
 arguments, with explicit bridges to word programs. Input encodings determine the size measure;
 output encodings are injective. The standard adversary input is a unary security parameter,
 a delimiter, and an auxiliary word.
+Use `pairEncoding` for pairs and `BitString` for fixed-width words; the PRF evaluator and the
+general programming interface share these representations. A checked polynomial-time equivalence
+with the former PRF pair encoding ensures this change preserves the evaluator requirement.
 
 A certificate supplies one finite-control machine and one polynomial clock for all encoded
 inputs. Time is strict polynomial time in the full encoded input length, including every choice
@@ -163,18 +187,29 @@ a polynomial-length random tape. Machine constructions underlying the programmin
 
 [`OracleComp Query Response α`](../../Languages/Probabilistic/Basic.lean) supports adaptive
 queries, dependent response types, stateful handlers, and replacing oracle calls by programs.
-Different interfaces can share one hidden state. `IsOraclePPT` requires a machine realization
-preserving the joint distribution of the result and final oracle state for every stateful handler.
+Different interfaces can share one hidden state.
+[`IsOraclePPTOn`](../../Computability/Probabilistic/Oracle.lean) certifies typed inputs and results
+with finitely many operation names and word payloads. It requires a single finite machine preserving
+the joint distribution of the result and final oracle state for every stateful handler.
 Its clock counts local computation, writing queries, and reading answers; the oracle's own work
-is external.
+is external. The existing `IsOraclePPT` interface is proved equivalent to its single-operation,
+unary-parameter specialization.
 
-The shared machine core supports finitely many operation names with word payloads. The current
-`IsOraclePPT` interface uses a single word-query interface, and `ppt` automates closed programs.
-Connecting general typed oracle interfaces to these efficiency contracts remains work to do.
+[`OracleEncoding`](../../Computability/Probabilistic/OracleEncoding.lean) handles typed queries and
+dependent response types. Its `IsPPTOn` certificate covers the translated program against every
+word handler, including malformed replies. Request construction and response decoding are thus
+charged to the machine. A round-trip theorem recovers the typed program's result and final private
+state against every typed handler. The word interface is an exact specialization.
+
+`ppt` supports these oracle certificates for machine runs and Boolean postprocessing.
+General stateful oracle sequencing still requires further machine plumbing: running an unused
+branch or clearing an unfinished query with a dummy call can change observable oracle state.
+The closed-program sequencing and conditional rules cannot simply be reused for these effects.
 
 The [PRF ideal game](PseudorandomFunction.lean) samples one random function and reuses it, so
 repeated queries agree. The [machine examples](../../../CslibTests/ComputationalCryptoMachines.lean)
-also include a small lazy-sampled oracle with shared state. A reusable random-oracle theory and
+also include a typed two-operation PPT program, a shared lazy-sampled oracle, and a check that
+encoding preserves its cache. A reusable random-oracle theory and
 an eager/lazy equivalence theorem remain future work, as do polynomial stretch amplification and
 the implication from general one-way functions to PRGs.
 
@@ -185,5 +220,5 @@ security definitions, and Goldreich–Levin with Trevisan's lecture notes for th
 [Decoding](GoldreichLevin/Decoding.lean) explains the direct-coordinate variant used here.
 The [probabilistic language](../../Languages/Probabilistic/Basic.lean) credits VCVio for the related
 separation of oracle syntax and interpretation. The [Crypto overview](../README.md) records
-machine reuse, port provenance, and further integration work, including the bridge to the
-primitive-level PRG family API.
+machine reuse and port provenance. The [semantic PRG API](../Primitives/PRG/Defs.lean) and this
+computational development share game semantics and security definitions.

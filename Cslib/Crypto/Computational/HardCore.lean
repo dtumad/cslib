@@ -57,9 +57,28 @@ noncomputable def predictionAdvantage (f : Word → Word) (predicate : Word → 
 structure HardCore (f : Word → Word) (predicate : Word → Bool) : Prop where
   /-- Computing the predicate from the seed uses a fixed polynomial-time machine. -/
   polyTime : IsPolyTime id (fun seed => [predicate seed])
-  /-- Every uniform PPT predictor has negligible absolute bias. -/
-  unpredictable : ∀ adversary : Distinguisher, IsPPT boolEncoding adversary →
-    Negligible (predictionAdvantage f predicate adversary)
+  /-- A predictor's correctness is indistinguishable from a fair coin. -/
+  secure : Game.Secure (fun adversary n => ProbComp.eval (predictionGame f predicate adversary n))
+    (fun _ _ => PMF.uniformOfFintype Bool) (IsPPT boolEncoding)
+
+/-- The shared security property gives negligible absolute prediction bias. -/
+theorem HardCore.unpredictable {f : Word → Word} {predicate : Word → Bool}
+    (h : HardCore f predicate) (adversary : Distinguisher) (hPPT : IsPPT boolEncoding adversary) :
+    Negligible (predictionAdvantage f predicate adversary) := by
+  change Negligible (fun n => |winProbability (predictionGame f predicate adversary n) - 1 / 2|)
+  simpa only [Game.advantage_uniform_bool, winProbability] using
+    h.secure adversary hPPT
+
+/-- Construct a hard-core predicate from its efficient evaluation and prediction bound. -/
+theorem HardCore.of_unpredictable {f : Word → Word} {predicate : Word → Bool}
+    (hpoly : IsPolyTime id (fun seed => [predicate seed]))
+    (h : ∀ adversary : Distinguisher, IsPPT boolEncoding adversary →
+      Negligible (predictionAdvantage f predicate adversary)) : HardCore f predicate := by
+  refine ⟨hpoly, fun adversary hPPT => ?_⟩
+  have hnegl := h adversary hPPT
+  change Negligible (fun n => |winProbability (predictionGame f predicate adversary n) - 1 / 2|)
+    at hnegl
+  simpa only [Game.advantage_uniform_bool, winProbability] using hnegl
 
 /-- Use acceptance of an appended trial bit to predict the hidden predicate. -/
 def hardCorePredictor (adversary : Distinguisher) (trial : Bool) : Distinguisher :=
@@ -99,7 +118,8 @@ private theorem real_probability (f : Word → Word) (predicate : Word → Bool)
     winProbability (prgRealGame (fun seed => f seed ++ [predicate seed]) adversary n) =
       ∑ bits : Fin n → Bool, ((PMF.uniformOfFintype (Fin n → Bool)) bits).toReal *
         winProbability (adversary n (f (List.ofFn bits) ++ [predicate (List.ofFn bits)])) := by
-  simp only [prgRealGame, distinguishingGame, generatorEnsemble, uniformBits, winProbability,
+  simp only [prgRealGame, distinguishingGame, generatorEnsemble, PRG.Generator.outputDist,
+    PRG.Generator.coe_mk, uniformBits, winProbability,
     ProbComp.eval_bind, ProbComp.eval_sample, PMF.bind_map, Function.comp_def,
     PMF.bind_apply_toReal]
 
@@ -122,7 +142,7 @@ private theorem prediction_probability (f : Word → Word) (predicate : Word →
       ∑ bits : Fin n → Bool, ((PMF.uniformOfFintype (Fin n → Bool)) bits).toReal *
         winProbability ((fun guess => guess == predicate (List.ofFn bits)) <$>
           adversary n (f (List.ofFn bits))) := by
-  simp only [predictionGame, uniformBits, winProbability, ProbComp.eval_bind,
+  simp only [predictionGame, uniformBits, winProbability, Game.winProbability, ProbComp.eval_bind,
     ProbComp.eval_sample, PMF.bind_map, Function.comp_def, ProbComp.eval_map, ProbComp.eval_pure]
   rw [PMF.bind_apply_toReal]
   rfl
@@ -148,7 +168,7 @@ theorem hardCore_advantage_le (f : Word → Word) (predicate : Word → Bool)
         (distinguishingGame (hardCoreIdeal f n) (adversary n)) ≤
       (predictionAdvantage f predicate (hardCorePredictor adversary false) n +
         predictionAdvantage f predicate (hardCorePredictor adversary true) n) / 2 := by
-  rw [advantage, hardCore_gap]
+  rw [advantage, Game.advantage, ← winProbability, ← winProbability, hardCore_gap]
   let left := winProbability (predictionGame f predicate (hardCorePredictor adversary false) n)
   let right := winProbability (predictionGame f predicate (hardCorePredictor adversary true) n)
   change |(left + right - 1) / 2| ≤ (|left - 1 / 2| + |right - 1 / 2|) / 2
@@ -191,7 +211,8 @@ theorem HardCore.pseudorandomGenerator {f : Word → Word} {predicate : Word →
     (hlen : ∀ word, (f word).length = word.length)
     (huniform : ∀ n, (uniformBits n).map f = uniformBits n) :
     PseudorandomGenerator (fun seed => f seed ++ [predicate seed]) (fun n => n + 1) := by
-  refine ⟨hf.append h.polyTime, ?_, Nat.lt_succ_self, h.indistinguishable_of_uniform huniform⟩
+  refine PseudorandomGenerator.of_indistinguishable (hf.append h.polyTime) ?_ Nat.lt_succ_self
+    (h.indistinguishable_of_uniform huniform)
   intro seed
   simp [hlen]
 
@@ -206,6 +227,6 @@ theorem OneWayPermutation.hardCore_indistinguishable {f : Word → Word}
 theorem OneWayPermutation.pseudorandomGenerator_of_hardCore {f : Word → Word}
     {predicate : Word → Bool} (hf : OneWayPermutation f) (h : HardCore f predicate) :
     PseudorandomGenerator (fun seed => f seed ++ [predicate seed]) (fun n => n + 1) :=
-  h.pseudorandomGenerator hf.oneWay.1 hf.length_eq hf.uniformBits_map
+  h.pseudorandomGenerator hf.oneWay.polyTime hf.length_eq hf.uniformBits_map
 
 end Cslib.Crypto

@@ -7,8 +7,7 @@ Authors: Samuel Schlesinger
 module
 
 public import Cslib.Crypto.Computational.Basic
-public import Cslib.Foundations.Data.Nat.PolynomialBound
-public import Mathlib.Basic.Real.Basic
+public import Cslib.Crypto.Game.Hybrid
 
 /-!
 # Polynomially many game hops
@@ -30,54 +29,24 @@ namespace Cslib.Crypto
 open Probability
 open scoped BigOperators
 
-/-- Polynomial factors preserve a nonnegative negligible bound. -/
-theorem negligible_polynomial_mul {ε : ℕ → ℝ} {p : ℕ → ℕ}
-    (hε : Negligible ε) (hε₀ : ∀ n, 0 ≤ ε n) (hp : PolynomiallyBounded p) :
-    Negligible (fun n => (p n : ℝ) * ε n) := by
-  obtain ⟨c, d, hp⟩ := hp
-  have hbound : Negligible (fun n => (c : ℝ) * ((n : ℝ) + 1) ^ d * ε n) := by
-    convert hε.polynomial_mul (Polynomial.C (c : ℝ) * (Polynomial.X + 1) ^ d) using 1
-    ext n
-    simp
-  apply negligible_of_le hbound (fun n => mul_nonneg (Nat.cast_nonneg _) (hε₀ n))
-  intro n
-  apply mul_le_mul_of_nonneg_right _ (hε₀ n)
-  exact_mod_cast hp n
-
-/-- The advantage between the endpoints is at most the sum of all adjacent advantages. -/
+/-- The advantage between program experiments is at most the sum of adjacent advantages. -/
 theorem advantage_hybrid_le_sum (games : ℕ → ProbComp Bool) (hops : ℕ) :
     advantage (games 0) (games hops) ≤
-      ∑ i ∈ Finset.range hops, advantage (games i) (games (i + 1)) := by
-  induction hops with
-  | zero => simp
-  | succ hops ih =>
-    calc
-      advantage (games 0) (games (hops + 1)) ≤
-          advantage (games 0) (games hops) + advantage (games hops) (games (hops + 1)) :=
-        advantage_triangle _ _ _
-      _ ≤ (∑ i ∈ Finset.range hops, advantage (games i) (games (i + 1))) +
-          advantage (games hops) (games (hops + 1)) := add_le_add ih le_rfl
-      _ = _ := (Finset.sum_range_succ _ _).symm
+      ∑ i ∈ Finset.range hops, advantage (games i) (games (i + 1)) :=
+  Game.advantage_hybrid_le_sum (fun i => ProbComp.eval (games i)) hops
 
-/-- A common bound on each hop gives the usual linear loss in the number of hops. -/
+/-- A common bound on each program hop gives linear loss in the number of hops. -/
 theorem advantage_hybrid_le (games : ℕ → ProbComp Bool) (hops : ℕ) (ε : ℝ)
     (hstep : ∀ i < hops, advantage (games i) (games (i + 1)) ≤ ε) :
-    advantage (games 0) (games hops) ≤ (hops : ℝ) * ε := by
-  calc
-    advantage (games 0) (games hops) ≤
-        ∑ i ∈ Finset.range hops, advantage (games i) (games (i + 1)) :=
-      advantage_hybrid_le_sum games hops
-    _ ≤ ∑ _i ∈ Finset.range hops, ε := Finset.sum_le_sum fun i hi =>
-      hstep i (Finset.mem_range.mp hi)
-    _ = _ := by simp
+    advantage (games 0) (games hops) ≤ (hops : ℝ) * ε :=
+  Game.advantage_hybrid_le (fun i => ProbComp.eval (games i)) hops ε hstep
 
-/-- Polynomially many hops with a common negligible bound have negligible total advantage. -/
+/-- Polynomially many program hops with a common negligible bound remain negligible. -/
 theorem negligible_hybrid {games : ℕ → ℕ → ProbComp Bool} {hops : ℕ → ℕ} {ε : ℕ → ℝ}
     (hpoly : PolynomiallyBounded hops) (hε : Negligible ε) (hε₀ : ∀ n, 0 ≤ ε n)
     (hstep : ∀ n i, i < hops n → advantage (games n i) (games n (i + 1)) ≤ ε n) :
     Negligible (fun n => advantage (games n 0) (games n (hops n))) :=
-  negligible_of_le (negligible_polynomial_mul hε hε₀ hpoly)
-    (fun _ => advantage_nonneg _ _) (fun n => advantage_hybrid_le _ _ _ (hstep n))
+  Game.negligible_hybrid (games := fun n i => ProbComp.eval (games n i)) hpoly hε hε₀ hstep
 
 /-- A polynomial hybrid argument for ensembles. Each distinguisher may have its own negligible
 bound, but that bound must cover all adjacent hybrids uniformly. -/

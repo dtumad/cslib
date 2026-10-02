@@ -1,5 +1,5 @@
 <pre>
-Copyright (c) 2026 Fabrizio Montesi. All rights reserved.
+Copyright (c) 2026 Fabrizio Montesi, Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 </pre>
 
@@ -18,6 +18,41 @@ Whenever appropriate, cryptographic primitives should be developed so that they 
 The aim is to build end-to-end models where cryptographic operations appear inside larger communicating or computational systems.
 
 To this end, we expect to leverage the combination of `Crypto` and [Languages](../Languages) to define and formally reason about security protocols. CSLib's common semantics APIs connecting [Languages](../Languages) and [Logics](../Logics) should enable such reasoning.
+
+## Pseudorandom generators
+
+[`Primitives/PRG`](Primitives/PRG) formalizes Boneh and Shoup's Attack Game 3.1 using
+PMFs. `Generator.Secure G Admissible ε` bounds the distinguishing advantage of every
+admissible randomized test. `Family.SecureWithError` allows a parameter-dependent error bound;
+`Family.Secure` requires negligible advantage separately for each admissible family, using
+Mathlib's `SuperpolynomialDecay`. A negligible error bound implies this asymptotic notion.
+The caller supplies `Admissible`; these definitions do not assert computational efficiency.
+The seed and ideal distributions are explicit parameters, defaulting to uniform sampling on
+finite types. This also supports distributions on words, where the ambient type is infinite.
+
+[`Game`](Game.lean) supplies acceptance probability, distinguishing advantage, and negligible
+security for Boolean experiments. The semantic PRG definitions and the computational definitions
+share this layer. [`Computational/PseudorandomGenerator`](Computational/PseudorandomGenerator.lean)
+instantiates `Family.Secure` with uniform words and `IsPPTTest`, then requires deterministic
+polynomial-time evaluation and strict length expansion. `IsPPTTest` requires one uniform machine
+for the entire test family. It is equivalent to the PPT restriction on programs interpreting
+those tests; specifying a PMF does not itself establish efficient sampling.
+
+[`Game/Hybrid`](Game/Hybrid.lean) supplies the common hybrid and reduction calculus.
+One-wayness, hard-core security, and PRF security also instantiate `Game.Secure`.
+[`Game/Statistical`](Game/Statistical.lean) identifies Boolean advantage with statistical distance
+and proves contraction under arbitrary randomized tests. This applies to PMFs on infinite word
+spaces as well as finite types. Its PRG and computational specializations reuse the same theorems;
+statistical approximation can therefore be one hop in a computational security argument.
+
+The range-membership adversary has advantage exactly `1 - |range G| / |Output|`, and hence
+at least `1 - |Seed| / |Output|`. Any non-negligible lower bound on the image gap rules out
+asymptotic security when the range-test family is admissible. The executable `rangeTest`
+requires `DecidableEq Output`. Bitstring families eventually stretching by at least one bit
+are consequently insecure against any class admitting this test, with both `Fin n → Bool`
+and `BitVec n` versions and nonexistence corollaries. Zero-error security against all tests
+is equivalent to matching the ideal distribution; with the defaults, this means exactly uniform
+output. The identity generator is a nonexpanding example.
 
 ## Plans and notes
 
@@ -48,9 +83,9 @@ The supporting layers are:
   a fixed finite-control machine. The security parameter is encoded in unary. Machine steps account
   for local computation, fair coins, query construction, and reading oracle answers; the oracle's
   own computation is external. Merely counting oracle queries is not a PPT certificate.
-- [`Computational/Basic`](Computational/Basic.lean): negligible advantages, computational
-  indistinguishability, complementing game answers, and the two-hop hybrid inequality, reusing
-  Mathlib's superpolynomial decay.
+- [`Game`](Game.lean) and [`Computational/Basic`](Computational/Basic.lean): shared negligible
+  security, computational indistinguishability, complementing game answers, and the two-hop
+  hybrid inequality, reusing Mathlib's superpolynomial decay.
 - [`Computational/OneWay`](Computational/OneWay.lean): `OneWayPermutation` combines one-wayness
   with a length-preserving bijection. Its output on a uniform seed is proved exactly uniform;
   appending an independent fair bit gives the uniform distribution at the expanded length.
@@ -229,9 +264,13 @@ efficiency merely by appearing in `do` notation. `IsPPT` requires a machine real
 There is currently no general compiler for `do` programs, unrestricted high-level PPT composition API,
 expected-time model, or simulation-equivalence theorem with other machine models. Exact sampling from non-dyadic
 distributions may require a different runtime convention or bounded sampling with failure.
-The general machine core supports multiple operations; the current `IsOraclePPT` interface still
-uses the compact single-operation presentation. Typed interface encodings and a general
-multi-operation PPT interface remain to be connected to it.
+[`IsOraclePPTOn`](../Computability/Probabilistic/Oracle.lean) connects multiple finite operation
+names to the common machine core, with arbitrary word payloads and shared private state.
+The single-operation `IsOraclePPT` contract is proved equivalent to its unary-parameter
+specialization. [`OracleEncoding`](../Computability/Probabilistic/OracleEncoding.lean) adds typed
+queries and dependent replies. Its certificate includes request construction and response
+decoding against every word handler, including malformed replies. Encoding preserves the
+typed program's full stateful semantics; it does not assume the operations are independent.
 
 Deterministic word programs now have an optional
 [`polytime`](../Tactic/PolyTime.lean) tactic. It synthesizes certificates for constants, copying,
@@ -287,7 +326,8 @@ accumulators do not qualify for the finite-state fold rule.
 The [`ppt`](../Tactic/PPT.lean) tactic combines this deterministic interface with typed probabilistic
 sequencing. It handles multiple random draws, captured inputs, runtime-dependent sampling lengths,
 conditionals, and calls to certified adversaries. The full Goldreich–Levin inverter uses these
-rules. Stateful oracle composition remains outside this automation interface.
+rules. It also handles fixed Boolean postprocessing of certified multi-operation and typed oracle
+programs. General stateful oracle composition remains outside this automation interface.
 
 Start with the short, checked
 [`computational cryptography walkthrough`](../../CslibTests/ComputationalCryptoDemo.lean).
@@ -317,8 +357,9 @@ displaced source heads, different source and continuation tape counts, and an ad
 whose first random choice determines the length of its next sample.
 [`ComputationalCryptoMachines`](../../CslibTests/ComputationalCryptoMachines.lean) compares the
 shared evaluator with the original evaluator for every machine, configuration and fuel bound.
-It also checks an oracle-free fair coin, two channels sharing one hidden state, and typed game
-operations sharing a lazy-sampled answer. The latter is a small random-oracle example; a reusable
+It also checks an oracle-free fair coin, PPT certificates for multiple operations, and typed game
+operations sharing a lazy-sampled answer. The typed experiment has a seven-step realization
+including reply decoding, and encoding preserves its lazy cache. A reusable
 random-oracle theory and its lazy/eager equivalence theorem remain to be developed.
 Direct transition checks also exercise workspace restoration through blank gaps and negative
 positions, two successive invocations through the existing unary loop, and the zero-tape case.
@@ -329,11 +370,11 @@ positions, two successive invocations through the existing unary loop, and the z
 reductions, the Goldreich–Levin decoder, and one-bit expansion at every seed length. The next target
 is **one-way functions imply pseudorandom generators**; that implication is not yet proved.
 
-The primitive-level PRG family API in merged
-[#876](https://github.com/leanprover/cslib/pull/876) has also been reviewed. Connecting this
-word-based computational interface to that semantic API remains to be done. Its admissibility
-predicate applies to an entire adversary family, which allows a single uniform PPT witness to
-supply the computational restriction.
+The semantic PRG family API introduced in
+[#876](https://github.com/leanprover/cslib/pull/876) is integrated with the computational definition.
+The real and ideal programs denote its experiments exactly, with the same advantage convention.
+The one-way-permutation theorem concludes with this shared security property, and its reductions
+can still use the program-based `ComputationallyIndistinguishable` interface.
 
 - We plan on developing applied calculi and logics for modelling and reasoning about security protocols.
 - We plan on developing a comprehensive library of primitives and foundational protocols, together with their proofs of correctness.

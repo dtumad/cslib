@@ -9,6 +9,7 @@ module
 public import Cslib.Tactic.PolyTime
 public import Cslib.Computability.Probabilistic.Composition
 public import Cslib.Computability.Probabilistic.Sampling
+public import Cslib.Computability.Probabilistic.OracleEncoding
 
 /-!
 # Synthesizing certificates for probabilistic polynomial-time programs
@@ -17,7 +18,8 @@ public import Cslib.Computability.Probabilistic.Sampling
 It handles supported `do` programs without exposing a machine witness. A call to an unknown
 algorithm still needs a local certificate. Typed continuations retain captured inputs using
 their encodings. Sampling lengths may depend on
-runtime data. These closed-program rules do not yet compile stateful oracle programs.
+runtime data. For stateful oracle programs, the tactic supports certified machine runs and
+Boolean postprocessing of certified subprograms. General oracle sequencing is not yet automated.
 -/
 
 public section
@@ -30,11 +32,14 @@ attribute [aesop safe apply (index := [unindexed]) (rule_sets := [PPT])]
   Cslib.Probability.IsPolyTime.sampleBits
   Cslib.Probability.IsPolyTime.uniformBits
   Cslib.Probability.isPPTOn_uniformBool
+  Cslib.Probability.IsOraclePPTOn.map_bool
+  Cslib.Probability.OracleEncoding.IsPPTOn.map_bool
 
 attribute [aesop safe apply (rule_sets := [PPT])]
   Cslib.Probability.IsPPT.map_word
   Cslib.Probability.IsPPT.map_bool
   Cslib.Probability.IsPPTOn.isPPT
+  Cslib.Probability.IsOraclePPTOn.of_machine
 
 attribute [aesop unsafe 50% apply (rule_sets := [PPT])]
   Cslib.Probability.IsPPT.bind

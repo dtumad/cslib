@@ -62,7 +62,7 @@ theorem IsPPT.exists_coin_machine {α : Type} {encode : α ↪ Word}
   obtain ⟨k, states, machine, c, d, hmachine⟩ := h
   refine ⟨k, states, machine, c, d, ?_⟩
   intro n input
-  rw [hmachine n input]
+  rw [hmachine (n, input)]
   change OracleComp.eval _ (Turing.OracleTM.runFrom machine _
     (Turing.OracleTM.initialConfig machine _)) = _
   rw [← Turing.OracleTM.runFrom_core]

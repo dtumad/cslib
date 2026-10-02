@@ -7,9 +7,9 @@ Authors: Samuel Schlesinger
 module
 
 public import Cslib.Crypto.Computational.GoldreichLevin.Reduction
-public import Cslib.Crypto.Computational.Basic
 public import Cslib.Foundations.Data.Nat.PolynomialBound
 public import Mathlib.Data.Nat.Log
+public import Cslib.Crypto.Game
 
 /-!
 # Goldreich–Levin parameters and the asymptotic reduction

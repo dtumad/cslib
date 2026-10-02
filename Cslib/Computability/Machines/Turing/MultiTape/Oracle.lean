@@ -274,6 +274,11 @@ theorem runFrom_core (machine : OracleTM k State) (fuel : ℕ) (cfg : Config k S
   rw [MultiTapePTM.runFrom, runConfigFrom_core, ← comp_map, runFrom_eq_map_runConfigFrom]
   rfl
 
+/-- The single-operation facade and common core have the same initial execution. -/
+theorem run_core (machine : OracleTM k State) (fuel : ℕ) (input : List Bool) :
+    MultiTapePTM.run machine (fun _ => OracleComp.query) fuel input = machine.run fuel input :=
+  runFrom_core machine fuel (machine.initialConfig input)
+
 /-- Splitting a clock preserves the entire interaction, including queries across the split. -/
 theorem runConfigFrom_add (machine : OracleTM k State) (first second : ℕ)
     (cfg : Config k State input) :
@@ -311,34 +316,9 @@ theorem length_output_runFrom_le {OracleState : Type} (machine : OracleTM k Stat
     (cfg : Config k State input) (s s' : OracleState) (output : List Bool)
     (h : (output, s') ∈ (OracleComp.runState oracle (machine.runFrom fuel cfg) s).support) :
     output.length ≤ cfg.tapes.output.length + fuel := by
-  induction fuel generalizing cfg s with
-  | zero =>
-    simp only [runFrom_zero, OracleComp.runState_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at h
-    simp [h.1]
-  | succ fuel ih =>
-    cases hs : cfg.tapes.state with
-    | none =>
-      simp only [runFrom_succ, hs, OracleComp.runState_pure, PMF.mem_support_pure_iff,
-        Prod.mk.injEq] at h
-      simp [h.1]
-    | some state =>
-      simp only [runFrom_succ, hs, OracleComp.uniform, OracleComp.runState_sample_bind,
-        PMF.mem_support_bind_iff] at h
-      obtain ⟨coin, _, h⟩ := h
-      cases ha : machine.transition state cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols
-          cfg.answerSymbol coin with
-      | step action bit move =>
-        rw [ha] at h
-        have hout := ih _ _ h
-        have hstep := length_output_step_le cfg action bit move
-        omega
-      | query next =>
-        simp only [ha, OracleComp.runState_bind, OracleComp.runState_query,
-          PMF.mem_support_bind_iff] at h
-        obtain ⟨⟨answer, nextState⟩, _, h⟩ := h
-        have hout := ih _ _ h
-        simp only [Config.receive] at hout
-        omega
+  rw [← runFrom_core] at h
+  exact MultiTapePTM.length_output_runFrom_le machine (fun _ => OracleComp.query)
+    oracle fuel cfg.toCore s s' output h
 
 /-- The output-size bound specialized to memoryless oracle evaluation. -/
 theorem length_output_eval_runFrom_le (machine : OracleTM k State)

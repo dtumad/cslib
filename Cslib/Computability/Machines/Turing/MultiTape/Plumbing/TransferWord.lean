@@ -7,8 +7,8 @@ Authors: Samuel Schlesinger
 module
 
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.WordsCfg
-public import Cslib.Computability.Machines.Turing.MultiTape.TapeLemmas
 public import Mathlib.Data.Fin.VecNotation
+public import Cslib.Computability.Machines.Turing.MultiTape.Deterministic
 
 /-!
 # Transfer a word between work tapes

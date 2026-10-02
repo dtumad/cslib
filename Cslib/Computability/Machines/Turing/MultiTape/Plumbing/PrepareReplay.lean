@@ -10,6 +10,7 @@ public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.PrepareInpu
 public import Cslib.Foundations.Data.List.BitPair
 public import Mathlib.Tactic.FinCases
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.RewindInput
+public import Mathlib.Data.Fin.VecNotation
 
 /-!
 # Preparing an input and random tape for deterministic replay

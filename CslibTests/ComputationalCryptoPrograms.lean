@@ -317,3 +317,32 @@ example : True := by
   trivial
 
 end CslibTests.ComputationalCryptoPrograms
+
+namespace CslibTests.ComputationalCryptoPrograms.PairEncodingCompatibility
+
+open Cslib.Probability
+
+/-- The former PRF key/query representation, retained only to check the migration. -/
+def oldPair (pair : Word × Word) : Word := parameterInput pair.1.length (pair.1 ++ pair.2)
+
+private theorem oldPairFromShared :
+    IsPolyTime (pairEncoding wordEncoding wordEncoding) oldPair :=
+  (isPolyTime_fst wordEncoding wordEncoding).unaryLength.parameterInput
+    ((isPolyTime_fst wordEncoding wordEncoding).append (isPolyTime_snd wordEncoding wordEncoding))
+
+private theorem sharedPairFromOld :
+    IsPolyTime oldPair (pairEncoding wordEncoding wordEncoding) := by
+  have hlength : IsPolyTime oldPair (fun pair => List.replicate pair.1.length true) := by
+    simpa [oldPair] using isPolyTime_takeWhile oldPair id
+  have hdata : IsPolyTime oldPair (fun pair => pair.1 ++ pair.2) := by
+    simpa [oldPair] using (isPolyTime_dropWhile oldPair id).tail
+  have hkey : IsPolyTime oldPair Prod.fst := by simpa using hdata.take hlength
+  have hquery : IsPolyTime oldPair Prod.snd := by simpa using hdata.drop hlength
+  exact hkey.pair hquery
+
+/-- Sharing the pair encoding changes no polynomial-time evaluability requirement. -/
+example (f : Word × Word → Word) :
+    IsPolyTime oldPair f ↔ IsPolyTime (pairEncoding wordEncoding wordEncoding) f :=
+  ⟨fun h => h.comp_encoded oldPairFromShared, fun h => h.comp_encoded sharedPairFromOld⟩
+
+end CslibTests.ComputationalCryptoPrograms.PairEncodingCompatibility

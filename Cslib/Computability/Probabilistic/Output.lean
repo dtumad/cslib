@@ -29,9 +29,9 @@ theorem IsPPT.flatMap_word {program : ℕ → Word → ProbComp Word}
     (h : IsPPT wordEncoding program) (code : Bool → Word) :
     IsPPT wordEncoding (fun n input => List.flatMap code <$> program n input) := by
   obtain ⟨k, states, machine, c, d, h⟩ := h
-  apply isPPT_of_finite_machine (machine.expandOutput code) ((width code + 2) * c) d
-  intro n input
-  rw [Nat.mul_assoc, Turing.OracleTM.eval_run_expandOutput, ← h n input]
+  apply isPPTOn_of_finite_machine (machine.expandOutput code) ((width code + 2) * c) d
+  intro pair
+  rw [Nat.mul_assoc, Turing.OracleTM.eval_run_expandOutput, ← h pair]
   simp [ProbComp.eval_map, PMF.map_comp, Function.comp_def, wordEncoding]
 
 /-- A fixed output encoding preserves oracle PPT, including every oracle's private state. -/

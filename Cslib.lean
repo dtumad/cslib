@@ -128,6 +128,7 @@ public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.UnaryRepeat
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.WordsCfg
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape
+public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Postprocessing
 public import Cslib.Computability.Machines.Turing.MultiTape.Relabel
 public import Cslib.Computability.Machines.Turing.MultiTape.TapeLemmas
 public import Cslib.Computability.Machines.Turing.SingleTape.Defs
@@ -142,6 +143,8 @@ public import Cslib.Computability.Probabilistic.Fold
 public import Cslib.Computability.Probabilistic.Input
 public import Cslib.Computability.Probabilistic.Iteration
 public import Cslib.Computability.Probabilistic.List
+public import Cslib.Computability.Probabilistic.Oracle
+public import Cslib.Computability.Probabilistic.OracleEncoding
 public import Cslib.Computability.Probabilistic.Output
 public import Cslib.Computability.Probabilistic.PPT
 public import Cslib.Computability.Probabilistic.Parameter
@@ -170,6 +173,14 @@ public import Cslib.Crypto.Computational.Hybrid
 public import Cslib.Crypto.Computational.OneWay
 public import Cslib.Crypto.Computational.PseudorandomFunction
 public import Cslib.Crypto.Computational.PseudorandomGenerator
+public import Cslib.Crypto.Computational.Statistical
+public import Cslib.Crypto.Game
+public import Cslib.Crypto.Game.Hybrid
+public import Cslib.Crypto.Game.Statistical
+public import Cslib.Crypto.Primitives.PRG.Asymptotic
+public import Cslib.Crypto.Primitives.PRG.Basic
+public import Cslib.Crypto.Primitives.PRG.Defs
+public import Cslib.Crypto.Primitives.PRG.Statistical
 public import Cslib.Crypto.Protocols.Commitment.Basic
 public import Cslib.Crypto.Protocols.Commitment.Defs
 public import Cslib.Crypto.Protocols.Commitment.Scheme

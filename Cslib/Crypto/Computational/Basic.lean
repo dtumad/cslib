@@ -7,8 +7,8 @@ Authors: Samuel Schlesinger
 module
 
 public import Cslib.Computability.Probabilistic.PPT
+public import Cslib.Crypto.Game
 public import Cslib.Probability.PMF
-public import Mathlib.Analysis.Asymptotics.SuperpolynomialDecay
 
 /-!
 # Computational security: negligible advantages and indistinguishability
@@ -33,54 +33,9 @@ namespace Cslib.Crypto
 
 open Probability
 
-/-- An advantage is negligible when it decays faster than every inverse polynomial in the
-security parameter. This is Mathlib's superpolynomial decay, specialized to natural parameters. -/
-abbrev Negligible (ε : ℕ → ℝ) : Prop :=
-  Asymptotics.SuperpolynomialDecay Filter.atTop (fun n : ℕ => (n : ℝ)) ε
-
-@[simp] theorem negligible_zero : Negligible (fun _ => 0) :=
-  Asymptotics.superpolynomialDecay_zero _ _
-
-/-- A constant nonzero advantage is not negligible. -/
-theorem not_negligible_const {c : ℝ} (hc : c ≠ 0) : ¬ Negligible (fun _ => c) := by
-  intro h
-  have ht : Filter.Tendsto (fun _ : ℕ => c) Filter.atTop (nhds 0) := by simpa using h 0
-  exact hc (tendsto_nhds_unique tendsto_const_nhds ht)
-
-/-- A pointwise smaller nonnegative advantage is negligible. -/
-theorem negligible_of_le {ε δ : ℕ → ℝ} (hδ : Negligible δ)
-    (hε : ∀ n, 0 ≤ ε n) (hle : ∀ n, ε n ≤ δ n) : Negligible ε := by
-  apply hδ.trans_abs_le
-  intro n
-  simpa only [abs_of_nonneg (hε n), abs_of_nonneg ((hε n).trans (hle n))] using hle n
-
-open Filter Topology in
-/-- Halving a unary security parameter preserves negligible decay. -/
-theorem Negligible.div_two {ε : ℕ → ℝ} (h : Negligible ε) : Negligible (fun n => ε (n / 2)) := by
-  have hhalf : Tendsto (fun n : ℕ => n / 2) atTop atTop := by
-    refine tendsto_atTop.2 (fun b => ?_)
-    filter_upwards [eventually_ge_atTop (2 * b)] with n hn
-    lia
-  intro degree
-  apply (tendsto_zero_iff_abs_tendsto_zero _).2
-  have hdecay := h.polynomial_mul
-    ((Polynomial.C (2 : ℝ) * (Polynomial.X + 1)) ^ degree)
-  have hlimit := (hdecay 0).comp hhalf
-  simp only [pow_zero, one_mul, Polynomial.eval_pow, Polynomial.eval_mul,
-    Polynomial.eval_C, Polynomial.eval_add, Polynomial.eval_X, Polynomial.eval_one,
-    Function.comp_def] at hlimit
-  apply squeeze_zero (fun _ => abs_nonneg _) ?_ (by simpa using hlimit.abs)
-  intro n
-  simp only [abs_mul, abs_pow, abs_of_nonneg (show (0 : ℝ) ≤ n from Nat.cast_nonneg n),
-    abs_of_nonneg (by positivity : (0 : ℝ) ≤ (n / 2 : ℕ) + 1)]
-  gcongr
-  have hn : n ≤ 2 * (n / 2 + 1) := by lia
-  exact_mod_cast hn
-
-
 /-- The probability that a Boolean game returns `true`. -/
 noncomputable def winProbability (game : ProbComp Bool) : ℝ :=
-  (ProbComp.eval game true).toReal
+  Game.winProbability (ProbComp.eval game)
 
 theorem winProbability_nonneg (game : ProbComp Bool) : 0 ≤ winProbability game :=
   ENNReal.toReal_nonneg
@@ -95,18 +50,11 @@ theorem winProbability_sample_bind {α : Type} [Fintype α] (distribution : PMF 
 /-- Complementing a game's answer exchanges winning and losing. -/
 @[simp] theorem winProbability_not (game : ProbComp Bool) :
     winProbability (Bool.not <$> game) = 1 - winProbability game := by
-  have hsum : (ProbComp.eval game false).toReal + (ProbComp.eval game true).toReal = 1 := by
-    rw [← ENNReal.toReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)]
-    have h := (ProbComp.eval game).tsum_coe
-    simp only [tsum_fintype, Fintype.sum_bool] at h
-    rw [add_comm, h]
-    simp
-  simp [winProbability, PMF.map_apply, tsum_fintype] at *
-  linarith
+  simpa only [winProbability, ProbComp.eval_map] using Game.winProbability_not (ProbComp.eval game)
 
 /-- Absolute difference in acceptance probabilities. -/
 noncomputable def advantage (game₀ game₁ : ProbComp Bool) : ℝ :=
-  |winProbability game₀ - winProbability game₁|
+  Game.advantage (ProbComp.eval game₀) (ProbComp.eval game₁)
 
 theorem advantage_nonneg (game₀ game₁ : ProbComp Bool) : 0 ≤ advantage game₀ game₁ :=
   abs_nonneg _
@@ -120,10 +68,8 @@ theorem advantage_comm (game₀ game₁ : ProbComp Bool) :
 /-- Complementing both answers preserves distinguishing advantage. -/
 @[simp] theorem advantage_not (game₀ game₁ : ProbComp Bool) :
     advantage (Bool.not <$> game₀) (Bool.not <$> game₁) = advantage game₀ game₁ := by
-  simp only [advantage, winProbability_not]
-  convert abs_sub_comm (winProbability game₁) (winProbability game₀) using 1
-  congr 1
-  ring
+  simpa only [advantage, ProbComp.eval_map] using
+    Game.advantage_not (ProbComp.eval game₀) (ProbComp.eval game₁)
 
 /-- The elementary game-hopping inequality. -/
 theorem advantage_triangle (game₀ game₁ game₂ : ProbComp Bool) :
@@ -132,6 +78,20 @@ theorem advantage_triangle (game₀ game₁ game₂ : ProbComp Bool) :
 
 /-- A distinguisher receives the security parameter and a sampled word. -/
 abbrev Distinguisher := ℕ → Word → ProbComp Bool
+
+/-- A family of randomized word tests is admissible when one uniform PPT algorithm realizes it.
+Sampling a specified distribution here describes its semantics; `IsPPT` still requires a machine
+realization and does not grant unit-cost sampling of arbitrary distributions. -/
+def IsPPTTest (test : ℕ → Word → PMF Bool) : Prop :=
+  IsPPT boolEncoding (fun n input => OracleComp.sample (test n input))
+
+/-- Interpreting a program preserves exactly its uniform PPT restriction. -/
+@[simp] theorem isPPTTest_eval {adversary : Distinguisher} :
+    IsPPTTest (fun n input => ProbComp.eval (adversary n input)) ↔
+      IsPPT boolEncoding adversary := by
+  constructor <;> intro h
+  · exact IsPPT.congr h (fun _ _ => ProbComp.eval_sample _)
+  · exact h.congr (fun _ _ => (ProbComp.eval_sample _).symm)
 
 /-- Draw a sample and give it to a distinguisher. -/
 noncomputable def distinguishingGame (distribution : PMF Word)
@@ -151,26 +111,34 @@ negligible advantage. Time is polynomial in the parameter plus sample length. Sa
 not be polynomial in the parameter; `PolynomiallyBoundedEnsemble` supplies that extra condition.
 There is no requirement that either ensemble itself be efficiently sampled. -/
 def ComputationallyIndistinguishable (X Y : ℕ → PMF Word) : Prop :=
-  ∀ adversary : Distinguisher, IsPPT boolEncoding adversary →
-    Negligible (fun n => advantage (distinguishingGame (X n) (adversary n))
-      (distinguishingGame (Y n) (adversary n)))
+  Game.Secure
+    (fun adversary n => ProbComp.eval (distinguishingGame (X n) (adversary n)))
+    (fun adversary n => ProbComp.eval (distinguishingGame (Y n) (adversary n)))
+    (IsPPT boolEncoding)
+
+/-- Program distinguishers and their semantic tests give the same security notion. -/
+theorem computationallyIndistinguishable_iff_tests {X Y : ℕ → PMF Word} :
+    ComputationallyIndistinguishable X Y ↔
+      Game.Secure (fun test n => (X n).bind (test n))
+        (fun test n => (Y n).bind (test n)) IsPPTTest := by
+  constructor
+  · intro h test hPPT
+    simpa only [distinguishingGame, ProbComp.eval_bind, ProbComp.eval_sample] using
+      h (fun n input => OracleComp.sample (test n input)) hPPT
+  · intro h adversary hPPT
+    simpa only [distinguishingGame, ProbComp.eval_bind, ProbComp.eval_sample] using
+      h (fun n input => ProbComp.eval (adversary n input)) (isPPTTest_eval.mpr hPPT)
 
 theorem ComputationallyIndistinguishable.refl (X : ℕ → PMF Word) :
-    ComputationallyIndistinguishable X X := by
-  intro adversary _
-  simp
+    ComputationallyIndistinguishable X X := Game.Secure.refl _ _
 
 theorem ComputationallyIndistinguishable.symm {X Y : ℕ → PMF Word}
-    (h : ComputationallyIndistinguishable X Y) : ComputationallyIndistinguishable Y X := by
-  intro adversary hPPT
-  simpa only [advantage_comm] using h adversary hPPT
+    (h : ComputationallyIndistinguishable X Y) : ComputationallyIndistinguishable Y X :=
+  Game.Secure.symm h
 
 /-- A two-hop hybrid argument, reusing the same distinguisher in each hop. -/
 theorem ComputationallyIndistinguishable.trans {X Y Z : ℕ → PMF Word}
     (hXY : ComputationallyIndistinguishable X Y) (hYZ : ComputationallyIndistinguishable Y Z) :
-    ComputationallyIndistinguishable X Z := by
-  intro adversary hPPT
-  exact negligible_of_le ((hXY adversary hPPT).add (hYZ adversary hPPT))
-    (fun _ => advantage_nonneg _ _) (fun _ => advantage_triangle _ _ _)
+    ComputationallyIndistinguishable X Z := Game.Secure.trans hXY hYZ
 
 end Cslib.Crypto

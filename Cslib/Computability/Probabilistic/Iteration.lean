@@ -7,7 +7,6 @@ Authors: Samuel Schlesinger
 module
 
 public import Cslib.Computability.Probabilistic.Realization.Iteration
-public import Cslib.Computability.Probabilistic.PolynomialTime
 
 /-!
 # Polynomial-time bounded iteration

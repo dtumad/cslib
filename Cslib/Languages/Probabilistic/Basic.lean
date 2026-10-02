@@ -181,6 +181,49 @@ def simulate {Query' : Type u} {Response' : Query' → Type u}
       (simulate handler program >>= fun a => simulate handler (next a)) :=
   FreeM.liftM_bind _ _ _
 
+@[simp] theorem simulate_sample {Query' : Type u} {Response' : Query' → Type u}
+    (handler : (q : Query) → OracleComp Query' Response' (Response q)) (p : PMF α) :
+    simulate handler (sample p) = sample p := by
+  simp [simulate, sample]
+
+@[simp] theorem simulate_query {Query' : Type u} {Response' : Query' → Type u}
+    (handler : (q : Query) → OracleComp Query' Response' (Response q)) (q : Query) :
+    simulate handler (query q) = handler q := by
+  simp [simulate, query]
+
+@[simp] theorem simulate_map {Query' : Type u} {Response' : Query' → Type u}
+    (handler : (q : Query) → OracleComp Query' Response' (Response q)) (f : α → β)
+    (program : OracleComp Query Response α) :
+    simulate handler (f <$> program) = f <$> simulate handler program :=
+  FreeM.liftM_map _ _ _
+
+/-- Replacing each call by itself leaves the program unchanged. -/
+@[simp] theorem simulate_id (program : OracleComp Query Response α) :
+    simulate query program = program := by
+  induction program using FreeM.induction with
+  | pure a => rfl
+  | lift_bind op cont ih =>
+    simp only [FreeM.bind_eq_bind, simulate_bind]
+    congr 1
+    · cases op <;> simp [simulate, sample, query]
+    · funext a; exact ih a
+
+/-- Oracle substitutions compose without introducing fresh state between calls. -/
+theorem simulate_simulate {Query' Query'' : Type u} {Response' : Query' → Type u}
+    {Response'' : Query'' → Type u}
+    (first : (q : Query) → OracleComp Query' Response' (Response q))
+    (second : (q : Query') → OracleComp Query'' Response'' (Response' q))
+    (program : OracleComp Query Response α) :
+    simulate second (simulate first program) =
+      simulate (fun q => simulate second (first q)) program := by
+  induction program using FreeM.induction with
+  | pure a => rfl
+  | lift_bind op cont ih =>
+    simp only [FreeM.bind_eq_bind, simulate_bind]
+    congr 1
+    · cases op <;> simp [simulate, sample]
+    · funext a; exact ih a
+
 /-- Simulating calls and then evaluating agrees with evaluating with the simulated oracle. -/
 theorem eval_simulate {Query' : Type u} {Response' : Query' → Type u}
     (handler : (q : Query) → OracleComp Query' Response' (Response q))

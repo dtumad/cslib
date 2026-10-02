@@ -79,6 +79,105 @@ noncomputable def run (machine : MultiTapePTM k Symbol State Oracle)
     (fuel : ℕ) (input : List Symbol) : OracleComp Query Response (List Symbol) :=
   machine.runFrom query fuel (machine.initialConfig input)
 
+/-- Oracle substitution commutes with clocked execution. The handler may share private state
+across all operation names. -/
+theorem simulate_runConfigFrom {Query' : Type} {Response' : Query' → Type}
+    (machine : MultiTapePTM k Symbol State Oracle)
+    (query : Oracle → List Symbol → OracleComp Query Response (List Symbol))
+    (handler : (q : Query) → OracleComp Query' Response' (Response q)) (fuel : ℕ)
+    (cfg : Config k Symbol State Oracle input) :
+    OracleComp.simulate handler (machine.runConfigFrom query fuel cfg) =
+      machine.runConfigFrom (fun op word => OracleComp.simulate handler (query op word))
+        fuel cfg := by
+  induction fuel generalizing cfg with
+  | zero => rfl
+  | succ fuel ih =>
+    cases hs : cfg.tapes.state with
+    | none => simp [runConfigFrom, hs]
+    | some state =>
+      simp only [runConfigFrom, hs, OracleComp.simulate_bind, OracleComp.uniform,
+        OracleComp.simulate_sample]
+      congr 1
+      funext coin
+      split <;> simp only [OracleComp.simulate_bind, ih]
+
+/-- Substituting the query handler preserves the complete output program. -/
+theorem simulate_run {Query' : Type} {Response' : Query' → Type}
+    (machine : MultiTapePTM k Symbol State Oracle)
+    (query : Oracle → List Symbol → OracleComp Query Response (List Symbol))
+    (handler : (q : Query) → OracleComp Query' Response' (Response q)) (fuel : ℕ)
+    (input : List Symbol) :
+    OracleComp.simulate handler (machine.run query fuel input) =
+      machine.run (fun op word => OracleComp.simulate handler (query op word)) fuel input := by
+  simp only [run, runFrom, OracleComp.simulate_map, simulate_runConfigFrom]
+
+@[simp] theorem runFrom_zero (machine : MultiTapePTM k Symbol State Oracle)
+    (query : Oracle → List Symbol → OracleComp Query Response (List Symbol))
+    (cfg : Config k Symbol State Oracle input) : machine.runFrom query 0 cfg =
+      pure cfg.tapes.output := by simp [runFrom, runConfigFrom]
+
+/-- Unfold one transition while observing only the output. -/
+theorem runFrom_succ (machine : MultiTapePTM k Symbol State Oracle)
+    (query : Oracle → List Symbol → OracleComp Query Response (List Symbol)) (fuel : ℕ)
+    (cfg : Config k Symbol State Oracle input) :
+    machine.runFrom query (fuel + 1) cfg = (match cfg.tapes.state with
+    | none => pure cfg.tapes.output
+    | some state => do
+      let coin ← OracleComp.uniform Bool
+      match machine.tr state cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols
+          cfg.answerSymbols coin with
+      | .step action symbol move => machine.runFrom query fuel (cfg.step action symbol move)
+      | .query oracle next => do
+        let answer ← query oracle (cfg.channels oracle).queryBuffer
+        machine.runFrom query fuel (cfg.receive oracle next answer)) := by
+  cases hs : cfg.tapes.state with
+  | none => simp [runFrom, runConfigFrom, hs]
+  | some state =>
+    simp only [runFrom, runConfigFrom, hs, map_bind]
+    congr 1
+    funext coin
+    split <;> simp only [map_bind]
+
+/-- Every supported execution writes at most one output symbol per transition, regardless of
+the lengths of oracle replies or the private state shared by the handlers. -/
+theorem length_output_runFrom_le {OracleState : Type}
+    (machine : MultiTapePTM k Symbol State Oracle)
+    (query : Oracle → List Symbol → OracleComp Query Response (List Symbol))
+    (oracle : (q : Query) → StateT OracleState PMF (Response q)) (fuel : ℕ)
+    (cfg : Config k Symbol State Oracle input) (s s' : OracleState) (output : List Symbol)
+    (h : (output, s') ∈ (OracleComp.runState oracle (machine.runFrom query fuel cfg) s).support) :
+    output.length ≤ cfg.tapes.output.length + fuel := by
+  induction fuel generalizing cfg s with
+  | zero =>
+    simp only [runFrom_zero, OracleComp.runState_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at h
+    simp [h.1]
+  | succ fuel ih =>
+    cases hs : cfg.tapes.state with
+    | none =>
+      simp only [runFrom_succ, hs, OracleComp.runState_pure, PMF.mem_support_pure_iff,
+        Prod.mk.injEq] at h
+      simp [h.1]
+    | some state =>
+      simp only [runFrom_succ, hs, OracleComp.uniform, OracleComp.runState_sample_bind,
+        PMF.mem_support_bind_iff] at h
+      obtain ⟨coin, _, h⟩ := h
+      cases ha : machine.tr state cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols
+          cfg.answerSymbols coin with
+      | step action symbol move =>
+        rw [ha] at h
+        have hout := ih _ _ h
+        have hstep : (cfg.step action symbol move).tapes.output.length ≤
+            cfg.tapes.output.length + 1 := by
+          simp only [Config.step, Turing.Action.apply, List.length_append]
+          exact Nat.add_le_add_left action.output.length_toList_le _
+        lia
+      | query op next =>
+        simp only [ha, OracleComp.runState_bind, PMF.mem_support_bind_iff] at h
+        obtain ⟨⟨answer, nextState⟩, _, h⟩ := h
+        have hout := ih _ _ h
+        simp only [Config.receive] at hout
+        lia
+
 @[simp] theorem runConfigFrom_zero (machine : MultiTapePTM k Symbol State Oracle)
     (query : Oracle → List Symbol → OracleComp Query Response (List Symbol))
     (cfg : Config k Symbol State Oracle input) :
