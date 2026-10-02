@@ -70,10 +70,7 @@ theorem runConfigFrom_prefixOutput (machine : OracleTM k State) (fuel : ℕ)
         Config.prefixOutput_workTapeSymbols, Config.prefixOutput_answerSymbol, map_bind]
       congr 1
       funext coin
-      cases machine.transition state cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols
-          cfg.answerSymbol coin with
-      | step action bit move => simp [Config.step_prefixOutput, ih]
-      | query next => simp [Config.receive_prefixOutput, ih, map_bind]
+      split <;> simp [Config.step_prefixOutput, Config.receive_prefixOutput, ih, map_bind]
 
 /-- The final word retains the same prefix. -/
 theorem runFrom_prefixOutput (machine : OracleTM k State) (fuel : ℕ)

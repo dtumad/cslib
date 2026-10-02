@@ -14,10 +14,10 @@ public import Cslib.Computability.Machines.Turing.MultiTape.Relabel
 /-!
 # Uniform probabilistic polynomial time
 
-`IsPPT` and `IsOraclePPT` assert that a probabilistic program has the same distribution as a
-single finite-control machine, clocked by `c * (input.length + 1) ^ d`. The machine, `c` and `d`
-are fixed before quantifying over the security parameter and input. The parameter is supplied in
-unary, with a delimiter. Thus neither nonuniform advice nor arbitrary Lean computation is free.
+`IsPPTOn`, `IsPPT`, and `IsOraclePPT` identify a program's distribution with that of a single
+finite-control machine, clocked by `c * (input.length + 1) ^ d`. The machine, `c` and `d` are fixed
+before quantifying over encoded inputs. The cryptographic predicates supply the security parameter
+in unary, with a delimiter. Neither nonuniform advice nor arbitrary Lean computation is free.
 
 For oracle programs the equality includes the oracle's final private state, for every stateful
 oracle. This preserves observable interactions, rather than testing only against stateless
@@ -32,8 +32,10 @@ PPT realization; bounded rejection sampling with explicit failure is a different
 `IsPolyTime` supplies deterministic polynomial-time realizability using the existing `MultiTapeTM`.
 Its parameterized implementations embed into PPT with the same clock. Fixed Boolean
 postprocessing also preserves PPT through an explicit machine construction. Certificates may use
-any finite control type; an enumeration by `Fin` is supplied internally. Both PPT predicates bound
+any finite control type; an enumeration by `Fin` is supplied internally. The PPT predicates bound
 the length of every supported output, including in the presence of arbitrary oracle states.
+`IsPPTOn` exposes the input encoding for typed program composition; `IsPPT` specializes it to the
+usual unary security parameter and auxiliary input, via `isPPT_iff_on`.
 
 These are semantic predicates; this module does not supply an automatic compiler or closure
 theorems for arbitrary high-level compositions. Uniform bit sampling is certified separately in
@@ -41,8 +43,8 @@ theorems for arbitrary high-level compositions. Uniform bit sampling is certifie
 `Cslib.Computability.Probabilistic.Output`. The clock compiler in
 `Cslib.Computability.Probabilistic.Clock` proves that every PPT certificate admits a genuinely
 halting witness, including when its original machine terminates only through clock exhaustion.
-`Cslib.Computability.Probabilistic.Composition` certifies sequencing when the first program returns
-the continuation's complete parameter-and-input encoding.
+`Cslib.Computability.Probabilistic.Composition` certifies typed sequencing, captured inputs,
+deterministic argument preparation, and conditional execution of closed programs.
 -/
 
 @[expose] public section
@@ -119,6 +121,15 @@ theorem IsPolyTime.length_le {α : Type} {encode : α → Word} {f : α → Word
   rw [(h a).2] at hout
   simpa using hout
 
+/-- A uniform probabilistic polynomial-time realization on explicitly encoded inputs and results.
+The finite machine and polynomial are fixed before quantifying over the input. -/
+def IsPPTOn {α β : Type} (input : α → Word) (output : β ↪ Word)
+    (program : α → ProbComp β) : Prop :=
+  ∃ (k states : ℕ) (machine : Turing.OracleTM k (Fin states)) (c d : ℕ),
+    ∀ a, (ProbComp.eval (program a)).map output =
+      OracleComp.eval (fun _ => PMF.pure [])
+        (machine.run (c * ((input a).length + 1) ^ d) (input a))
+
 /-- A uniform PPT realization of a family of closed probabilistic programs. Supplying only an
 empty-answer oracle to the machine provides no external computational power. -/
 def IsPPT {α : Type} (encode : α ↪ Word) (program : ℕ → Word → ProbComp α) : Prop :=
@@ -128,6 +139,41 @@ def IsPPT {α : Type} (encode : α ↪ Word) (program : ℕ → Word → ProbCom
         OracleComp.eval (fun _ => PMF.pure [])
           (machine.run (c * ((parameterInput security input).length + 1) ^ d)
             (parameterInput security input))
+
+/-- The cryptographic interface is the encoded-input contract with a unary security parameter. -/
+theorem isPPT_iff_on {α : Type} {encode : α ↪ Word} {program : ℕ → Word → ProbComp α} :
+    IsPPT encode program ↔
+      IsPPTOn parameterEncoding encode (fun pair => program pair.1 pair.2) := by
+  simp only [IsPPT, IsPPTOn, Prod.forall, parameterEncoding]
+  rfl
+
+/-- Expose the input encoding of a cryptographic PPT certificate. -/
+theorem IsPPT.on {α : Type} {encode : α ↪ Word} {program : ℕ → Word → ProbComp α}
+    (h : IsPPT encode program) :
+    IsPPTOn parameterEncoding encode (fun pair => program pair.1 pair.2) := isPPT_iff_on.mp h
+
+/-- Return to the cryptographic interface after certifying an encoded-input program. -/
+theorem IsPPTOn.isPPT {α : Type} {encode : α ↪ Word} {program : ℕ → Word → ProbComp α}
+    (h : IsPPTOn parameterEncoding encode (fun pair => program pair.1 pair.2)) :
+    IsPPT encode program := isPPT_iff_on.mpr h
+
+/-- Returning a value with its declared encoding is the same machine-level contract. -/
+theorem isPPTOn_iff_encoded {α β : Type} {input : α → Word} {output : β ↪ Word}
+    {program : α → ProbComp β} : IsPPTOn input output program ↔
+      IsPPTOn input wordEncoding (fun a => output <$> program a) := by
+  simp only [IsPPTOn, ProbComp.eval_map, show (wordEncoding : Word → Word) = id from rfl,
+    PMF.map_id]
+
+/-- View a typed result as its encoded word without changing the implementation. -/
+theorem IsPPTOn.encoded {α β : Type} {input : α → Word} {output : β ↪ Word}
+    {program : α → ProbComp β} (h : IsPPTOn input output program) :
+    IsPPTOn input wordEncoding (fun a => output <$> program a) := isPPTOn_iff_encoded.mp h
+
+/-- A certificate for a program's declared encoding certifies the typed program itself. -/
+theorem IsPPTOn.of_encoded {α β : Type} {input : α → Word} {output : β ↪ Word}
+    {program : α → ProbComp β}
+    (h : IsPPTOn input wordEncoding (fun a => output <$> program a)) :
+    IsPPTOn input output program := isPPTOn_iff_encoded.mpr h
 
 /-- A uniform PPT realization that preserves the distribution of the result and final oracle
 state for every stateful oracle. The same machine and polynomial work for every oracle. -/
@@ -140,6 +186,19 @@ def IsOraclePPT {α : Type} (encode : α ↪ Word)
           (machine.run (c * ((parameterInput security input).length + 1) ^ d)
             (parameterInput security input)) s
 
+/-- A typed certificate may use any finite control type; its enumeration is internal. -/
+theorem isPPTOn_of_finite_machine {α β State : Type} [Finite State] {k : ℕ}
+    {input : α → Word} {output : β ↪ Word} {program : α → ProbComp β}
+    (machine : Turing.OracleTM k State) (c d : ℕ)
+    (h : ∀ a, (ProbComp.eval (program a)).map output =
+      OracleComp.eval (fun _ => PMF.pure [])
+        (machine.run (c * ((input a).length + 1) ^ d) (input a))) :
+    IsPPTOn input output program := by
+  classical
+  let := Fintype.ofFinite State
+  refine ⟨k, Fintype.card State, machine.rename (Fintype.equivFin State), c, d, ?_⟩
+  simpa only [Turing.OracleTM.run_rename] using h
+
 /-- A certificate may use any finite control type; its enumeration is internal to the proof. -/
 theorem isPPT_of_finite_machine {α State : Type} [Finite State] {k : ℕ}
     {encode : α ↪ Word} {program : ℕ → Word → ProbComp α}
@@ -149,10 +208,7 @@ theorem isPPT_of_finite_machine {α State : Type} [Finite State] {k : ℕ}
         (machine.run (c * ((parameterInput n input).length + 1) ^ d)
           (parameterInput n input))) :
     IsPPT encode program := by
-  classical
-  let := Fintype.ofFinite State
-  refine ⟨k, Fintype.card State, machine.rename (Fintype.equivFin State), c, d, ?_⟩
-  simpa only [Turing.OracleTM.run_rename] using h
+  exact (isPPTOn_of_finite_machine machine c d (fun pair => h pair.1 pair.2)).isPPT
 
 /-- The same finite-control interface preserves every stateful oracle interaction. -/
 theorem isOraclePPT_of_finite_machine {α State : Type} [Finite State] {k : ℕ}
@@ -169,17 +225,22 @@ theorem isOraclePPT_of_finite_machine {α State : Type} [Finite State] {k : ℕ}
   refine ⟨k, Fintype.card State, machine.rename (Fintype.equivFin State), c, d, ?_⟩
   simpa only [Turing.OracleTM.run_rename] using h
 
+/-- A deterministic contract gives a probabilistic contract on the same encoded types. -/
+theorem IsPolyTime.isPPTOn {α β : Type} {input : α → Word} {output : β ↪ Word} {f : α → β}
+    (h : IsPolyTime input (fun a => output (f a))) :
+    IsPPTOn input output (fun a => pure (f a)) := by
+  obtain ⟨k, states, machine, c, d, h⟩ := h
+  refine ⟨k, states, Turing.OracleTM.ofDeterministic machine, c, d, ?_⟩
+  intro a
+  simp only [ProbComp.eval_pure, PMF.pure_map, Turing.OracleTM.run,
+    Turing.OracleTM.eval_ofDeterministic]
+  exact congrArg PMF.pure (h a).2.symm
+
 /-- A deterministic polynomial-time implementation of a parameterized algorithm is PPT.
 The hypothesis uses the same explicit input and output encodings as the conclusion. -/
 theorem IsPolyTime.isPPT {α : Type} {encode : α ↪ Word} {f : ℕ → Word → α}
     (h : IsPolyTime parameterEncoding (fun pair => encode (f pair.1 pair.2))) :
-    IsPPT encode (fun n input => pure (f n input)) := by
-  obtain ⟨k, states, machine, c, d, h⟩ := h
-  refine ⟨k, states, Turing.OracleTM.ofDeterministic machine, c, d, ?_⟩
-  intro n input
-  simp only [ProbComp.eval_pure, PMF.pure_map, Turing.OracleTM.run,
-    Turing.OracleTM.eval_ofDeterministic]
-  exact congrArg PMF.pure (h (n, input)).2.symm
+    IsPPT encode (fun n input => pure (f n input)) := h.isPPTOn.isPPT
 
 /-- The same embedding works in an oracle context and preserves every oracle's private state. -/
 theorem IsPolyTime.isOraclePPT {α : Type} {encode : α ↪ Word} {f : ℕ → Word → α}
@@ -192,19 +253,28 @@ theorem IsPolyTime.isOraclePPT {α : Type} {encode : α ↪ Word} {f : ℕ → W
     Turing.OracleTM.runState_ofDeterministic]
   exact congrArg (fun word => PMF.pure (word, s)) (h (n, input)).2.symm
 
+/-- A typed PPT contract bounds the encoded length of every supported result. -/
+theorem IsPPTOn.length_le {α β : Type} {input : α → Word} {output : β ↪ Word}
+    {program : α → ProbComp β} (h : IsPPTOn input output program) :
+    ∃ c d : ℕ, ∀ a result, result ∈ (ProbComp.eval (program a)).support →
+      (output result).length ≤ c * ((input a).length + 1) ^ d := by
+  obtain ⟨k, states, machine, c, d, h⟩ := h
+  refine ⟨c, d, ?_⟩
+  intro a result hresult
+  have hmap := (PMF.mem_support_map_iff output (ProbComp.eval (program a))
+    (output result)).mpr ⟨result, hresult, rfl⟩
+  rw [h a] at hmap
+  simpa [Turing.OracleTM.initialConfig] using
+    Turing.OracleTM.length_output_eval_runFrom_le machine _ _ _ _ hmap
+
 /-- Every supported PPT output has polynomially bounded encoded length. -/
 theorem IsPPT.length_le {α : Type} {encode : α ↪ Word} {program : ℕ → Word → ProbComp α}
     (h : IsPPT encode program) :
     ∃ c d : ℕ, ∀ n input result, result ∈ (ProbComp.eval (program n input)).support →
       (encode result).length ≤ c * (n + input.length + 2) ^ d := by
-  obtain ⟨k, states, machine, c, d, h⟩ := h
-  refine ⟨c, d, ?_⟩
-  intro n input result hresult
-  have hmap := (PMF.mem_support_map_iff encode (ProbComp.eval (program n input))
-    (encode result)).mpr ⟨result, hresult, rfl⟩
-  rw [h n input] at hmap
-  simpa [Turing.OracleTM.initialConfig, Nat.add_assoc] using
-    Turing.OracleTM.length_output_eval_runFrom_le machine _ _ _ _ hmap
+  obtain ⟨c, d, hbound⟩ := h.on.length_le
+  exact ⟨c, d, fun n input result hr => by
+    simpa [parameterEncoding, Nat.add_assoc] using hbound (n, input) result hr⟩
 
 /-- Oracle PPT has an output-size bound independent of the oracle and its private state. -/
 theorem IsOraclePPT.length_le {α : Type} {encode : α ↪ Word}
@@ -223,14 +293,20 @@ theorem IsOraclePPT.length_le {α : Type} {encode : α ↪ Word}
   simpa [Turing.OracleTM.initialConfig, Nat.add_assoc] using
     Turing.OracleTM.length_output_runFrom_le machine oracle _ _ s s' _ hmap
 
+/-- Distributional equality preserves a typed PPT contract. -/
+theorem IsPPTOn.congr {α β : Type} {input : α → Word} {output : β ↪ Word}
+    {program program' : α → ProbComp β} (h : IsPPTOn input output program)
+    (heq : ∀ a, ProbComp.eval (program a) = ProbComp.eval (program' a)) :
+    IsPPTOn input output program' := by
+  obtain ⟨k, states, machine, c, d, h⟩ := h
+  exact ⟨k, states, machine, c, d, fun a =>
+    (congrArg (PMF.map output) (heq a)).symm.trans (h a)⟩
+
 /-- Distributional equality preserves PPT realizability. -/
 theorem IsPPT.congr {α : Type} {encode : α ↪ Word} {program program' : ℕ → Word → ProbComp α}
     (h : IsPPT encode program)
     (heq : ∀ n x, ProbComp.eval (program n x) = ProbComp.eval (program' n x)) :
-    IsPPT encode program' := by
-  obtain ⟨k, states, machine, c, d, h⟩ := h
-  exact ⟨k, states, machine, c, d, fun n x => (congrArg (PMF.map encode) (heq n x)).symm.trans
-    (h n x)⟩
+    IsPPT encode program' := (h.on.congr (fun pair => heq pair.1 pair.2)).isPPT
 
 /-- Any fixed postprocessing of a Boolean answer is PPT, including complementing the answer.
 This is a machine construction with the same clock, not a closure assumption. -/

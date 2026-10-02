@@ -87,16 +87,10 @@ theorem Realization.isPolyTime_of_trajectory {α β : Type} {encode : α → Wor
       (wordsCfg (encode a) (some counter.q₀) (fun _ => []) []) (countTime (encode a).length)
     rw [hcounter] at h
     simpa using h
-  have hpInitial : PolynomiallyBounded initialTime := ⟨ci, di, fun _ => le_rfl⟩
-  have hpCount : PolynomiallyBounded countTime := ⟨cc, dc, fun _ => le_rfl⟩
-  have hpStep : PolynomiallyBounded stepTime :=
-    (show PolynomiallyBounded (fun length => cs * (length + 1) ^ ds) from
-      ⟨cs, ds, fun _ => le_rfl⟩).comp hsize
-  have hpLoop : PolynomiallyBounded (fun length => stepTime length + 3 * size length + 11) :=
-    (hpStep.add ((PolynomiallyBounded.const 3).mul hsize)).add (PolynomiallyBounded.const 11)
-  obtain ⟨coefficient, degree, hbound⟩ :=
-    ((((hpInitial.add hpCount).add ((PolynomiallyBounded.const 2).mul hsize)).add
-      (hpCount.mul hpLoop)).add hpCount).add (PolynomiallyBounded.const 7)
+  have hpoly : PolynomiallyBounded (fun length => initialTime length + countTime length +
+      2 * size length + countTime length * (stepTime length + 3 * size length + 11) +
+      countTime length + 7) := by fun_prop
+  obtain ⟨coefficient, degree, hbound⟩ := hpoly
   let compiled := Iteration.machine initializer counter body
   apply isPolyTime_of_finite_machine compiled coefficient degree
   intro a
@@ -128,9 +122,27 @@ theorem Realization.isPolyTime_of_trajectory {α β : Type} {encode : α → Wor
   rw [runFrom_eq_of_halt _ _ htime hrun.1]
   exact hrun
 
+/-- Iterate a certified transformation of encoded state. The loop compiler only supplies valid
+encodings to the body; clients reason about ordinary values, including structured accumulators. -/
+theorem IsPolyTime.iterate_encoded {α State : Type} {encode : α → Word}
+    {stateEncoding : State → Word} {initial : α → State} {count : α → ℕ}
+    {step : State → State}
+    (hinitial : IsPolyTime encode (fun a => stateEncoding (initial a)))
+    (hcount : IsPolyTime encode (fun a => List.replicate (count a) true))
+    (hstep : IsPolyTime stateEncoding (fun state => stateEncoding (step state)))
+    {size : ℕ → ℕ} (hsize : PolynomiallyBounded size)
+    (hintermediate : ∀ a index, index ≤ count a →
+      (stateEncoding (step^[index] (initial a))).length ≤ size (encode a).length) :
+    IsPolyTime encode (fun a => stateEncoding (step^[count a] (initial a))) :=
+  Realization.isPolyTime_of_trajectory
+    (values := fun a index => stateEncoding (step^[index] (initial a)))
+    (arguments := fun a index => step^[index] (initial a))
+    hinitial hcount hstep (fun _ _ _ => rfl)
+    (fun _ _ _ => congrArg stateEncoding (Function.iterate_succ_apply' ..).symm)
+    hsize hintermediate
+
 /-- Iterate an efficient word transformation an efficiently computed number of times.
-A polynomial bound on all intermediate words supplies a common polynomial step bound.
-The initialization and iteration count are computed from the original encoded input. -/
+A polynomial bound on all intermediate words supplies a common polynomial step bound. -/
 theorem IsPolyTime.iterate {α : Type} {encode : α → Word}
     {initial : α → Word} {count : α → ℕ} {step : Word → Word}
     (hinitial : IsPolyTime encode initial)
@@ -140,10 +152,6 @@ theorem IsPolyTime.iterate {α : Type} {encode : α → Word}
     (hintermediate : ∀ a index, index ≤ count a →
       (step^[index] (initial a)).length ≤ size (encode a).length) :
     IsPolyTime encode (fun a => step^[count a] (initial a)) :=
-  Realization.isPolyTime_of_trajectory
-    (values := fun a index => step^[index] (initial a))
-    (arguments := fun a index => step^[index] (initial a))
-    hinitial hcount hstep (fun _ _ _ => rfl)
-    (fun _ _ _ => (Function.iterate_succ_apply' ..).symm) hsize hintermediate
+  hinitial.iterate_encoded (stateEncoding := wordEncoding) hcount hstep hsize hintermediate
 
 end Cslib.Probability

@@ -6,7 +6,7 @@ Authors: Samuel Schlesinger
 
 module
 
-public import Cslib.Computability.Probabilistic.PPT
+public import Cslib.Computability.Probabilistic.Composition
 public import Cslib.Languages.Probabilistic.BitString
 
 /-!
@@ -15,6 +15,9 @@ public import Cslib.Languages.Probabilistic.BitString
 A single one-state machine scans the unary security parameter, writing a fresh fair bit for every
 `true` and halting at the delimiter. It uses `n + 1` transitions and no work tapes. The proof holds
 for every stateful oracle and leaves its state unchanged.
+
+Typed sampling rules reuse this machine after an efficiently computed unary length. They support
+runtime-dependent sample sizes and a uniform Boolean draw through the public composition API.
 -/
 
 @[expose] public section
@@ -157,5 +160,29 @@ theorem isPPT_sampleBits : IsPPT wordEncoding (fun n _ => OracleComp.sampleBits 
 theorem isPPT_uniformBits :
     IsPPT wordEncoding (fun n _ => OracleComp.sample (uniformBits n)) :=
   isPPT_sampleBits.congr (fun _ _ => by simp [ProbComp.eval])
+
+/-- Sample an efficiently computed number of fair bits, charging the numerical length in unary. -/
+theorem IsPolyTime.sampleBits {α : Type} {input : α → Word} {count : α → ℕ}
+    (hcount : IsPolyTime input (fun a => List.replicate (count a) true)) :
+    IsPPTOn input wordEncoding (fun a => OracleComp.sampleBits (count a)) :=
+  isPPT_sampleBits.on.preprocess (prepare := fun a => (count a, []))
+    (hcount.parameterInput (isPolyTime_const input []))
+
+/-- An explicit uniform word sample has the same certificate as its fair-bit implementation. -/
+theorem IsPolyTime.uniformBits {α : Type} {input : α → Word} {count : α → ℕ}
+    (hcount : IsPolyTime input (fun a => List.replicate (count a) true)) :
+    IsPPTOn input wordEncoding (fun a => OracleComp.sample (uniformBits (count a))) :=
+  hcount.sampleBits.congr (fun _ => by simp [ProbComp.eval])
+
+/-- One fair coin is available at any input encoding. -/
+theorem isPPTOn_uniformBool {α : Type} (input : α → Word) :
+    IsPPTOn input boolEncoding (fun _ => OracleComp.uniform Bool) := by
+  have hbits := (isPolyTime_const input [true]).sampleBits (count := fun _ => 1)
+  have hbit := hbits.map (output := boolEncoding) (f := fun word => word.headD false)
+    (isPolyTime_headD wordEncoding false)
+  apply hbit.congr
+  intro a
+  simp [ProbComp.eval, OracleComp.eval_sampleBits, uniformBits_succ, PMF.map_bind,
+    OracleComp.uniform, PMF.pure_map]
 
 end Cslib.Probability

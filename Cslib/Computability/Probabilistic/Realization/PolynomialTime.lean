@@ -42,10 +42,7 @@ theorem IsPolyTime.append {α : Type} {encode : α → Word} {f g : α → Word}
   obtain ⟨k₀, states₀, tm₀, c₀, d₀, h₀⟩ := hf
   obtain ⟨k₁, states₁, tm₁, c₁, d₁, h₁⟩ := hg
   have hpoly : PolynomiallyBounded (fun length =>
-      c₀ * (length + 1) ^ d₀ + c₁ * (length + 1) ^ d₁ + length + 2) :=
-    (((show PolynomiallyBounded (fun length => c₀ * (length + 1) ^ d₀) from
-      ⟨c₀, d₀, fun _ => le_rfl⟩).add ⟨c₁, d₁, fun _ => le_rfl⟩).add
-        PolynomiallyBounded.id).add (PolynomiallyBounded.const 2)
+      c₀ * (length + 1) ^ d₀ + c₁ * (length + 1) ^ d₁ + length + 2) := by fun_prop
   obtain ⟨c, d, hbound⟩ := hpoly
   apply isPolyTime_of_finite_machine (tm₀.concat tm₁) c d
   intro a
@@ -63,9 +60,8 @@ theorem IsPolyTime.exists_restoring_machine {α : Type} {encode : α → Word} {
           (c * ((encode a).length + 1) ^ d) =
           wordsCfg (encode a) none (fun _ => []) (output ++ f a) := by
   obtain ⟨k, states, machine, c, d, hmachine⟩ := h
-  have hpoly : PolynomiallyBounded (fun length => 7 * (c * (length + 1) ^ d) + length + 9) :=
-    (((PolynomiallyBounded.const 7).mul ⟨c, d, fun _ => le_rfl⟩).add
-      PolynomiallyBounded.id).add (PolynomiallyBounded.const 9)
+  have hpoly : PolynomiallyBounded (fun length => 7 * (c * (length + 1) ^ d) + length + 9) := by
+    fun_prop
   obtain ⟨coefficient, degree, hbound⟩ := hpoly
   refine ⟨k + k, _, inferInstance, machine.restoreWork, coefficient, degree, ?_⟩
   intro a output

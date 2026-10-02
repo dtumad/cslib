@@ -67,21 +67,7 @@ theorem runState_ofDeterministic (machine : MultiTapeTM k Bool State)
     (cfg : Config k State input) (s : OracleState) :
     OracleComp.runState oracle ((ofDeterministic machine).runFrom fuel cfg) s =
       PMF.pure ((machine.runFrom cfg.tapes fuel).output, s) := by
-  induction fuel generalizing cfg with
-  | zero => rfl
-  | succ fuel ih =>
-    cases hs : cfg.tapes.state with
-    | none =>
-      have hh : machine.runFrom cfg.tapes (fuel + 1) = cfg.tapes :=
-        Function.iterate_fixed (MultiTapeTM.step_of_halt hs) _
-      simp [runFrom_halted _ _ _ hs, hh]
-    | some state =>
-      simp only [runFrom_succ, hs, ofDeterministic_transition, OracleComp.uniform,
-        OracleComp.runState_sample_bind, ih, PMF.bind_const]
-      congr 1
-      simp only [MultiTapeTM.runFrom, Function.iterate_succ_apply]
-      rw [MultiTapeTM.step_apply_of_state hs]
-      rfl
+  simp [runFrom, OracleComp.runState_map, runState_runConfigFrom_ofDeterministic, PMF.pure_map]
 
 /-- The closed output distribution of the embedded deterministic machine. -/
 theorem eval_ofDeterministic (machine : MultiTapeTM k Bool State)

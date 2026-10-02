@@ -23,10 +23,9 @@ bias `ε`. Neither inverter receives the hidden preimage or chooses a sign based
 
 The seed distribution may be any distribution on a finite type. For a strict PPT predictor,
 the coin-tape representation in `Cslib.Computability.Probabilistic.CoinTape` supplies the
-appropriate seeded behavior with a polynomial-time deterministic evaluator. Connecting the input
-encodings and certifying the decoder's uniform machine implementation and polynomial runtime are
-separate obligations. These are finite distributional reductions, not yet the asymptotic
-Goldreich–Levin hard-core theorem.
+appropriate seeded behavior with a polynomial-time deterministic evaluator. `WordReduction`
+connects the encodings, certifies the complete inverter as PPT, and derives negligible prediction
+bias. This module contains the finite distributional part of that argument.
 
 ## References
 
@@ -65,6 +64,13 @@ def allGuesses : (k : ℕ) → List (BitString k)
   | zero => simp [allGuesses]
   | succ k ih =>
     simp [allGuesses, List.length_flatMap, ih, pow_succ, Nat.mul_comm]
+
+/-- Each parity guess occurs exactly once. -/
+theorem nodup_allGuesses (k : ℕ) : (allGuesses k).Nodup := by
+  rw [List.nodup_iff_length_dedup_eq, ← List.card_toFinset]
+  have hall : (allGuesses k).toFinset = Finset.univ := by ext; simp
+  rw [hall]
+  simp [BitString]
 
 /-- Generate one candidate for each parity guess, retaining duplicates. -/
 def candidateList {n k : ℕ} (predictor : BitString n → Bool)

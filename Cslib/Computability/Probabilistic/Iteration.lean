@@ -29,6 +29,32 @@ namespace Cslib.Probability
 
 /-- A Hoare-style rule for bounded iteration. The same invariant proves the final postcondition
 and controls intermediate sizes, so polynomial-time certification needs no execution traces. -/
+theorem IsPolyTime.iterate_encoded_spec {α State : Type} {encode : α → Word}
+    {stateEncoding : State → Word} {initial : α → State} {count : α → ℕ} {step : State → State}
+    (hinitial : IsPolyTime encode (fun a => stateEncoding (initial a)))
+    (hcount : IsPolyTime encode (fun a => List.replicate (count a) true))
+    (hstep : IsPolyTime stateEncoding (fun state => stateEncoding (step state)))
+    (invariant : α → ℕ → State → Prop)
+    (hinit : ∀ a, invariant a 0 (initial a))
+    (hpreserve : ∀ a index state, index < count a → invariant a index state →
+      invariant a (index + 1) (step state))
+    {size : ℕ → ℕ} (hsize : PolynomiallyBounded size)
+    (hbound : ∀ a index state, index ≤ count a → invariant a index state →
+      (stateEncoding state).length ≤ size (encode a).length) :
+    IsPolyTime encode (fun a => stateEncoding (step^[count a] (initial a))) ∧
+      ∀ a, invariant a (count a) (step^[count a] (initial a)) := by
+  have htrace (a : α) (index : ℕ) (hindex : index ≤ count a) :
+      invariant a index (step^[index] (initial a)) := by
+    induction index with
+    | zero => exact hinit a
+    | succ index ih =>
+      simpa only [Function.iterate_succ_apply'] using
+        hpreserve a index _ (by lia) (ih (by lia))
+  exact ⟨hinitial.iterate_encoded (stateEncoding := stateEncoding) hcount hstep hsize
+    (fun a index hi => hbound a index _ hi (htrace a index hi)),
+    fun a => htrace a (count a) le_rfl⟩
+
+/-- The invariant rule specialized to ordinary word state. -/
 theorem IsPolyTime.iterate_spec {α : Type} {encode : α → Word}
     {initial : α → Word} {count : α → ℕ} {step : Word → Word}
     (hinitial : IsPolyTime encode initial)
@@ -42,32 +68,33 @@ theorem IsPolyTime.iterate_spec {α : Type} {encode : α → Word}
     (hbound : ∀ a index word, index ≤ count a → invariant a index word →
       word.length ≤ size (encode a).length) :
     IsPolyTime encode (fun a => step^[count a] (initial a)) ∧
-      ∀ a, invariant a (count a) (step^[count a] (initial a)) := by
-  have htrace (a : α) (index : ℕ) (hindex : index ≤ count a) :
-      invariant a index (step^[index] (initial a)) := by
-    induction index with
-    | zero => exact hinit a
-    | succ index ih =>
-      simpa only [Function.iterate_succ_apply'] using
-        hpreserve a index _ (by lia) (ih (by lia))
-  exact ⟨hinitial.iterate hcount hstep hsize
-    (fun a index hi => hbound a index _ hi (htrace a index hi)),
-    fun a => htrace a (count a) le_rfl⟩
+      ∀ a, invariant a (count a) (step^[count a] (initial a)) :=
+  hinitial.iterate_encoded_spec (stateEncoding := wordEncoding)
+    hcount hstep invariant hinit hpreserve hsize hbound
 
-/-- An efficiently bounded loop with a length-nonincreasing body is polynomial time.
-The initializer's output-size theorem supplies the loop invariant and polynomial size bound. -/
+/-- A loop whose encoded state never grows inherits its initializer's polynomial size bound. -/
+theorem IsPolyTime.iterate_encoded_of_length_le {α State : Type} {encode : α → Word}
+    {stateEncoding : State → Word} {initial : α → State} {count : α → ℕ} {step : State → State}
+    (hinitial : IsPolyTime encode (fun a => stateEncoding (initial a)))
+    (hcount : IsPolyTime encode (fun a => List.replicate (count a) true))
+    (hstep : IsPolyTime stateEncoding (fun state => stateEncoding (step state)))
+    (hshrink : ∀ state, (stateEncoding (step state)).length ≤ (stateEncoding state).length) :
+    IsPolyTime encode (fun a => stateEncoding (step^[count a] (initial a))) := by
+  obtain ⟨c, d, hlength⟩ := hinitial.length_le
+  exact (hinitial.iterate_encoded_spec hcount hstep
+    (fun a _ state => (stateEncoding state).length ≤ (stateEncoding (initial a)).length)
+    (fun _ => le_rfl) (fun _ _ state _ h => (hshrink state).trans h)
+    (size := fun length => c * (length + 1) ^ d) ⟨c, d, fun _ => le_rfl⟩
+    (fun a _ _ _ h => h.trans (hlength a))).1
+
+/-- An efficiently bounded word loop with a length-nonincreasing body is polynomial time. -/
 theorem IsPolyTime.iterate_of_length_le {α : Type} {encode : α → Word}
     {initial : α → Word} {count : α → ℕ} {step : Word → Word}
     (hinitial : IsPolyTime encode initial)
     (hcount : IsPolyTime encode (fun a => List.replicate (count a) true))
     (hstep : IsPolyTime wordEncoding step)
     (hshrink : ∀ word, (step word).length ≤ word.length) :
-    IsPolyTime encode (fun a => step^[count a] (initial a)) := by
-  obtain ⟨c, d, hlength⟩ := hinitial.length_le
-  exact (hinitial.iterate_spec hcount hstep
-    (fun a _ word => word.length ≤ (initial a).length)
-    (fun _ => le_rfl) (fun _ _ word _ h => (hshrink word).trans h)
-    (size := fun length => c * (length + 1) ^ d) ⟨c, d, fun _ => le_rfl⟩
-    (fun a _ _ _ h => h.trans (hlength a))).1
+    IsPolyTime encode (fun a => step^[count a] (initial a)) :=
+  hinitial.iterate_encoded_of_length_le (stateEncoding := wordEncoding) hcount hstep hshrink
 
 end Cslib.Probability

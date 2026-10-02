@@ -92,9 +92,7 @@ theorem runConfigFrom_rename (machine : OracleTM k State) (e : State ≃ State')
       congr 1
       funext coin
       cases machine.transition state cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols
-          cfg.answerSymbol coin with
-      | step action bit move => simp [Config.step_rename, ih]
-      | query next => simp [Config.receive_rename, ih, map_bind]
+        cfg.answerSymbol coin <;> simp [Config.step_rename, Config.receive_rename, ih, map_bind]
 
 /-- Renaming preserves the output program from any configuration. -/
 theorem runFrom_rename (machine : OracleTM k State) (e : State ≃ State') (fuel : ℕ)

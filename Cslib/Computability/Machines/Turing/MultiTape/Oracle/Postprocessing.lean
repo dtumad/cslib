@@ -90,9 +90,8 @@ theorem runFrom_mapOutput (machine : OracleTM k State) (f : Bool → Bool) (fuel
       congr 1
       funext coin
       cases machine.transition state cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols
-          cfg.answerSymbol coin with
-      | step action bit move => simp [Config.step_mapOutput, ih]
-      | query next => simp [Config.receive_mapOutput, ih, map_bind]
+        cfg.answerSymbol coin <;>
+        simp [Config.step_mapOutput, Config.receive_mapOutput, ih, map_bind]
 
 /-- Postprocessing from the initial configuration. -/
 theorem run_mapOutput (machine : OracleTM k State) (f : Bool → Bool) (fuel : ℕ)

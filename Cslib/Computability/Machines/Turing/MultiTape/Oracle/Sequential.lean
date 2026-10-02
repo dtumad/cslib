@@ -193,6 +193,24 @@ theorem runState_runConfigFrom_seq (first : OracleTM k State₀) (second : Oracl
         rw [hsplit, runConfigFrom_add, OracleComp.runState_bind]
         exact (PMF.mem_support_bind_iff _ _ _).mpr ⟨(next, s'), hnext, hfinal⟩
 
+/-- A deterministic preparation phase hands its exact restored configuration to the continuation. -/
+theorem runState_runConfigFrom_seq_pure (first : OracleTM k State₀) (second : OracleTM k State₁)
+    (oracle : List Bool → StateT OracleState PMF (List Bool))
+    (cfg ready : Config k State₀ input) (firstTime secondTime : ℕ) (s : OracleState)
+    (hfirst : OracleComp.runState oracle (first.runConfigFrom firstTime cfg) s =
+      PMF.pure (ready, s))
+    (hready : ready.tapes.state = none)
+    (hsecond : ∀ final ∈ (OracleComp.runState oracle
+      (second.runConfigFrom secondTime (Sequential.start second ready)) s).support,
+      final.1.tapes.state = none) :
+    OracleComp.runState oracle
+      ((first.seq second).runConfigFrom (firstTime + secondTime) (Sequential.left second cfg)) s =
+      (OracleComp.runState oracle
+        (second.runConfigFrom secondTime (Sequential.start second ready)) s).map
+        (fun (final, s') => (Prepend.right final, s')) := by
+  rw [runState_runConfigFrom_seq first second oracle cfg firstTime secondTime s
+    (by simpa [hfirst] using hready) (by simpa [hfirst] using hsecond), hfirst, PMF.pure_bind]
+
 /-- Observing only the result gives the usual monadic sequencing law under the same bounds. -/
 theorem runState_runFrom_seq (first : OracleTM k State₀) (second : OracleTM k State₁)
     (oracle : List Bool → StateT OracleState PMF (List Bool))

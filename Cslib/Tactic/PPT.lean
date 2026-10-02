@@ -15,8 +15,9 @@ public import Cslib.Computability.Probabilistic.Sampling
 
 `ppt` combines proved PPT sequencing and sampling rules with deterministic `polytime` rules.
 It handles supported `do` programs without exposing a machine witness. A call to an unknown
-algorithm still needs a local certificate. The current sequencing rules pass word-valued results;
-they do not supply a compiler for arbitrary typed continuations or stateful oracle programs.
+algorithm still needs a local certificate. Typed continuations retain captured inputs using
+their encodings. Sampling lengths may depend on
+runtime data. These closed-program rules do not yet compile stateful oracle programs.
 -/
 
 public section
@@ -25,15 +26,77 @@ attribute [aesop safe apply (index := [unindexed]) (rule_sets := [PPT])]
   Cslib.Probability.isPPT_sampleBits
   Cslib.Probability.IsPolyTime.isPPT_word
   Cslib.Probability.IsPolyTime.isPPT
+  Cslib.Probability.IsPolyTime.isPPTOn
+  Cslib.Probability.IsPolyTime.sampleBits
+  Cslib.Probability.IsPolyTime.uniformBits
+  Cslib.Probability.isPPTOn_uniformBool
 
 attribute [aesop safe apply (rule_sets := [PPT])]
   Cslib.Probability.IsPPT.map_word
   Cslib.Probability.IsPPT.map_bool
+  Cslib.Probability.IsPPTOn.isPPT
 
 attribute [aesop unsafe 50% apply (rule_sets := [PPT])]
   Cslib.Probability.IsPPT.bind
   Cslib.Probability.IsPPT.bind_parameter
   Cslib.Probability.IsPPT.preprocess_word
+  Cslib.Probability.IsPPT.on
+  Cslib.Probability.IsPPTOn.bind_with
+  Cslib.Probability.IsPPTOn.map_with
+  Cslib.Probability.IsPPTOn.bind
+  Cslib.Probability.IsPPTOn.map
+  Cslib.Probability.IsPPTOn.preprocess
+
+open Lean Meta Elab Tactic Cslib.Probability Cslib.Tactic.PolyTime in
+@[aesop unsafe 50% tactic (rule_sets := [PPT])]
+private meta def pptCall : TacticM Unit := withMainContext do
+  let target := (← instantiateMVars (← getMainTarget)).consumeMData
+  unless target.isAppOf ``IsPPTOn do throwError "expected an encoded-input PPT goal"
+  for decl in ← getLCtx do
+    if decl.isImplementationDetail then continue
+    for tuple in [true, false] do
+      let saved ← saveState
+      try
+        if decl.type.isAppOf ``IsPPT then
+          applyWithArguments ``IsPPT.preprocess #[(`hprogram, decl.toExpr)]
+        else if decl.type.isAppOf ``IsPPTOn then
+          if tuple then
+            let argument ← prepareArgument target.getAppArgs[0]! decl.type.getAppArgs[0]!
+            applyWithArguments ``IsPPTOn.preprocess
+              #[(`prepare, argument), (`hprogram, decl.toExpr)]
+          else
+            applyWithArguments ``IsPPTOn.preprocess_pair #[(`hprogram, decl.toExpr)]
+        else throwError "expected a probabilistic certificate"
+        if ← (← getGoals).anyM (fun goal => do isDefEq (← goal.getType) target) then
+          throwError "composition made no progress"
+        return
+      catch _ => saved.restore
+  throwError "no applicable local program certificate"
+
+open Lean Meta Elab Tactic Cslib.Probability in
+@[aesop safe -10 tactic (rule_sets := [PPT])]
+private meta def pptIte : TacticM Unit := withMainContext do
+  let target := (← Core.betaReduce (← instantiateMVars (← getMainTarget))).consumeMData
+  unless target.isAppOf ``IsPPTOn do throwError "expected an encoded-input PPT goal"
+  let isIte ← lambdaTelescope target.getAppArgs.back! fun _ body => pure (body.isAppOf ``ite)
+  unless isIte do throwError "expected a conditional"
+  evalTactic (← `(tactic| first | apply IsPPTOn.cond | apply IsPPTOn.ite))
+
+open Lean Meta Elab Tactic Cslib.Probability in
+@[aesop safe -10 tactic (rule_sets := [PPT])]
+private meta def pptCaptured : TacticM Unit := withMainContext do
+  let target := (← Core.betaReduce (← instantiateMVars (← getMainTarget))).consumeMData
+  unless target.isAppOf ``IsPPTOn do throwError "expected an encoded-input PPT goal"
+  let isBind ← lambdaTelescope target.getAppArgs.back! fun _ body => do
+    if body.isAppOf ``Bind.bind then return true
+    if body.isAppOf ``Functor.map then return false
+    throwError "expected probabilistic sequencing"
+  if isBind then
+    liftMetaTactic fun goal => goal.applyConst ``IsPPTOn.bind_with
+    evalTactic (← `(tactic| case hfirst => solve | aesop (rule_sets := [PPT, PolyTime])))
+  else
+    liftMetaTactic fun goal => goal.applyConst ``IsPPTOn.map_with
+    evalTactic (← `(tactic| case hprogram => solve | aesop (rule_sets := [PPT, PolyTime])))
 
 /-- Synthesize a PPT certificate using sampling, composition, and deterministic efficiency rules. -/
 macro "ppt" : tactic => `(tactic| solve | aesop (rule_sets := [PPT, PolyTime]))

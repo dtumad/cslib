@@ -33,8 +33,8 @@ It avoids a separate high-agreement decoder.
 
 These theorems concern a deterministic predictor and finite probability distributions.
 `GoldreichLevin.Reduction` extends the probability bound to seeded randomized predictors.
-The decoder's uniform machine implementation and the Goldreich–Levin hard-core theorem remain
-separate obligations.
+`GoldreichLevin.WordReduction` supplies the uniform PPT implementation, and
+`GoldreichLevin.HardCore` assembles the hard-core predicate and one-bit PRG.
 
 ## References
 

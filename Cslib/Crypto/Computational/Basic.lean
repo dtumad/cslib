@@ -54,6 +54,30 @@ theorem negligible_of_le {ε δ : ℕ → ℝ} (hδ : Negligible δ)
   intro n
   simpa only [abs_of_nonneg (hε n), abs_of_nonneg ((hε n).trans (hle n))] using hle n
 
+open Filter Topology in
+/-- Halving a unary security parameter preserves negligible decay. -/
+theorem Negligible.div_two {ε : ℕ → ℝ} (h : Negligible ε) : Negligible (fun n => ε (n / 2)) := by
+  have hhalf : Tendsto (fun n : ℕ => n / 2) atTop atTop := by
+    refine tendsto_atTop.2 (fun b => ?_)
+    filter_upwards [eventually_ge_atTop (2 * b)] with n hn
+    lia
+  intro degree
+  apply (tendsto_zero_iff_abs_tendsto_zero _).2
+  have hdecay := h.polynomial_mul
+    ((Polynomial.C (2 : ℝ) * (Polynomial.X + 1)) ^ degree)
+  have hlimit := (hdecay 0).comp hhalf
+  simp only [pow_zero, one_mul, Polynomial.eval_pow, Polynomial.eval_mul,
+    Polynomial.eval_C, Polynomial.eval_add, Polynomial.eval_X, Polynomial.eval_one,
+    Function.comp_def] at hlimit
+  apply squeeze_zero (fun _ => abs_nonneg _) ?_ (by simpa using hlimit.abs)
+  intro n
+  simp only [abs_mul, abs_pow, abs_of_nonneg (show (0 : ℝ) ≤ n from Nat.cast_nonneg n),
+    abs_of_nonneg (by positivity : (0 : ℝ) ≤ (n / 2 : ℕ) + 1)]
+  gcongr
+  have hn : n ≤ 2 * (n / 2 + 1) := by lia
+  exact_mod_cast hn
+
+
 /-- The probability that a Boolean game returns `true`. -/
 noncomputable def winProbability (game : ProbComp Bool) : ℝ :=
   (ProbComp.eval game true).toReal

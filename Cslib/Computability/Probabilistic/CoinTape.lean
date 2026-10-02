@@ -6,7 +6,7 @@ Authors: Samuel Schlesinger
 
 module
 
-public import Cslib.Computability.Probabilistic.PPT
+public import Cslib.Computability.Probabilistic.Encoding
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape
 public import Cslib.Computability.Machines.Turing.MultiTape.Oracle.ReplayInput
 
@@ -28,14 +28,6 @@ evaluation has a genuine polynomial-time certificate.
 
 namespace Cslib.Probability
 
-/-- A uniquely decodable pair of a coin tape and an ordinary binary input. -/
-def coinInputEncoding : (Word × Word) ↪ Word where
-  toFun pair := Turing.MultiTapeTM.PrepareReplay.encode pair.1 pair.2
-  inj' := by
-    rintro ⟨coins, input⟩ ⟨coins', input'⟩ h
-    obtain ⟨rfl, rfl⟩ := Turing.MultiTapeTM.PrepareReplay.encode_inj.mp h
-    rfl
-
 /-- Replaying a finite-control machine is deterministic polynomial time in the encoded
 coin-and-input length. The certificate includes parsing, tape preparation, and final halting. -/
 theorem isPolyTime_replay {k : ℕ} {State : Type} [Finite State]
@@ -44,12 +36,17 @@ theorem isPolyTime_replay {k : ℕ} {State : Type} [Finite State]
       Turing.MultiTapePTM.runCoins (m := Id) machine (fun _ _ => []) pair.1 pair.2) := by
   apply isPolyTime_of_finite_machine machine.replayInput 9 1
   rintro ⟨coins, input⟩
+  change
+    let cfg := machine.replayInput.runFrom
+      (machine.replayInput.initCfg (List.BitPair.encode coins input))
+      (9 * ((List.BitPair.encode coins input).length + 1) ^ 1)
+    cfg.state = none ∧ cfg.output =
+      Turing.MultiTapePTM.runCoins (m := Id) machine (fun _ _ => []) coins input
   have h := machine.runFrom_replayInput coins input
   have hbound : 6 * coins.length + 3 * input.length + 12 ≤
-      9 * ((coinInputEncoding (coins, input)).length + 1) ^ 1 := by
-    simp [coinInputEncoding]
-    omega
-  dsimp only [coinInputEncoding, Function.Embedding.coeFn_mk] at hbound ⊢
+      9 * ((List.BitPair.encode coins input).length + 1) ^ 1 := by
+    simp
+    lia
   rw [Turing.MultiTapeTM.runFrom_eq_of_halt _ _ hbound h.1]
   exact h
 

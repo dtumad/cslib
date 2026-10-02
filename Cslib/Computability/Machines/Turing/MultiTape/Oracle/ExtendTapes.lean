@@ -6,7 +6,7 @@ Authors: Samuel Schlesinger
 
 module
 
-public import Cslib.Computability.Machines.Turing.MultiTape.Oracle
+public import Cslib.Computability.Machines.Turing.MultiTape.Oracle.Halting
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.ExtendTapes
 
 /-!
@@ -116,9 +116,7 @@ theorem runConfigFrom_embed (machine : OracleTM k State) (e : Fin k ↪ Fin k')
       congr 1
       funext coin
       cases machine.transition state cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols
-          cfg.answerSymbol coin with
-      | step action bit move => simp [Config.step_embed, ih]
-      | query next => simp [Config.receive_embed, ih, map_bind]
+        cfg.answerSymbol coin <;> simp [Config.step_embed, Config.receive_embed, ih, map_bind]
 
 /-- The additional work tapes are invisible in the source's output program. -/
 theorem runFrom_embed (machine : OracleTM k State) (e : Fin k ↪ Fin k')
@@ -138,5 +136,22 @@ theorem initialConfig_extendTapes (machine : OracleTM k State) (e : Fin k ↪ Fi
   refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext i <;>
     simp only [initialConfig, Cfg.init, Config.embed, MultiTapeTM.embed] <;>
     cases MultiTapeTM.partialInv e i <;> rfl
+
+/-- Reserving blank scratch tapes does not change the machine's observable program. -/
+@[simp] theorem run_extendTapes (machine : OracleTM k State) (e : Fin k ↪ Fin k')
+    (fuel : ℕ) (input : List Bool) :
+    (machine.extendTapes e).run fuel input = machine.run fuel input := by
+  rw [run, initialConfig_extendTapes, runFrom_embed]
+  rfl
+
+/-- Reserving additional tapes preserves a uniform halting bound. -/
+theorem HaltsWithin.extendTapes {machine : OracleTM k State} {fuel : ℕ} {input : List Bool}
+    (h : machine.HaltsWithin fuel input) (e : Fin k ↪ Fin k') :
+    (machine.extendTapes e).HaltsWithin fuel input := by
+  intro OracleState oracle s final s' hfinal
+  rw [initialConfig_extendTapes, runConfigFrom_embed, OracleComp.runState_map] at hfinal
+  obtain ⟨⟨cfg, state⟩, hcfg, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hfinal
+  exact (congrArg (fun result => result.1.tapes.state) heq).symm.trans
+    (h OracleState oracle s cfg state hcfg)
 
 end Turing.OracleTM

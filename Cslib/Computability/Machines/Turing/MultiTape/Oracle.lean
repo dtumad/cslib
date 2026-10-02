@@ -265,11 +265,7 @@ theorem runConfigFrom_core (machine : OracleTM k State) (fuel : ℕ) (cfg : Conf
     MultiTapePTM.runConfigFrom machine (fun _ => OracleComp.query) fuel cfg.toCore =
       Config.toCore <$> machine.runConfigFrom fuel cfg := by
   rw [runConfigFrom, ← comp_map]
-  have h : Config.toCore ∘ Config.ofCore =
-      (id : MultiTapeMachine.Config k Bool State Unit input →
-        MultiTapeMachine.Config k Bool State Unit input) :=
-    funext Config.coreEquiv.apply_symm_apply
-  rw [h, id_map]
+  exact (id_map _).symm
 
 /-- The common evaluator preserves the output at exactly the same clock, with the same queries. -/
 theorem runFrom_core (machine : OracleTM k State) (fuel : ℕ) (cfg : Config k State input) :
@@ -283,16 +279,8 @@ theorem runConfigFrom_add (machine : OracleTM k State) (first second : ℕ)
     (cfg : Config k State input) :
     machine.runConfigFrom (first + second) cfg =
       (machine.runConfigFrom first cfg >>= machine.runConfigFrom second) := by
-  induction first generalizing cfg with
-  | zero => simp
-  | succ first ih =>
-    cases hs : cfg.tapes.state with
-    | none => simp [hs]
-    | some state =>
-      simp only [Nat.succ_add, runConfigFrom_succ, hs, bind_assoc]
-      congr 1
-      funext coin
-      split <;> simp [ih, bind_assoc]
+  simp only [runConfigFrom, MultiTapePTM.runConfigFrom_add, map_bind, bind_map_left]
+  rfl
 
 /-- A run can be paused, then resumed to obtain its output. -/
 theorem runFrom_add (machine : OracleTM k State) (first second : ℕ)

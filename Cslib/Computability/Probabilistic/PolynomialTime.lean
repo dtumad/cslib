@@ -207,6 +207,12 @@ theorem IsPolyTime.map {f : α → Word} (hf : IsPolyTime encode f) (g : Bool �
     IsPolyTime encode (fun a => (f a).map g) :=
   (isPolyTime_map wordEncoding g).comp hf
 
+/-- Prepend an efficiently computed bit to an efficiently computed word. -/
+theorem IsPolyTime.cons {bit : α → Bool} {word : α → Word}
+    (hbit : IsPolyTime encode (fun a => [bit a])) (hword : IsPolyTime encode word) :
+    IsPolyTime encode (fun a => bit a :: word a) :=
+  hbit.append hword
+
 /-- Filter the output of an efficient function by a fixed predicate. -/
 theorem IsPolyTime.filter {f : α → Word} (hf : IsPolyTime encode f) (p : Bool → Bool) :
     IsPolyTime encode (fun a => (f a).filter p) :=

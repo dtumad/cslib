@@ -114,20 +114,23 @@ theorem precision_pos (degree n : ℕ) : 0 < precision degree n := by
 /-- Enumerating the guesses uses a polynomial-size list at any fixed precision degree. -/
 theorem guessCount_polynomial (degree : ℕ) :
     PolynomiallyBounded (fun n => 2 ^ maskCount n (precision degree n)) := by
-  have hp : PolynomiallyBounded (precision degree) :=
-    (PolynomiallyBounded.id.add (PolynomiallyBounded.const 1)).pow degree
-  exact (((PolynomiallyBounded.const 4).mul PolynomiallyBounded.id).mul (hp.pow 2)
-    |>.add (PolynomiallyBounded.const 2)).mono (fun n => guessCount_maskCount_le n _)
+  have hbound : PolynomiallyBounded (fun n => 4 * n * precision degree n ^ 2 + 2) := by
+    unfold precision
+    fun_prop
+  exact hbound.mono (fun n => guessCount_maskCount_le n _)
+
+/-- The logarithmic mask count is polynomially bounded at each fixed precision degree. -/
+theorem maskCount_polynomial (degree : ℕ) :
+    PolynomiallyBounded (fun n => maskCount n (precision degree n)) := by
+  have hbound : PolynomiallyBounded (fun n => 2 * n * precision degree n ^ 2 + 1) := by
+    unfold precision
+    fun_prop
+  exact hbound.mono (fun n => maskCount_le n _)
 
 /-- Storing all base masks uses polynomially many bits at any fixed precision degree. -/
 theorem randomMaskBits_polynomial (degree : ℕ) :
-    PolynomiallyBounded (fun n => n * maskCount n (precision degree n)) := by
-  have hp : PolynomiallyBounded (precision degree) :=
-    (PolynomiallyBounded.id.add (PolynomiallyBounded.const 1)).pow degree
-  apply PolynomiallyBounded.id.mul
-  exact (((PolynomiallyBounded.const 2).mul PolynomiallyBounded.id).mul (hp.pow 2)
-    |>.add (PolynomiallyBounded.const 1)).mono (fun n => maskCount_le n _)
-
+    PolynomiallyBounded (fun n => n * maskCount n (precision degree n)) :=
+  PolynomiallyBounded.id.mul (maskCount_polynomial degree)
 
 /-- If every fixed-precision inverter has negligible success, prediction bias is negligible.
 For each power, multiply the pointwise reduction by that power of the parameter. The precision

@@ -25,7 +25,7 @@ The distinguishing gap is the average of their signed prediction biases.
 
 Concatenation of polynomial-time computations supplies the generator's efficiency certificate.
 Thus a one-way permutation equipped with a hard-core predicate yields a one-bit PRG.
-Constructing that predicate from one-wayness via Goldreich–Levin is a separate remaining theorem.
+`GoldreichLevin.HardCore` constructs the predicate from one-wayness and completes OWP-to-PRG.
 
 ## References
 
@@ -170,24 +170,42 @@ theorem HardCore.indistinguishable {f : Word → Word} {predicate : Word → Boo
   simpa only [prgRealGame, Pi.add_apply, div_eq_mul_inv, mul_comm] using
     hardCore_advantage_le f predicate adversary n
 
-/-- For a one-way permutation, the ideal hybrid is uniform at the expanded length. -/
-theorem OneWayPermutation.hardCore_indistinguishable {f : Word → Word}
-    {predicate : Word → Bool} (hf : OneWayPermutation f) (h : HardCore f predicate) :
+/-- When the function preserves uniform seeds, the ideal hard-core hybrid is uniform. -/
+theorem HardCore.indistinguishable_of_uniform {f : Word → Word} {predicate : Word → Bool}
+    (h : HardCore f predicate) (huniform : ∀ n, (uniformBits n).map f = uniformBits n) :
     ComputationallyIndistinguishable (generatorEnsemble (fun seed => f seed ++ [predicate seed]))
       (fun n => uniformBits (n + 1)) := by
   have hideal : hardCoreIdeal f = fun n => uniformBits (n + 1) := by
     funext n
-    exact hf.uniformBits_append_bit n
+    change (uniformBits n).bind
+      ((fun word => (PMF.uniformOfFintype Bool).map (fun bit => word ++ [bit])) ∘ f) = _
+    rw [← PMF.bind_map, huniform]
+    exact (uniformBits_snoc n).symm
   rw [← hideal]
   exact h.indistinguishable
+
+/-- Appending a hard-core predicate to an efficient length-preserving function that preserves
+uniform seeds gives a one-bit PRG. One-wayness is used in constructing the hard-core predicate. -/
+theorem HardCore.pseudorandomGenerator {f : Word → Word} {predicate : Word → Bool}
+    (h : HardCore f predicate) (hf : IsPolyTime id f)
+    (hlen : ∀ word, (f word).length = word.length)
+    (huniform : ∀ n, (uniformBits n).map f = uniformBits n) :
+    PseudorandomGenerator (fun seed => f seed ++ [predicate seed]) (fun n => n + 1) := by
+  refine ⟨hf.append h.polyTime, ?_, Nat.lt_succ_self, h.indistinguishable_of_uniform huniform⟩
+  intro seed
+  simp [hlen]
+
+/-- For a one-way permutation, the ideal hybrid is uniform at the expanded length. -/
+theorem OneWayPermutation.hardCore_indistinguishable {f : Word → Word}
+    {predicate : Word → Bool} (hf : OneWayPermutation f) (h : HardCore f predicate) :
+    ComputationallyIndistinguishable (generatorEnsemble (fun seed => f seed ++ [predicate seed]))
+      (fun n => uniformBits (n + 1)) :=
+  h.indistinguishable_of_uniform hf.uniformBits_map
 
 /-- A one-way permutation with a hard-core predicate gives a polynomial-time one-bit PRG. -/
 theorem OneWayPermutation.pseudorandomGenerator_of_hardCore {f : Word → Word}
     {predicate : Word → Bool} (hf : OneWayPermutation f) (h : HardCore f predicate) :
-    PseudorandomGenerator (fun seed => f seed ++ [predicate seed]) (fun n => n + 1) := by
-  refine ⟨hf.oneWay.1.append h.polyTime, ?_, Nat.lt_succ_self,
-    hf.hardCore_indistinguishable h⟩
-  intro seed
-  simp [hf.length_eq]
+    PseudorandomGenerator (fun seed => f seed ++ [predicate seed]) (fun n => n + 1) :=
+  h.pseudorandomGenerator hf.oneWay.1 hf.length_eq hf.uniformBits_map
 
 end Cslib.Crypto

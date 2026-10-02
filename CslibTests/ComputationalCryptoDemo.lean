@@ -3,16 +3,12 @@ Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
-import Cslib.Computability.Probabilistic.Sampling
-import Cslib.Computability.Probabilistic.Output
-import Cslib.Computability.Probabilistic.Composition
-import Cslib.Computability.Probabilistic.CoinTape
-import Cslib.Tactic.PPT
-import Cslib.Crypto.Computational.Hybrid
-import Cslib.Crypto.Computational.HardCore
-import Cslib.Crypto.Computational.GoldreichLevin.WordReduction
-import Cslib.Crypto.Computational.OneWay
-import Cslib.Crypto.Computational.PseudorandomGenerator
+
+module
+
+public import Cslib.Computability.Probabilistic.Output
+public import Cslib.Crypto.Computational.Hybrid
+public import Cslib.Crypto.Computational.GoldreichLevin.HardCore
 
 /-!
 # A small computational cryptography walkthrough
@@ -25,9 +21,11 @@ a concrete answer-complementing reduction, and a polynomial hybrid argument unde
 common hop bound. The finite Goldreich–Levin decoder has a list-size and recovery guarantee,
 and its seeded randomized reduction converts prediction bias into inversion success in the
 word-based security game, with an explicit inverse-polynomial precision.
-The complete one-bit PRG theorem assumes a hard-core predicate. The Goldreich–Levin reduction's
-machine implementation and efficiency remain, so the full OWP-to-PRG construction is incomplete.
+The walkthrough concludes with the full OWP-to-PRG construction: the hard-core predicate and
+the reduction's PPT certificate are proved, including even and odd seed lengths.
 -/
+
+public section
 
 namespace CslibTests.ComputationalCryptoDemo
 
@@ -142,8 +140,8 @@ theorem oneBitExpansion (f : Word → Word) (predicate : Word → Bool)
 
 open GoldreichLevin in
 /-- A correlated deterministic predictor gives a short candidate list containing the unknown
-string with probability at least one half. This is the finite decoding step; a uniform PPT
-implementation is a separate obligation. -/
+string with probability at least one half. This is the finite decoding step used by the certified
+word-based inverter. -/
 theorem recoverCorrelatedParity {n k : ℕ} (predictor : BitString n → Bool)
     (x : BitString n) (ε : ℝ) (hε : 0 < ε) (hk : 0 < k)
     (hagreement : 1 / 2 + ε ≤ agreement predictor x)
@@ -166,8 +164,8 @@ theorem invertFromPrediction {n k : ℕ} {Coins : Type*} [Finite Coins]
   invertSigned_success_ge f predictor coins ε hε hk hbias hsize
 
 open GoldreichLevin in
-/-- A PPT predictor gives one seeded reduction with a bound valid at every input length.
-The evaluator is efficient; certifying the whole inverter as PPT is the remaining obligation. -/
+/-- A PPT predictor gives one efficient seeded evaluator and a bound valid at every input length.
+The inverter's certificate composes this evaluator with sampling and the decoder. -/
 theorem parityPredictionReduction (f : Word → Word)
     (hlen : ∀ word, (f word).length = word.length) (adversary : Distinguisher)
     (hPPT : IsPPT boolEncoding adversary) :
@@ -177,6 +175,20 @@ theorem parityPredictionReduction (f : Word → Word)
         1 / (precision degree n : ℝ) +
           8 * winProbability (inversionGame f (wordInverter f evaluate c d degree) n) :=
   exists_word_reduction f hlen adversary hPPT
+
+open GoldreichLevin in
+/-- The complete Goldreich–Levin reduction rules out nonnegligible parity prediction. -/
+theorem parityIsHard (f : Word → Word) (hf : OneWay f)
+    (hlen : ∀ word, (f word).length = word.length) (adversary : Distinguisher)
+    (hPPT : IsPPT boolEncoding adversary) :
+    Negligible (fun n => |winProbability (parityPredictionGame f adversary n) - 1 / 2|) :=
+  negligible_parityPrediction hf hlen adversary hPPT
+
+/-- A one-way permutation supplies the hard-core predicate, efficient generator, strict
+one-bit stretch, and indistinguishability from uniform. There is no extra efficiency hypothesis. -/
+theorem oneWayPermutation_to_PRG (f : Word → Word) (hf : OneWayPermutation f) :
+    PseudorandomGenerator (GoldreichLevin.generator f) (fun n => n + 1) :=
+  hf.pseudorandomGenerator
 
 /-- A reduction that runs an adversary and complements its answer. -/
 def complement (adversary : Distinguisher) : Distinguisher :=

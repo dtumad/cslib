@@ -26,8 +26,9 @@ To this end, we expect to leverage the combination of `Crypto` and [Languages](.
 [`Computational`](Computational) provides definitions of one-way functions and permutations,
 pseudorandom generators,
 and pseudorandom functions, following Arora and Barak, Boneh and Shoup, and Goldreich, Goldwasser,
-and Micali. References appear in the modules. These are security definitions and elementary
-metatheory, not constructions or existence proofs of secure primitives.
+and Micali. References appear in the modules. The library proves that a one-way permutation yields
+a uniform polynomial-time pseudorandom generator with one-bit stretch, through Goldreich–Levin.
+The existence of the starting one-way permutation is an assumption.
 
 The supporting layers are:
 
@@ -74,8 +75,13 @@ The supporting layers are:
   the inverter is a single word-based probabilistic program drawing explicit uniform bit tapes.
   Its prediction and inversion games equal the finite experiments exactly. For a PPT predictor,
   one polynomial-time seeded evaluator works across all lengths and precision degrees.
-  The final security lemma uses `OneWay` and explicitly requires PPT certificates for the full
-  inverter at every fixed degree. These decoder and search certificates remain to be proved.
+  `wordInverter_isPPT` certifies the full inverter with `unfold wordInverter coinBudget; ppt`.
+  `negligible_parityPrediction` derives negligible parity-prediction bias from one-wayness.
+- [`Computational/GoldreichLevin/HardCore`](Computational/GoldreichLevin/HardCore.lean): apply the
+  permutation to the first half of a seed, retain the remaining bits, and append the parity of the
+  two halves. Two fixed PPT reductions handle even and odd seed lengths. The final theorem,
+  `OneWayPermutation.pseudorandomGenerator`, combines the hard-core predicate, polynomial-time
+  evaluation, and exact preservation of uniform seeds. It has no additional reduction hypotheses.
 
 The checked bridges between these layers now include:
 
@@ -100,12 +106,12 @@ The checked bridges between these layers now include:
   `IsOraclePPT.exists_halting_machine` turn an externally clocked certificate into a genuinely
   halting realization. The compiled witness has fixed finite control, starts with blank tapes,
   and has one polynomial halting bound for every input and every stateful oracle.
-- [`Composition`](../Computability/Probabilistic/Composition.lean): `IsPPT.bind_parameter`
-  composes a program returning an encoded `(parameter, input)` pair with a PPT continuation.
-  The first program may choose the next parameter adaptively. Its output-length bound controls
-  the second program's runtime, and all tape preparation is included in the polynomial bound.
-  `IsPPT.bind` also composes ordinary word-valued programs at the same security parameter;
-  `IsPPT.keep_parameter` certifies the machine that retains that parameter alongside the result.
+- [`Composition`](../Computability/Probabilistic/Composition.lean): typed `IsPPTOn` certificates
+  compose with `bind`, `map`, argument preparation, and conditionals. The `_with` combinators let
+  callbacks capture the caller's input. The compiler charges for copying and initializes fresh
+  continuation tapes; the first program's output bound controls the second program's runtime.
+  The word-based `IsPPT` combinators specialize these same realizations and retain the unary
+  security parameter automatically.
 - [`Input`](../Computability/Probabilistic/Input.lean): appending a fixed challenge bit to a PPT
   adversary's input preserves PPT. Its proof composes the public parameter and input projections
   with concatenation; the resulting certificate accounts for writing the full encoded input.
@@ -233,6 +239,39 @@ General deterministic composition uses the intermediate output-size bound to acc
 next call. These constructions reuse CSLib's `MultiTapeTM`, configurations, actions, and existing
 subroutine plumbing.
 
+[`Encoding`](../Computability/Probabilistic/Encoding.lean) supplies efficient pairing, projections,
+and two-argument calls using the same binary representation as random-tape replay. The
+Goldreich–Levin predictor call now combines these contracts to certify reuse of saved coins with
+a freshly prepared query. Polynomial bounds on composed costs use Mathlib's `fun_prop` tactic;
+these size bounds remain separate from computation certificates.
+
+[`Fold`](../Computability/Probabilistic/Fold.lean) certifies ordinary `List.foldl` programs with
+encoded elements and accumulators, including growing words and tuples. Its prefix invariant proves
+both the result and the intermediate size bound. Collection `map` and `flatMap` obtain their growth
+bounds from the supplied algorithm's certificate. Word folds, reversal, and `zipWith` reuse this
+same implementation. `polytime` handles these collection combinators and word folds, including
+supplied algorithms and simple constructor growth. The `_with` variants allow callbacks to capture
+runtime data, such as saved coins or an image. The tactic handles these captures and nested maps,
+charging for the environment and every generated element.
+Boolean callbacks can return an ordinary word of votes. The Goldreich–Levin batch-prediction
+certificate uses this interface to capture the parameter, image, and saved coins with `by polytime`.
+
+[`Arithmetic`](../Computability/Probabilistic/Arithmetic.lean) provides unary addition,
+multiplication, fixed powers, subtraction, comparison, and base-two logarithms. These certificates
+compose with `polytime`; a variable exponent does not satisfy the fixed-power rule.
+
+[`List`](../Computability/Probabilistic/List.lean) adds runtime indexing and slicing, interval
+generation, captured predicates, first-match search, and word equality. All operate through the
+same deterministic contracts; search retains the first matching element and has a computed default.
+
+[`WordDecoder`](Computational/GoldreichLevin/WordDecoder.lean) uses these contracts to parse masks,
+enumerate guesses, generate coordinate queries, XOR selected masks, compute parities, take majority
+votes, and check candidates. Candidate generation is an ordinary nested map with a captured
+predictor. Its efficiency proof uses helper certificates followed by `polytime`; no machine
+configurations appear. The generated candidates and first-match search agree exactly with the
+finite definitions, including order and duplicates. The logarithmic mask count is efficiently
+computed at every fixed precision degree, and enumeration charges for its complete encoded output.
+
 For growing loops, [`IsPolyTime.iterate_spec`](../Computability/Probabilistic/Iteration.lean)
 combines an initialization proof, local invariant preservation, and a polynomial size bound.
 It returns both the final invariant and the efficiency certificate, without requiring clients to
@@ -242,22 +281,19 @@ efficiency proofs and a growing loop whose one invariant establishes both output
 polynomial time. Unknown algorithms still require certificates, and arbitrary unbounded
 accumulators do not qualify for the finite-state fold rule.
 
-The [`ppt`](../Tactic/PPT.lean) tactic combines this deterministic interface with uniform bit
-sampling and word-valued probabilistic sequencing. It certifies ordinary `do` programs that sample
-a word, run a certified deterministic computation, and invoke a certified adversary. Reading and
-reassembling the security parameter and auxiliary input use public value-level rules. The PRG
-experiment in the walkthrough now has a synthesized PPT proof from the generator and adversary
-certificates. General typed continuations and stateful oracle composition remain outside this
-automation interface.
+The [`ppt`](../Tactic/PPT.lean) tactic combines this deterministic interface with typed probabilistic
+sequencing. It handles multiple random draws, captured inputs, runtime-dependent sampling lengths,
+conditionals, and calls to certified adversaries. The full Goldreich–Levin inverter uses these
+rules. Stateful oracle composition remains outside this automation interface.
 
 Start with the short, checked
 [`computational cryptography walkthrough`](../../CslibTests/ComputationalCryptoDemo.lean).
 It writes the PRG experiment in `do` notation, certifies uniform sampling and fixed output encodings,
 composes a certified parameter preparation with a random sample, constructs an efficient
 answer-complementing reduction with exactly the same advantage, and applies
-the polynomial hybrid theorem. It also gives the full one-bit PRG theorem from a permutation and
-a hard-core predicate, the finite decoder's candidate-list and recovery guarantee, and the
-seeded prediction-to-inversion probability bound in the word-based security game.
+the polynomial hybrid theorem. It gives the finite decoder's candidate-list and recovery guarantee,
+the seeded prediction-to-inversion bound, the Goldreich–Levin theorem, and the full one-bit PRG
+construction from a one-way permutation.
 Its proofs use the library's named lemmas without machine
 bookkeeping. Efficient output encoding alone makes no claim of pseudorandomness.
 
@@ -286,22 +322,9 @@ positions, two successive invocations through the existing unary loop, and the z
 
 ### Further development
 
-The next proof target is **one-way permutations imply pseudorandom generators**, using the
-Goldreich–Levin hard-core predicate and a one-bit expansion. Closed PPT composition, the
-ideal-distribution identity, and the hard-core-to-indistinguishability reduction are proved.
-The two predictors in that reduction have uniform PPT certificates. The finite Goldreich–Levin
-decoding bound, seeded randomized reduction, explicit polynomial-size parameter choice, and
-word-based game correspondence are proved. Strict PPT predictors have an exact random-tape
-representation with a certified polynomial-time deterministic evaluator. The asymptotic reduction
-is proved with the inverter's PPT certificates as an explicit hypothesis. Certifying the decoder
-and candidate search, then proving the padded permutation and efficient parity predicate, remain
-before the full hard-core and OWP-to-PRG theorems can be assembled.
-Polynomial-time subroutines now have workspace-restoring realizations suitable for repeated
-invocations. Word primitives, deterministic composition, and an invariant rule for bounded loops
-are certified; assembling the decoder's data transformations and candidate search remains.
-The combined generator's deterministic
-efficiency certificate is now proved using shared output concatenation. After that,
-the target is **one-way functions imply pseudorandom generators**. Neither implication is proved yet.
+**One-way permutations imply pseudorandom generators** is proved, including strict uniform PPT
+reductions, the Goldreich–Levin decoder, and one-bit expansion at every seed length. The next target
+is **one-way functions imply pseudorandom generators**; that implication is not yet proved.
 
 The primitive-level PRG family API in merged
 [#876](https://github.com/leanprover/cslib/pull/876) has also been reviewed. Connecting this

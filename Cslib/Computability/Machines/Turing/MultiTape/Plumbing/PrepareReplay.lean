@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.PrepareInput
+public import Cslib.Foundations.Data.List.BitPair
 public import Mathlib.Tactic.FinCases
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.RewindInput
 
@@ -28,21 +29,8 @@ replay followed by the shared input-redirection compiler.
 
 namespace Turing.MultiTapeTM.PrepareReplay
 
-/-- Tag each coin so that `false` can delimit the coin word. -/
-def tagged (left : List Bool) : List Bool := left.flatMap fun bit => [true, bit]
-/-- Encode the coin word and ordinary input as one binary input. -/
-def encode (left right : List Bool) : List Bool := tagged left ++ false :: right
-
-/-- Tagging uses two bits per coin. -/
-@[simp] theorem length_tagged (left : List Bool) : (tagged left).length = 2 * left.length := by
-  induction left with
-  | nil => simp [tagged]
-  | cons b bs ih => simp [tagged, List.length_flatMap] at *; omega
-
-/-- The pair encoding has linear length. -/
-@[simp] theorem length_encode (left right : List Bool) :
-    (encode left right).length = 2 * left.length + right.length + 1 := by
-  simp [encode, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm]
+export List.BitPair (tagged encode length_tagged length_encode encode_inj tagged_even tagged_odd
+  encode_tag encode_coin encode_delimiter encode_input)
 
 /-- Read a tag, a coin, or the untagged ordinary input. -/
 inductive ParseState | tag | coin | input deriving DecidableEq
@@ -161,60 +149,6 @@ theorem step_end {word : List Bool} (k : ℕ) (left right : List Bool) :
   | left j => simp [parser, Action.apply, config]
   | right j => fin_cases j <;> simp [parser, Action.apply, config]
 
-
-/-- The encoded pair determines both words uniquely. -/
-@[simp] theorem encode_inj {left right left' right' : List Bool} :
-    encode left right = encode left' right' ↔ left = left' ∧ right = right' := by
-  induction left generalizing left' with
-  | nil => cases left' <;> simp [encode, tagged]
-  | cons b bs ih =>
-    cases left' with
-    | nil => simp [encode, tagged]
-    | cons b' bs' => simpa [encode, tagged, and_assoc] using
-        (show b = b' ∧ encode bs right = encode bs' right' ↔
-          b = b' ∧ bs = bs' ∧ right = right' by rw [ih])
-
-/-- Every even cell of a tagged word is its tag. -/
-theorem tagged_even (left : List Bool) (i : ℕ) (hi : i < left.length) :
-    (tagged left)[2 * i]? = some true := by
-  induction left generalizing i with
-  | nil => simp at hi
-  | cons b bs ih =>
-    cases i with
-    | zero => simp [tagged]
-    | succ i => simpa [tagged, Nat.mul_add, Nat.add_assoc] using ih i (by simpa using hi)
-
-/-- Every odd cell of a tagged word is its original bit. -/
-theorem tagged_odd (left : List Bool) (i : ℕ) (hi : i < left.length) :
-    (tagged left)[2 * i + 1]? = left[i]? := by
-  induction left generalizing i with
-  | nil => simp at hi
-  | cons b bs ih =>
-    cases i with
-    | zero => simp [tagged]
-    | succ i => simpa [tagged, Nat.mul_add, Nat.add_assoc] using ih i (by simpa using hi)
-
-/-- Locate a coin's tag within the full encoding. -/
-theorem encode_tag (left right : List Bool) (i : ℕ) (hi : i < left.length) :
-    (encode left right)[2 * i]? = some true := by
-  rw [encode, List.getElem?_append_left (by simp; omega)]
-  exact tagged_even left i hi
-
-/-- Locate a coin bit within the full encoding. -/
-theorem encode_coin (left right : List Bool) (i : ℕ) (hi : i < left.length) :
-    (encode left right)[2 * i + 1]? = some left[i] := by
-  rw [encode, List.getElem?_append_left (by simp; omega), tagged_odd left i hi,
-    List.getElem?_eq_getElem hi]
-
-/-- The coin prefix is immediately followed by the delimiter. -/
-theorem encode_delimiter (left right : List Bool) :
-    (encode left right)[2 * left.length]? = some false := by
-  simp [encode]
-
-/-- The remaining input cells are the ordinary input word. -/
-theorem encode_input (left right : List Bool) (j : ℕ) :
-    (encode left right)[2 * left.length + 1 + j]? = right[j]? := by
-  simp [encode, List.getElem?_append_right, Nat.add_assoc, Nat.add_comm 1 j]
 
 /-- Two transitions parse one tagged coin. -/
 theorem step_pair (k : ℕ) (left right : List Bool) (i : ℕ) (hi : i < left.length) :

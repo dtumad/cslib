@@ -4,7 +4,6 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.CopyAppend
 import Cslib.Computability.Probabilistic.Composition
 import Cslib.Computability.Probabilistic.Input
 import Cslib.Computability.Probabilistic.PolynomialTime
@@ -32,6 +31,11 @@ private def freshEcho : MultiTapeTM 1 Bool Unit where
   tr _ symbol work :=
     ⟨0, fun _ => (none, 0), if work 0 = none then symbol else some false, none⟩
 
+/-- A one-step emitter for checking handoffs with no work tapes. -/
+private def emitBit (bit : Bool) : MultiTapeTM 0 Bool Unit where
+  q₀ := ()
+  tr _ _ _ := ⟨0, Fin.elim0, some bit, none⟩
+
 /-- Concatenation restores the input, preserves the first output and gives the continuation
 fresh tapes, while leaving the first machine's written tape and displaced head intact. -/
 example :
@@ -44,47 +48,9 @@ example :
 
 /-- Empty input and zero work tapes still preserve both outputs across the rewind. -/
 example :
-    let machine := (MultiTapeTM.copyAppend true).concat (MultiTapeTM.copyAppend false)
-    let final := machine.runFrom (machine.initCfg []) 6
+    let machine := (emitBit true).concat (emitBit false)
+    let final := machine.runFrom (machine.initCfg []) 4
     final.state = none ∧ final.output = [true, false] := by
-  decide
-
-/-- Copying the empty input still pays for the handoff before emitting the appended bit. -/
-example :
-    let machine := MultiTapeTM.copyAppend true
-    let cfg := machine.initCfg []
-    (machine.runFrom cfg 1).state ≠ none ∧ (machine.runFrom cfg 1).output = [] ∧
-      (machine.runFrom cfg 2).state = none ∧ (machine.runFrom cfg 2).output = [true] := by
-  decide
-
-/-- The appended bit follows the complete input, including zeros and the final input symbol. -/
-example :
-    let machine := MultiTapeTM.copyAppend false
-    let cfg := machine.initCfg [false, true]
-    (machine.runFrom cfg 3).output = [false, true] ∧
-      (machine.runFrom cfg 4).state = none ∧
-      (machine.runFrom cfg 4).output = [false, true, false] := by
-  decide
-
-/-- Shared input rewind preserves existing output, work data and a displaced work head. -/
-example :
-    let machine := MultiTapeTM.copyParameter 1
-    let cfg : Cfg 1 Bool MultiTapeTM.CopyParameter.Control [true, true, false, true] :=
-      { wordsCfg _ (some machine.q₀) (fun _ => [true, false]) [false] with
-        workTapePos := fun _ => -3 }
-    let final := machine.runFrom cfg 7
-    final.state = none ∧ final.output = [false, true, true, false] ∧ final.inputPos = 1 ∧
-      final.workTapePos 0 = -3 ∧ final.workTapes 0 0 = some true ∧
-      final.workTapes 0 1 = some false := by
-  decide
-
-/-- Parameter zero still copies its delimiter and pays for the complete shared rewind. -/
-example :
-    let machine := MultiTapeTM.copyParameter 0
-    let cfg := machine.initCfg [false, true]
-    (machine.runFrom cfg 2).state ≠ none ∧
-      (machine.runFrom cfg 3).state = none ∧
-      (machine.runFrom cfg 3).output = [false] ∧ (machine.runFrom cfg 3).inputPos = 1 := by
   decide
 
 set_option maxRecDepth 4096 in

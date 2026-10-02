@@ -6,9 +6,11 @@ Authors: Samuel Schlesinger
 
 module
 
-public import Cslib.Crypto.Computational.GoldreichLevin.Parameters
+public import Cslib.Crypto.Computational.GoldreichLevin.WordDecoder
 public import Cslib.Crypto.Computational.OneWay
 public import Cslib.Computability.Probabilistic.CoinTape
+public import Cslib.Computability.Probabilistic.Parameter
+public import Cslib.Tactic.PPT
 
 /-!
 # Goldreich–Levin as a word-based probabilistic program
@@ -22,12 +24,10 @@ The program receives only the image and security parameter. Malformed image leng
 the empty word. For length-preserving functions, its game is exactly the finite inversion
 experiment, and the predictor's word game is exactly the finite parity-prediction experiment.
 
-`word_prediction_advantage_le` is the concrete reduction bound. The final asymptotic lemma
-uses the existing `OneWay` definition and exposes the remaining hypothesis:
-`∀ degree, IsPPT wordEncoding (wordInverter f evaluate c d degree)`.
-The seeded predictor evaluator and all random-tape lengths already have polynomial certificates
-or size bounds. Compiling the decoder and candidate search into a uniform PPT machine remains
-necessary; this module does not infer efficiency from high-level Lean computations.
+`wordInverter_isPPT` composes the deterministic decoder's certificate with sampling, using `ppt`.
+`word_prediction_advantage_le` is the concrete reduction bound; `negligible_parityPrediction`
+derives the asymptotic Goldreich–Levin theorem from the existing `OneWay` and `IsPPT` definitions.
+The computational proof charges for saved coins, captured inputs, and every decoder operation.
 -/
 
 @[expose] public section
@@ -35,22 +35,6 @@ necessary; this module does not infer efficiency from high-level Lean computatio
 namespace Cslib.Crypto.GoldreichLevin
 
 open Probability
-/-- View a word as `n` coordinates, using false for missing bits. Valid lengths lose no data. -/
-def wordBits (n : ℕ) (word : Word) : BitString n := fun i => word[i.val]?.getD false
-
-/-- A finite bitstring survives the word representation unchanged. -/
-@[simp] theorem wordBits_ofFn {n : ℕ} (bits : BitString n) :
-    wordBits n (List.ofFn bits) = bits := by
-  funext i
-  simp [wordBits]
-
-/-- A correctly sized word survives the finite-coordinate representation unchanged. -/
-theorem ofFn_wordBits {n : ℕ} {word : Word} (hlen : word.length = n) :
-    List.ofFn (wordBits n word) = word := by
-  subst n
-  apply List.ext_getElem (by simp)
-  intro i hi hi'
-  simp [wordBits, List.getElem?_eq_getElem hi']
 
 /-- Restrict a word function to `n`-bit inputs and outputs. -/
 def functionAtLength (f : Word → Word) (n : ℕ) : BitString n → BitString n :=
@@ -65,11 +49,85 @@ theorem ofFn_functionAtLength (f : Word → Word) (hlen : ∀ word, (f word).len
 /-- The predictor sees parameter `n` and `2 * n` challenge bits. -/
 def coinBudget (c d n : ℕ) : ℕ := c * (3 * n + 2) ^ d
 
+/-- Query a predictor using a saved coin tape, the image, and a fresh parity mask. -/
+def predictWithCoins (evaluate : Word → Word → Word) (n : ℕ)
+    (image coins query : Word) : Bool :=
+  (evaluate coins (parameterInput n (image ++ query))).headD false
+
+/-- A predictor call is efficient when its coins, parameter, image, and query are efficiently
+available. This contract is uniform in their lengths and exposes no machine witnesses. -/
+theorem predictWithCoins_isPolyTime {α : Type} {encode : α → Word}
+    {evaluate : Word → Word → Word} {parameter : α → ℕ} {image coins query : α → Word}
+    (hevaluate : IsPolyTime coinInputEncoding (fun pair => evaluate pair.1 pair.2))
+    (hparameter : IsPolyTime encode (fun a => List.replicate (parameter a) true))
+    (himage : IsPolyTime encode image) (hcoins : IsPolyTime encode coins)
+    (hquery : IsPolyTime encode query) :
+    IsPolyTime encode (fun a => [predictWithCoins evaluate (parameter a)
+      (image a) (coins a) (query a)]) :=
+  (hevaluate.comp_pair hcoins (hparameter.parameterInput (himage.append hquery))).headD false
+
+attribute [aesop safe apply (rule_sets := [PolyTime])] predictWithCoins_isPolyTime
+
+/-- Evaluate a collection of parity queries while capturing one parameter, image, and coin tape.
+The resulting word of votes is available directly to the decoder's majority operation. -/
+theorem predictWithCoins_votes_isPolyTime {evaluate : Word → Word → Word}
+    (hevaluate : IsPolyTime coinInputEncoding (fun pair => evaluate pair.1 pair.2)) :
+    IsPolyTime (pairEncoding (pairEncoding unaryEncoding coinInputEncoding)
+      (listEncoding wordEncoding)) (fun input => input.2.map (fun query =>
+        predictWithCoins evaluate input.1.1 input.1.2.1 input.1.2.2 query)) := by
+  polytime
+
+/-- Decode with a saved predictor tape and mask tape, then check the generated candidates. -/
+def decodeWithCoins (f : Word → Word) (evaluate : Word → Word → Word) (degree n : ℕ)
+    (image coins : Word) (flip : Bool) (maskWord : Word) : Word :=
+  wordCheckCandidates f image (wordCandidates
+    (fun query => predictWithCoins evaluate n image coins query ^^ flip) n
+    (maskRows (maskCount n (precision degree n)) n maskWord)
+    (guessWords (maskCount n (precision degree n))))
+/-- The full deterministic decoder composes its predictor, matrix reader, guess enumeration,
+and candidate check. Captured inputs need only ordinary efficiency certificates. -/
+theorem decodeWithCoins_isPolyTime {α : Type} {encode : α ↪ Word} {f : Word → Word}
+    {evaluate : Word → Word → Word} {parameter : α → ℕ} {image coins masks : α → Word}
+    {flip : α → Bool} (degree : ℕ) (hf : IsPolyTime wordEncoding f)
+    (hevaluate : IsPolyTime coinInputEncoding (fun pair => evaluate pair.1 pair.2))
+    (hparameter : IsPolyTime encode (fun a => List.replicate (parameter a) true))
+    (himage : IsPolyTime encode image) (hcoins : IsPolyTime encode coins)
+    (hflip : IsPolyTime encode (fun a => [flip a])) (hmasks : IsPolyTime encode masks) :
+    IsPolyTime encode (fun a => decodeWithCoins f evaluate degree (parameter a)
+      (image a) (coins a) (flip a) (masks a)) := by
+  unfold decodeWithCoins
+  apply wordCheckCandidates_isPolyTime hf himage
+  apply wordCandidates_isPolyTime (environment := encode) (env := id)
+    (predictor := fun a query => predictWithCoins evaluate (parameter a)
+      (image a) (coins a) query ^^ flip a)
+  · polytime
+  · exact isPolyTime_input encode
+  · exact hparameter
+  · exact maskRows_isPolyTime.comp_encoded
+      (((maskCount_isPolyTime hparameter (precision_isPolyTime hparameter degree)).pair
+        (left := unaryEncoding) (right := unaryEncoding) hparameter).pair hmasks)
+  · exact guessWords_maskCount_isPolyTime hparameter degree
+
+attribute [aesop safe -20 apply (rule_sets := [PolyTime])] decodeWithCoins_isPolyTime
+
+
 /-- Evaluate the predictor with the same private tape for every parity query. -/
 def fixedPredictor (evaluate : Word → Word → Word) (c d n : ℕ)
     (image : BitString n) (coins : BitString (coinBudget c d n)) (query : BitString n) : Bool :=
-  (evaluate (List.ofFn coins)
-    (parameterInput n (List.ofFn image ++ List.ofFn query))).headD false
+  predictWithCoins evaluate n (List.ofFn image) (List.ofFn coins) (List.ofFn query)
+
+/-- The ordinary word decoder agrees with the finite decoder on encoded inputs and coins. -/
+theorem decodeWithCoins_eq_ofFn (f : Word → Word)
+    (hlen : ∀ word, (f word).length = word.length) (evaluate : Word → Word → Word)
+    (c d degree n : ℕ) (image : BitString n) (coins : BitString (coinBudget c d n))
+    (flip : Bool) (maskWord : Word) :
+    decodeWithCoins f evaluate degree n (List.ofFn image) (List.ofFn coins) flip maskWord =
+      List.ofFn (checkCandidates (functionAtLength f n) image
+        (candidateList (fun query => fixedPredictor evaluate c d n image coins query ^^ flip)
+          (masksFromWord (maskCount n (precision degree n)) n maskWord))) := by
+  simp only [decodeWithCoins, maskRows_eq_ofFn, wordCandidates_eq_map]
+  exact wordCheckCandidates_eq_ofFn f (functionAtLength f n)
+    (fun bits => (ofFn_functionAtLength f hlen bits).symm) image _
 
 /-- Predict the inner product of two uniform words, given the first word's image and the second. -/
 noncomputable def parityPredictionGame (f : Word → Word) (adversary : Distinguisher)
@@ -86,15 +144,6 @@ theorem uniformBits_wordBits (n : ℕ) :
   simp only [uniformBits, PMF.map_comp, Function.comp_def, wordBits_ofFn]
   exact PMF.map_id _
 
-/-- The row-major bijection between a flat bitstring and a matrix of masks. -/
-def maskEquiv (k n : ℕ) : BitString (k * n) ≃ (Fin k → BitString n) :=
-  (Equiv.arrowCongr finProdFinEquiv.symm (Equiv.refl Bool)).trans
-    (Equiv.curry (Fin k) (Fin n) Bool)
-
-/-- Interpret a flat sampled word as the decoder's base masks. -/
-def masksFromWord (k n : ℕ) (word : Word) : Fin k → BitString n :=
-  maskEquiv k n (wordBits (k * n) word)
-
 /-- A flat tape of `k * n` uniform bits supplies exactly `k` independent uniform masks. -/
 theorem uniformBits_masksFromWord (k n : ℕ) :
     (uniformBits (k * n)).map (masksFromWord k n) =
@@ -103,34 +152,52 @@ theorem uniformBits_masksFromWord (k n : ℕ) :
   rw [← PMF.map_comp, uniformBits_wordBits]
   exact PMF.uniformOfFintype_map_equiv (maskEquiv k n)
 
-/-- The Goldreich–Levin inverter as a probabilistic program. It uses explicit uniform bit tapes
-and one fixed precision degree across all parameters. No PPT certificate is asserted here. -/
+/-- The Goldreich–Levin inverter samples three independent tapes and runs the word decoder.
+The precision degree is fixed across all security parameters. -/
 noncomputable def wordInverter (f : Word → Word) (evaluate : Word → Word → Word)
     (c d degree : ℕ) : Inverter := fun n image =>
   if image.length = n then do
     let flip ← OracleComp.uniform Bool
     let coins ← OracleComp.sample (uniformBits (coinBudget c d n))
     let maskWord ← OracleComp.sample (uniformBits (maskCount n (precision degree n) * n))
-    let masks := masksFromWord (maskCount n (precision degree n)) n maskWord
-    return List.ofFn (checkCandidates (functionAtLength f n) (wordBits n image)
-      (candidateList (fun query => fixedPredictor evaluate c d n (wordBits n image)
-        (wordBits (coinBudget c d n) coins) query
-        ^^ flip) masks))
+    return decodeWithCoins f evaluate degree n image coins flip maskWord
   else pure []
 
+set_option maxHeartbeats 800000 in
+-- The certificate composes three captured samples and the complete decoder.
+/-- The uniform inverter is PPT whenever the function and saved-coin predictor evaluator are
+polynomial-time. Sampling, captured inputs, and decoder calls compose through the public API. -/
+theorem wordInverter_isPPT {f : Word → Word} {evaluate : Word → Word → Word}
+    (hf : IsPolyTime wordEncoding f)
+    (hevaluate : IsPolyTime coinInputEncoding (fun pair => evaluate pair.1 pair.2))
+    (c d degree : ℕ) : IsPPT wordEncoding (wordInverter f evaluate c d degree) := by
+  unfold wordInverter coinBudget
+  ppt
+
 /-- On a well-formed image, the word program is exactly the finite seeded inverter. -/
-theorem wordInverter_eval (f : Word → Word) (evaluate : Word → Word → Word)
+theorem wordInverter_eval (f : Word → Word)
+    (hlen : ∀ word, (f word).length = word.length) (evaluate : Word → Word → Word)
     (c d degree n : ℕ) (image : BitString n) :
     ProbComp.eval (wordInverter f evaluate c d degree n (List.ofFn image)) =
       (invertSigned (functionAtLength f n) (fixedPredictor evaluate c d n)
         (PMF.uniformOfFintype (BitString (coinBudget c d n)))
         (maskCount n (precision degree n)) image).map List.ofFn := by
   simp only [wordInverter, List.length_ofFn, ↓reduceIte, ProbComp.eval_bind,
-    OracleComp.uniform, ProbComp.eval_sample, ProbComp.eval_pure, wordBits_ofFn,
+    OracleComp.uniform, ProbComp.eval_sample, ProbComp.eval_pure,
     invertSigned, invert, invertFixed]
   rw [← uniformBits_wordBits (coinBudget c d n),
     ← uniformBits_masksFromWord (maskCount n (precision degree n)) n]
-  simp [PMF.map, PMF.bind_bind, Function.comp_def]
+  simp only [PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
+  apply PMF.bind_congr_on_support
+  intro flip _
+  apply PMF.bind_congr_on_support
+  intro coins hcoins
+  apply PMF.bind_congr_on_support
+  intro masks _
+  congr 1
+  convert decodeWithCoins_eq_ofFn f hlen evaluate c d degree n image
+    (wordBits (coinBudget c d n) coins) flip masks using 1
+  rw [ofFn_wordBits (length_of_mem_support_uniformBits hcoins)]
 
 /-- Fixed-coin evaluation preserves each prediction distribution on correctly sized inputs. -/
 theorem fixedPredictor_distribution (adversary : Distinguisher)
@@ -211,7 +278,7 @@ theorem eval_wordInversionGame (f : Word → Word)
         (PMF.uniformOfFintype (BitString (coinBudget c d n)))
         (maskCount n (precision degree n)) (functionAtLength f n x)).map List.ofFn := by
     simpa only [ofFn_functionAtLength f hlen] using
-      wordInverter_eval f evaluate c d degree n (functionAtLength f n x)
+    wordInverter_eval f hlen evaluate c d degree n (functionAtLength f n x)
   rw [hrun]
   simp only [PMF.bind_map, Function.comp_def, functionAtLength_beq f hlen]
   rfl
@@ -231,28 +298,24 @@ theorem word_prediction_advantage_le (f : Word → Word)
     eval_wordInversionGame f hlen]
   exact invertSigned_advantage_le _ _ _ _ (precision_pos degree n)
 
-/-- One-wayness rules out parity prediction once every fixed-precision inverter is certified PPT.
-The explicit efficiency hypothesis is the remaining machine-implementation obligation. -/
-theorem negligible_parityPrediction_of_inverters (f : Word → Word)
+/-- The Goldreich–Levin theorem for word programs: no uniform PPT adversary predicts the parity
+of a random mask with the input of a length-preserving one-way function with nonnegligible bias. -/
+theorem negligible_parityPrediction {f : Word → Word}
     (hf : OneWay f) (hlen : ∀ word, (f word).length = word.length)
-    (adversary : Distinguisher) (evaluate : Word → Word → Word) (c d : ℕ)
-    (hrealize : ∀ n input, ProbComp.eval (adversary n input) =
-      (uniformBits (c * ((parameterInput n input).length + 1) ^ d)).map
-        (fun coins => (evaluate coins (parameterInput n input)).headD false))
-    (hPPT : ∀ degree, IsPPT wordEncoding (wordInverter f evaluate c d degree)) :
+    (adversary : Distinguisher) (hPPT : IsPPT boolEncoding adversary) :
     Negligible (fun n => |winProbability (parityPredictionGame f adversary n) - 1 / 2|) := by
+  obtain ⟨c, d, evaluate, hefficient, hrealize⟩ := hPPT.exists_bool_polyTime_coin_evaluator
   simp only [winProbability, eval_parityPredictionGame f hlen adversary evaluate c d hrealize]
   apply negligible_prediction_of_negligible_inversion
   intro degree
   simpa only [winProbability, eval_wordInversionGame f hlen] using
-    hf.2 (wordInverter f evaluate c d degree) (hPPT degree)
+    hf.2 _ (wordInverter_isPPT hf.1 hefficient c d degree)
 
 
 /-- The predictor's random-tape budget is polynomial in the security parameter. -/
-theorem coinBudget_polynomial (c d : ℕ) : PolynomiallyBounded (coinBudget c d) :=
-  (PolynomiallyBounded.const c).mul
-    (((PolynomiallyBounded.const 3).mul PolynomiallyBounded.id).add
-      (PolynomiallyBounded.const 2) |>.pow d)
+theorem coinBudget_polynomial (c d : ℕ) : PolynomiallyBounded (coinBudget c d) := by
+  unfold coinBudget
+  fun_prop
 
 /-- The three random samples use polynomially many bits at each fixed precision degree.
 This size bound does not account for the decoder's local computation. -/
@@ -260,10 +323,11 @@ theorem inverter_randomBits_polynomial (c d degree : ℕ) :
     PolynomiallyBounded (fun n => 1 + coinBudget c d n + maskCount n (precision degree n) * n) := by
   have hm : PolynomiallyBounded (fun n => maskCount n (precision degree n) * n) := by
     simpa only [Nat.mul_comm] using randomMaskBits_polynomial degree
-  exact ((PolynomiallyBounded.const 1).add (coinBudget_polynomial c d)).add hm
+  have := coinBudget_polynomial c d
+  fun_prop
 
 /-- A PPT predictor supplies one efficient seeded evaluator and a reduction bound at every
-fixed precision degree. Efficiency of the full inverter remains to be certified separately. -/
+fixed precision degree. `wordInverter_isPPT` certifies each resulting reduction. -/
 theorem exists_word_reduction (f : Word → Word)
     (hlen : ∀ word, (f word).length = word.length) (adversary : Distinguisher)
     (hPPT : IsPPT boolEncoding adversary) :

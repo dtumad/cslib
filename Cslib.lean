@@ -89,7 +89,6 @@ public import Cslib.Computability.Machines.Turing.MultiTape.Oracle.Deterministic
 public import Cslib.Computability.Machines.Turing.MultiTape.Oracle.ExtendTapes
 public import Cslib.Computability.Machines.Turing.MultiTape.Oracle.Halting
 public import Cslib.Computability.Machines.Turing.MultiTape.Oracle.InputFromTape
-public import Cslib.Computability.Machines.Turing.MultiTape.Oracle.KeepParameter
 public import Cslib.Computability.Machines.Turing.MultiTape.Oracle.OutputExpansion
 public import Cslib.Computability.Machines.Turing.MultiTape.Oracle.OutputPrefix
 public import Cslib.Computability.Machines.Turing.MultiTape.Oracle.OutputToTape
@@ -104,8 +103,6 @@ public import Cslib.Computability.Machines.Turing.MultiTape.Oracle.Simulation
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.ClearWork
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.ClearWorkParallel
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.Concat
-public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.CopyAppend
-public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.CopyParameter
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.ExtendTapes
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.InputFromTape
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.Iteration
@@ -136,11 +133,15 @@ public import Cslib.Computability.Machines.Turing.MultiTape.TapeLemmas
 public import Cslib.Computability.Machines.Turing.SingleTape.Defs
 public import Cslib.Computability.Machines.Turing.SingleTape.Deterministic
 public import Cslib.Computability.Machines.Turing.SingleTape.NonDeterministic
+public import Cslib.Computability.Probabilistic.Arithmetic
 public import Cslib.Computability.Probabilistic.Clock
 public import Cslib.Computability.Probabilistic.CoinTape
 public import Cslib.Computability.Probabilistic.Composition
+public import Cslib.Computability.Probabilistic.Encoding
+public import Cslib.Computability.Probabilistic.Fold
 public import Cslib.Computability.Probabilistic.Input
 public import Cslib.Computability.Probabilistic.Iteration
+public import Cslib.Computability.Probabilistic.List
 public import Cslib.Computability.Probabilistic.Output
 public import Cslib.Computability.Probabilistic.PPT
 public import Cslib.Computability.Probabilistic.Parameter
@@ -159,8 +160,10 @@ public import Cslib.Computability.URM.StraightLine
 public import Cslib.Crypto.Computational.Basic
 public import Cslib.Crypto.Computational.Ensemble
 public import Cslib.Crypto.Computational.GoldreichLevin.Decoding
+public import Cslib.Crypto.Computational.GoldreichLevin.HardCore
 public import Cslib.Crypto.Computational.GoldreichLevin.Parameters
 public import Cslib.Crypto.Computational.GoldreichLevin.Reduction
+public import Cslib.Crypto.Computational.GoldreichLevin.WordDecoder
 public import Cslib.Crypto.Computational.GoldreichLevin.WordReduction
 public import Cslib.Crypto.Computational.HardCore
 public import Cslib.Crypto.Computational.Hybrid
@@ -190,6 +193,7 @@ public import Cslib.Foundations.Data.DecidableEqZero
 public import Cslib.Foundations.Data.FinFun.Basic
 public import Cslib.Foundations.Data.FinFun.Update
 public import Cslib.Foundations.Data.HasFresh
+public import Cslib.Foundations.Data.List.BitPair
 public import Cslib.Foundations.Data.List.IsChainFromTo
 public import Cslib.Foundations.Data.Nat.Asymptotics
 public import Cslib.Foundations.Data.Nat.Factorial

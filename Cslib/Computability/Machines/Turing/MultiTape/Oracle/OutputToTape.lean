@@ -108,9 +108,8 @@ theorem runConfigFrom_outputToTape (machine : OracleTM k State) (fuel : ℕ)
       congr 1
       funext coin
       cases machine.transition state cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols
-          cfg.answerSymbol coin with
-      | step action bit move => simp [OutputToTape.step_config, ih]
-      | query next => simp [OutputToTape.receive_config, ih, map_bind]
+        cfg.answerSymbol coin <;>
+        simp [OutputToTape.step_config, OutputToTape.receive_config, ih, map_bind]
 
 /-- Buffering starts on an ordinary blank work tape; no auxiliary word is supplied. -/
 theorem initialConfig_outputToTape (machine : OracleTM k State) (input : List Bool) :
