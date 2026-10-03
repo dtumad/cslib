@@ -100,6 +100,7 @@ The first extraction ingredients are checked:
 | [Boosting/Vote](Pseudoentropy/Boosting/Vote.lean) and [Boosting/Decision](Pseudoentropy/Boosting/Decision.lean) | Executable majority prediction, rational density and stopping tests, and their guard guarantees with exponentially small sampling error. |
 | [Boosting/Program](Pseudoentropy/Boosting/Program.lean) and [Boosting/Loop](Pseudoentropy/Boosting/Loop.lean) | A strict PPT clocked loop, state bounds on every execution, and its majority-or-dense-margin guarantee with an explicit learner hypothesis and total error bound. |
 | [Boosting/Clipped](Pseudoentropy/Boosting/Clipped.lean) and [Boosting/Selection](Pseudoentropy/Boosting/Selection.lean) | Exact dyadic randomized prediction, the lower-tail error bound, and uniform empirical selection of a slope with strict PPT certificates and explicit losses. |
+| [Boosting/Training](Pseudoentropy/Boosting/Training.lean) | The complete training algorithm and observation-only predictor, their strict PPT certificates, and one prediction-error bound including guard, learner, and selection failures. |
 | [Masking](Pseudoentropy/Masking.lean) | Fresh randomized labels with conditional entropy at least the soft-mask density, and a strict PPT sequence-to-prediction reduction with an exact weighted-bias identity. |
 | [Prediction](Prediction.lean) and [Hybrid/Sequence](Hybrid/Sequence.lean) | Shared trial-bit prediction and independent-sequence hybrid combinators, with strict PPT certificates and an exact signed reduction loss. |
 | [Hybrid/SavedPrediction](Hybrid/SavedPrediction.lean) | Strict PPT sampling of bounded predictor descriptions, total efficient evaluation, and exact agreement with the coordinate predictor on every bounded observation. |
@@ -300,10 +301,18 @@ at most `delta / 2 - gamma * delta^3 / 16 + clock / (2 * D) + 2 / t`, except wit
 certificates. The explicit choice `t = 128 * inverseRate * denominator^2` and grid bound
 `clock * t` leaves error at most `delta / 2 - 1 / t`; the majority branch satisfies the same
 bound. `State.Successful.selectSlope_advantage` proves this inverse-polynomial advantage, and a
-client example certifies the configured search with `unfold ...; ppt`. The remaining reduction
-must pay for selection failure together with the loop's guard and learner failures.
+client example certifies the configured search with `unfold ...; ppt`.
 
-The uniform asymptotic parameter choices and combined failure accounting remain to be proved.
+The [complete training algorithm](Pseudoentropy/Boosting/Training.lean) composes the loop and
+final selection. `train_sound` bounds the probability of returning a model with error above
+`delta / 2 - 1 / t` by `clock * (2 * 2^(-confidence) + epsilon) + (D + 1) * 2^(-confidence)`.
+`train_predict_error` adds this failure probability to the prediction-error bound, averaging over
+all training runs and prediction coins. Training and applying the resulting model have separate
+strict PPT certificates; the predictor receives only the public observation. The visible-label
+example checks the full program with an error bound of `1/4 - 1/1024 + 2^(-n)`.
+
+The uniform asymptotic parameter choices and the application to a pseudoentropy pair remain
+to be proved.
 Following the write-up's set-oracle route would additionally require a cached membership simulation.
 The clock replaces the write-up's worst-dense-set stopping test; the current program does not
 implement that test. The conditional loop theorem and final predictor do not yet prove the uniform

@@ -429,6 +429,9 @@ predictor descriptions. The [final clipped-vote predictor](Computational/Pseudoe
 now has an exact fair-bit implementation and a uniform empirical slope search. Its error bound
 combines the dense-margin guarantee with explicit rounding, estimation, and selection-failure
 losses. Explicit polynomial precisions preserve an inverse-polynomial prediction advantage.
+The [complete training algorithm](Computational/Pseudoentropy/Boosting/Training.lean) now combines
+the loop and final selection, with strict PPT training and observation-only prediction. Its
+unconditional error bound includes guard errors, learner failures, and slope-selection failures.
 Shared candidate selection has a strict PPT certificate and a reusable accuracy rule.
 The [fresh-mask sampler](Computational/Pseudoentropy/Masking.lean) also has a strict PPT certificate
 and conditional label entropy at least the soft-mask density, including weights that depend on
@@ -447,7 +450,7 @@ supplies that bias from a distinguishing gap of either sign. The
 the statistical error for every sufficiently dense vote collection, preserving all observations
 and the public hash seed. Its information bound eventually charges only `n + 2` extra bits for
 any polynomial mask precision, independently of its degree. Explicit uniform asymptotic parameter
-choices and the combined loop and final-selection failure accounting remain to be proved.
+choices and the application to a pseudoentropy pair remain to be proved.
 Following the write-up's set-oracle formulation would additionally require a cached membership
 simulation.
 The three-source game argument and conversion of this pair into an expanding generator also remain

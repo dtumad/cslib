@@ -6,7 +6,7 @@ Authors: Samuel Schlesinger
 
 module
 
-public import Cslib.Crypto.Computational.Pseudoentropy.Boosting.Selection
+public import Cslib.Crypto.Computational.Pseudoentropy.Boosting.Training
 
 /-!
 # Hard-core boosting regressions
@@ -20,7 +20,8 @@ uniform hard-core reduction remains a separate obligation.
 The clocked-loop example instantiates a perfect learner on visible labels and checks both its
 strict PPT certificate and its exponentially small total failure bound.
 The final predictor examples check label symmetry, clipping, and uniform selection of a dyadic
-slope using the shared empirical-selection combinator.
+slope using the shared empirical-selection combinator. The complete train-and-predict program
+has a synthesized strict PPT certificate and an unconditional error bound.
 -/
 
 public section
@@ -300,5 +301,51 @@ theorem selected_visible_label_error (n : ℕ) :
   have hperfect : clippedError (PMF.uniformOfFintype Bool) (fun _ => 1) (2 / 2) = 0 := by
     norm_num [clippedError, clippedProbability]
   simpa only [Nat.cast_ofNat, hperfect, zero_add] using (lt_of_not_ge hbad)
+
+/-- Training and prediction are ordinary sequencing; the challenge supplies no hidden label.
+Twelve extra confidence bits pay for the final slope search as well as the loop guards. -/
+noncomputable def boostedLabel (n : ℕ) (observation : Word) : ProbComp Bool := do
+  let model ← train visibleLabel ((fun bit : Bool => ([bit], bit)) <$> OracleComp.uniform Bool)
+    (fun _ => pure []) (perfectParameters (n + 12))
+  predict visibleLabel (perfectParameters (n + 12)).predictionGridBound model observation
+
+/-- This complete client proof needs no facts about the underlying machine or training state. -/
+theorem boostedLabel_isPPT : IsPPT boolEncoding boostedLabel := by
+  have hprecision : IsPolyTime parameterEncoding (fun pair =>
+      unaryEncoding (perfectParameters (pair.1 + 12)).predictionGridBound) :=
+    isPolyTime_const _ (unaryEncoding (perfectParameters 0).predictionGridBound)
+  unfold boostedLabel perfectParameters visibleLabel
+  change IsPPTOn parameterEncoding boolEncoding _
+  apply IsPPTOn.bind_with (middle := pairEncoding State.encoding unaryEncoding) <;> ppt
+
+/-- The sampled guards, final slope selection, and prediction coins all contribute to this
+single error probability. The learner contract is witnessed by reading the visible label. -/
+theorem boostedLabel_error (n : ℕ) :
+    (ProbComp.eval (do
+      let bit ← OracleComp.uniform Bool
+      (fun answer => answer == bit) <$> boostedLabel n [bit]) false).toReal ≤
+        1 / 4 - 1 / 1024 + (1 / 2 : ℝ) ^ n := by
+  have h := train_predict_error (OracleComp.uniform Bool) (fun bit => [bit]) id visibleLabel
+    (fun _ => pure []) (perfectParameters (n + 12)) (perfectParameters_valid _)
+    (error := 0) le_rfl (by
+      intro state _
+      simp [ProbComp.eval_pure, visibleLabel_good])
+  have hbudget : (perfectParameters (n + 12)).clock *
+      (2 * (1 / 2 : ℝ) ^ (perfectParameters (n + 12)).confidence + 0) +
+      (dyadicSize (perfectParameters (n + 12)).predictionGridBound + 1) *
+        (1 / 2 : ℝ) ^ (perfectParameters (n + 12)).confidence ≤ (1 / 2 : ℝ) ^ n := by
+    have hlog : Nat.log 2 131072 = 17 := by decide +kernel
+    norm_num [Parameters.clock, Parameters.inverseRate, Parameters.denominator,
+      Parameters.predictionGridBound, Parameters.predictionInverseTolerance,
+      perfectParameters, dyadicSize_zero, dyadicSize, pow_add, hlog]
+    nlinarith [pow_nonneg (by norm_num : (0 : ℝ) ≤ 1 / 2) n]
+  have hthreshold : (perfectParameters (n + 12)).delta / 2 -
+      1 / (perfectParameters (n + 12)).predictionInverseTolerance = (1 : ℝ) / 4 - 1 / 1024 := by
+    norm_num [Parameters.delta, Parameters.predictionInverseTolerance, Parameters.inverseRate,
+      Parameters.denominator, perfectParameters, dyadicSize_zero]
+  rw [add_assoc, hthreshold] at h
+  have hbound := h.trans (add_le_add le_rfl hbudget)
+  simp only [id_eq] at hbound
+  simpa only [boostedLabel, ProbComp.eval_bind, ProbComp.eval_map, PMF.map_bind] using hbound
 
 end CslibTests.ComputationalCryptoBoosting
