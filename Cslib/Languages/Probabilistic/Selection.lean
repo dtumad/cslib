@@ -194,6 +194,32 @@ theorem selectBest_error_pow (count confidence inverseTolerance : ℕ) (hcount :
     ((confidence + 1) * inverseTolerance ^ 2) hcount test (by positivity)
     (fun i _ => countTrue_average_deviation_pow confidence inverseTolerance htolerance (test i))
 
+/-- A fresh test of the selected candidate fails at most as often as any specified candidate,
+up to twice the estimation tolerance and the probability of a selection error. -/
+theorem selectBest_test_error_le (count confidence inverseTolerance : ℕ)
+    (htolerance : 0 < inverseTolerance) (test : ℕ → ProbComp Bool) (i : ℕ) (hi : i < count) :
+    (eval (OracleComp.selectBest count ((confidence + 1) * inverseTolerance ^ 2) test >>=
+      test) false).toReal ≤ (eval (test i) false).toReal + 2 / inverseTolerance +
+        count * (1 / 2 : ℝ) ^ confidence := by
+  have hselect := selectBest_error_pow count confidence inverseTolerance (by lia) htolerance test
+  have hfailure := Probability.PMF.toOuterMeasure_bind_failure_toReal_le
+    (eval (OracleComp.selectBest count ((confidence + 1) * inverseTolerance ^ 2) test))
+    (fun chosen => eval (test chosen))
+    {chosen | chosen < count ∧ ∀ j < count,
+      (eval (test j) true).toReal ≤ (eval (test chosen) true).toReal + 2 / inverseTolerance}
+    {false} (error := (eval (test i) false).toReal + 2 / inverseTolerance)
+    (by positivity) (by
+      intro chosen _ hgood
+      have hchosen := Probability.PMF.sum_toReal (eval (test chosen))
+      have hi' := Probability.PMF.sum_toReal (eval (test i))
+      simp only [Fintype.sum_bool] at hchosen hi'
+      simp only [PMF.toOuterMeasure_apply_singleton]
+      have := hgood.2 i hi
+      linarith)
+  simp only [Set.compl_ofPred, PMF.toOuterMeasure_apply_singleton] at hfailure
+  rw [eval_bind]
+  linarith
+
 /-- Empirical selection from a nonempty list loses at most twice the estimation tolerance
 relative to every listed candidate, except for one small failure term per candidate. -/
 theorem selectFrom_error_pow {α : Type} (values : List α) (hvalues : 0 < values.length)

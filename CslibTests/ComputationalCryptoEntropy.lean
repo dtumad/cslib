@@ -11,13 +11,15 @@ public import Cslib.Probability.LinearHash
 public import Cslib.Crypto.Computational.GoldreichLevin.WordDecoder
 public import Cslib.Crypto.Computational.Pseudoentropy.HashReduction
 public import Cslib.Crypto.Computational.Pseudoentropy.Seed
+public import Cslib.Crypto.Computational.Pseudoentropy.Selection
 public import Cslib.Tactic.PPT
 
 /-!
-# Entropy and preimage isolation examples
+# Entropy, preimage isolation, and uniform prediction examples
 
 These checks exercise the units and orientation of conditional entropy, null observations, and
 the distinction between an arbitrary image length and the dimension of recovered preimages.
+Indexed prediction checks the common eventual bound without an efficiently chosen index.
 -/
 
 public section
@@ -167,6 +169,37 @@ theorem independent_bit_has_no_entropy_gap :
   obtain ⟨n, hn⟩ := (h (fun _ _ => pure false) (by ppt)).exists
   rw [hwin, independentBitPair_conditionalEntropy] at hn
   norm_num at hn
+
+/-- Predictor selection composes runtime bounds, fresh samples, and a supplied indexed program.
+The indexed program still needs its own certificate. -/
+theorem selected_predictor_isPPT (sample : ℕ → ProbComp (Word × Bool))
+    (predict : ℕ → ℕ → Word → ProbComp Bool)
+    (hsample : IsPPTOn unaryEncoding (pairEncoding wordEncoding boolEncoding) sample)
+    (hpredict : IsPPTOn
+      (pairEncoding (pairEncoding unaryEncoding unaryEncoding) wordEncoding) boolEncoding
+      (fun input => predict input.1.1 input.1.2 input.2)) :
+    IsPPT boolEncoding (fun n observation => Crypto.Pseudoentropy.selectPredictor
+      ((n + 1) ^ 2) ((n + 1) ^ 3) (sample n) (predict n) observation.tail) := by
+  fail_if_success (clear hpredict; ppt)
+  ppt
+
+open Filter in
+/-- The common threshold covers a varying index even when no efficient way to choose it is
+given. The algorithm tests all candidates; only the mathematical bound uses `choose`. -/
+theorem varying_index_prediction_error (pair : Crypto.Pseudoentropy.SamplablePair) {gap : ℕ → ℝ}
+    (hgap : pair.HasGap gap) (predict : ℕ → ℕ → Word → ProbComp Bool)
+    (hpredict : IsPPTOn
+      (pairEncoding (pairEncoding unaryEncoding unaryEncoding) wordEncoding) boolEncoding
+      (fun input => predict input.1.1 input.1.2 input.2))
+    (choose : ∀ n, Fin ((n + 1) ^ 2)) :
+    ∀ᶠ n in atTop, (conditionalEntropy (pair.joint n) + gap n) / 2 ≤
+      (ProbComp.eval (Crypto.Pseudoentropy.predictionGame pair.sample
+        (fun n => predict n (choose n)) n) false).toReal + 1 / ((n + 1) ^ 3 : ℕ) := by
+  have h := hgap.eventually_indexed_error_ge predict hpredict
+    (count := fun n => (n + 1) ^ 2) (inverseTolerance := fun n => (n + 1) ^ 3)
+    (by polytime) (by polytime) (fun _ => by positivity)
+  filter_upwards [h] with n hn
+  exact hn (choose n) (choose n).isLt
 
 /-- Bare projections produced by simplification still synthesize their certificates. -/
 example {α : Type} (encode : α ↪ Word) :

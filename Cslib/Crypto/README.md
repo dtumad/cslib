@@ -456,7 +456,11 @@ the statistical error for every sufficiently dense vote collection, preserving a
 and the public hash seed, including observations represented as arbitrary words. Its information
 bound eventually charges only `n + 2` extra bits for any polynomial mask precision, independently
 of its degree. The [dense-mask theorem](Computational/Pseudoentropy/DenseMask.lean) now applies
-the uniform learner to a pseudoentropy pair. An
+the uniform learner to a pseudoentropy pair, with one eventual threshold covering every test
+in an efficient polynomial-size family. Fresh labeled samples
+[select among indexed predictors](Computational/Pseudoentropy/Selection.lean); the security
+proof can therefore use a varying valid density guess without giving that choice to the algorithm.
+Carrying this indexed bound through the extraction construction remains to be done. An
 [explicit polynomial schedule](Computational/Pseudoentropy/ExtractionSchedule.lean) and the
 [word extraction theorem](Computational/Pseudoentropy/WordExtraction.lean) give negligible
 distinguishing advantage while retaining every observation and the complete matrix seed.

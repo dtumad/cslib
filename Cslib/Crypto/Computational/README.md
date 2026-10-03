@@ -107,7 +107,8 @@ The first extraction ingredients are checked:
 | [Boosting/Learner](Pseudoentropy/Boosting/Learner.lean) and [Learning](Pseudoentropy/Learning.lean) | Uniform sampling, sign selection, and weighted validation turn a noticeable sequence gap into the boosting learner's correlation contract, with strict PPT certificates and explicit failure bounds. |
 | [SequenceLearner](Pseudoentropy/SequenceLearner.lean) | One certified sequence test supplies the concrete adaptive learner and final strict PPT predictor. The complete sampling-failure bound is negligible for polynomial parameters and at least `n` confidence bits. |
 | [MaskedExtraction](Pseudoentropy/MaskedExtraction.lean) | Extracting repeated soft-masked labels preserves all observations and the public hash seed. Its explicit statistical error bounds the loss in the sequence reduction; polynomial mask precision eventually adds at most `n + 2` information bits, independently of its degree. |
-| [DenseMask](Pseudoentropy/DenseMask.lean) | A pseudoentropy pair's prediction bound gives every uniform sequence test a dense mask with any prescribed inverse-polynomial distinguishing bound and a lower bound on its positive probabilities. |
+| [Selection](Pseudoentropy/Selection.lean) | Fresh labeled samples select among polynomially many indexed predictors. The pseudoentropy error bound then holds simultaneously for all indices, with any prescribed inverse-polynomial slack. |
+| [DenseMask](Pseudoentropy/DenseMask.lean) | A pseudoentropy pair's prediction bound gives all tests in an efficient polynomial-size family dense masks with any prescribed inverse-polynomial distinguishing bound and a lower bound on positive mask probabilities. |
 | [ExtractionSchedule](Pseudoentropy/ExtractionSchedule.lean) and [LabelExtraction](Pseudoentropy/LabelExtraction.lean) | An explicit polynomial repetition schedule makes label extraction computationally uniform under an admissible entropy budget, independently of the test's running-time degree. |
 | [WordExtraction](Pseudoentropy/WordExtraction.lean) | Executable matrix hashing, exact agreement with the finite extraction laws, and a security theorem for ordinary strict PPT tests on observations, seed, and output. |
 | [RepeatedExtraction](Pseudoentropy/RepeatedExtraction.lean) | One typed extractor and conditional-entropy bound for arbitrary finite labels, with public side information and a zero-bit case requiring no entropy. |
@@ -343,6 +344,17 @@ precision schedules are polynomial-time computations, and every positive mask pr
 an explicit inverse-polynomial lower bound. This is the dense-mask consequence needed for the
 sequence reduction. The proof uses fresh soft masks and a clocked learner; it does not implement
 the write-up's worst-dense-set stopping test or a cached set-membership oracle.
+
+[`HasGap.eventually_exists_indexed_mask`](Pseudoentropy/DenseMask.lean) strengthens this to all
+tests in a polynomial-size family, with one common eventual threshold. Tests and density
+numerators may depend on the index, and validity is checked separately for each candidate.
+The single-test theorem is its singleton specialization. The uniformity argument uses
+[`selectPredictor`](Pseudoentropy/Selection.lean): fresh labeled samples estimate the success of
+each indexed predictor before the selected predictor receives the challenge. With tolerance
+`1 / t` and `(k + 1) * t^2` trials per candidate, its error is at most any candidate's error plus
+`2 / t + count * 2^(-k)`. Its PPT certificate composes with `ppt`. The entropy examples apply the
+result to an arbitrary varying index without an efficiency assumption on that choice.
+The entropy grid still needs to be carried through extraction and the expanding construction.
 
 [`HasGap.extract_word_labels`](Pseudoentropy/WordExtraction.lean) now combines this consequence
 with statistical extraction. If `L` is the sampler's seed length, set
