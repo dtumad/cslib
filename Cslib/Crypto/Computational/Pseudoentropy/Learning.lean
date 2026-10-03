@@ -44,7 +44,7 @@ theorem maskedSequence_validation_gap [Finite α]
     (source : ProbComp α) (observe : α → β) (truth : α → Bool)
     (mask : α → ProbComp Bool) (count : ℕ) (test : List (β × Bool) → ProbComp Bool)
     (candidates : ProbComp Word) (predict : Word → β → Bool)
-    (hrealize : ∀ value,
+    (hrealize : ∀ value ∈ (ProbComp.eval source).support,
       ProbComp.eval ((fun code => predict code (observe value)) <$> candidates) =
         ProbComp.eval
           (maskedSequencePredictor source observe truth mask count test (observe value))) :
@@ -56,13 +56,13 @@ theorem maskedSequence_validation_gap [Finite α]
         weightedTrial source mask
           (fun value => pure (predict code (observe value) == truth value))) - 1 / 2) := by
   let := Fintype.ofFinite α
-  have hpoint (value : α) :
+  have hpoint (value : α) (hsupport : value ∈ (ProbComp.eval source).support) :
       winProbability
         (candidates >>= fun code => pure (predict code (observe value) == truth value)) =
         winProbability ((fun guess => guess == truth value) <$>
           maskedSequencePredictor source observe truth mask count test (observe value)) := by
     apply congrArg Game.winProbability
-    have h := congrArg (PMF.map (fun guess => guess == truth value)) (hrealize value)
+    have h := congrArg (PMF.map (fun guess => guess == truth value)) (hrealize value hsupport)
     simpa only [bind_pure_comp, ProbComp.eval_map, PMF.map_comp, Function.comp_def] using h
   have hvalidation : winProbability (candidates >>= fun code => weightedTrial source mask
       (fun value => pure (predict code (observe value) == truth value))) =
@@ -70,8 +70,16 @@ theorem maskedSequence_validation_gap [Finite α]
         candidates >>= fun code => pure (predict code (observe value) == truth value))) :=
     congrArg Game.winProbability (eval_weightedTrial_bind candidates source mask _)
   rw [maskedSequence_prediction_gap, hvalidation, weightedTrial_probability]
-  simp_rw [hpoint]
-  simp only [winProbability, Game.winProbability, mul_assoc, add_sub_cancel_left]
+  simp only [add_sub_cancel_left]
+  congr 1
+  apply Finset.sum_congr rfl
+  intro value _
+  by_cases hsupport : value ∈ (ProbComp.eval source).support
+  · rw [hpoint value hsupport]
+    simp only [winProbability, Game.winProbability, mul_assoc]
+  · have hzero : ProbComp.eval source value = 0 := by
+      simpa only [PMF.mem_support_iff, not_not] using hsupport
+    simp [hzero]
 
 /-- A noticeable sequence gap of either sign gives an explicitly sampled predictor with
 positive weighted correlation. Its failure probability includes discovery and estimation. -/
@@ -79,7 +87,7 @@ theorem maskedSequence_learn_error_pow [Fintype α]
     (source : ProbComp α) (observe : α → β) (truth : α → Bool)
     (mask : α → ProbComp Bool) (count : ℕ) (test : List (β × Bool) → ProbComp Bool)
     (candidates : ProbComp Word) (predict : Word → β → Bool)
-    (hrealize : ∀ value,
+    (hrealize : ∀ value ∈ (ProbComp.eval source).support,
       ProbComp.eval ((fun code => predict code (observe value)) <$> candidates) =
         ProbComp.eval
           (maskedSequencePredictor source observe truth mask count test (observe value)))
@@ -118,7 +126,7 @@ theorem extractedSequence_learn_error_pow {Seed Output : Type} [Fintype α]
     (hclose : dist (ProbComp.eval (OracleComp.replicate count
       (maskedSample source observe truth mask) >>= extractLabels seed hash)) ideal ≤ ε)
     (candidates : ProbComp Word) (predict : Word → β → Bool)
-    (hrealize : ∀ value,
+    (hrealize : ∀ value ∈ (ProbComp.eval source).support,
       ProbComp.eval ((fun code => predict code (observe value)) <$> candidates) =
         ProbComp.eval (maskedSequencePredictor source observe truth mask count
           (fun samples => extractLabels seed hash samples >>= test) (observe value)))

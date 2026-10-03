@@ -239,6 +239,17 @@ def codeBound (baseSize count c d width : ℕ) : ℕ :=
   let context := contextBound baseSize count width
   2 * context + c * (context + 4 * width + 6) ^ d + 8
 
+/-- The saved-description budget is polynomial time in the parameter and sample sizes.
+The clock coefficients belong to the fixed test, so the exponent is constant. -/
+theorem codeBound_isPolyTime {Param : Type} {input : Param ↪ Word}
+    {baseSize count width : Param → ℕ} (c d : ℕ)
+    (hbase : IsPolyTime input (fun a => unaryEncoding (baseSize a)))
+    (hcount : IsPolyTime input (fun a => unaryEncoding (count a)))
+    (hwidth : IsPolyTime input (fun a => unaryEncoding (width a))) :
+    IsPolyTime input (fun a => unaryEncoding (codeBound (baseSize a) (count a) c d (width a))) := by
+  unfold codeBound contextBound
+  polytime
+
 private theorem length_save {c d width : ℕ} {trial : Bool} {front back code : Word}
     (hcode : code ∈ (ProbComp.eval (save c d width trial front back)).support) :
     code.length = 2 * (front.length + back.length) + coinBudget c d width front back + 8 := by

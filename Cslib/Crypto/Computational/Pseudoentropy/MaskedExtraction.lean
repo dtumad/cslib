@@ -40,6 +40,24 @@ def extractLabels {Observation Seed Output : Type} (seed : ProbComp Seed)
   let key ← seed
   return (samples.map Prod.fst, key, hash key (samples.map Prod.snd))
 
+/-- Re-encoding the public observations commutes with extraction of the hidden labels. -/
+theorem extractLabels_map_observation {α β Seed Output : Type} (observe : α → β)
+    (seed : ProbComp Seed) (hash : Seed → Word → Output) (samples : List (α × Bool)) :
+    extractLabels seed hash (samples.map (fun sample => (observe sample.1, sample.2))) =
+      (fun result => (result.1.map observe, result.2)) <$> extractLabels seed hash samples := by
+  simp only [extractLabels, map_bind, map_pure, List.map_map, Function.comp_def]
+
+/-- The observation map also commutes with a complete repeated extraction experiment. -/
+theorem eval_replicate_extractLabels_map {α β Seed Output : Type} (observe : α → β)
+    (source : ProbComp (α × Bool)) (count : ℕ) (seed : ProbComp Seed)
+    (hash : Seed → Word → Output) :
+    ProbComp.eval (OracleComp.replicate count
+      ((fun sample => (observe sample.1, sample.2)) <$> source) >>= extractLabels seed hash) =
+      (ProbComp.eval (OracleComp.replicate count source >>= extractLabels seed hash)).map
+        (fun result => (result.1.map observe, result.2)) := by
+  rw [OracleComp.replicate_map]
+  simp only [bind_map_left, extractLabels_map_observation, ← map_bind, ProbComp.eval_map]
+
 /-- Label extraction composes ordinary sampling, list projections, and an efficient hash. -/
 theorem extractLabels_isPPT {Param Observation Seed Output : Type} {input : Param ↪ Word}
     {observation : Observation ↪ Word} {key : Seed ↪ Word} {output : Output ↪ Word}
@@ -257,8 +275,10 @@ theorem maskedSample_weight_mass_ge_eventually {α β : ℕ → Type}
 
 /-- Independent masked labels contain at least the soft density per sample for extraction.
 All observations and the hash seed remain public, and the masked and original public marginals
-are identical. The error is uniform over every vote collection and threshold of that density. -/
-theorem maskedSample_weight_extract {α β Seed Output : Type} [Fintype α] [Finite β]
+are identical. Observations may live in an infinite type, such as words: first reveal the finite
+source draw, then forget it through `observe`. The error is uniform over every vote collection
+and threshold of that density. -/
+theorem maskedSample_weight_extract {α β Seed Output : Type} [Fintype α]
     [Fintype Seed] [Fintype Output] [Nonempty Output]
     (source : ProbComp α) (observe : α → β) (truth : α → Bool) (votes : α → Word)
     (count sourceBits bound numerator threshold : ℕ)
@@ -278,13 +298,25 @@ theorem maskedSample_weight_extract {α β Seed Output : Type} [Fintype α] [Fin
           (PMF.uniformOfFintype Output).map (s, ·))).map (observed, ·))) ≤
       2 * Real.exp (-2 * slack ^ 2 / (count * (sourceBits + Nat.log 2 bound + 2 : ℕ) ^ 2)) +
         Real.sqrt (Fintype.card Output * (2 * (2 : ℝ) ^ (-(count * δ - slack)))) / 2 := by
-  simpa only [ProbComp.eval_replicate, ProbComp.eval_map, maskedSample_map_fst] using
-    extractLabels_distance_le (maskedSample source observe truth (fun value =>
+  have hfull := extractLabels_distance_le (maskedSample source id truth (fun value =>
       Boosting.sampleWeight bound numerator threshold (votes value) (truth value))) count
       (sourceBits + Nat.log 2 bound + 2)
-      (maskedSample_weight_mass_ge source observe truth votes sourceBits bound numerator
+      (maskedSample_weight_mass_ge source id truth votes sourceBits bound numerator
         threshold hsource) seed hash hhash
-      (hdensity.trans (maskedSample_weight_entropy_ge source observe truth votes bound
+      (hdensity.trans (maskedSample_weight_entropy_ge source id truth votes bound
         numerator threshold)) hslack
+  have hmap := (dist_map_le _ _
+    (fun result : List α × Seed × Output => (result.1.map observe, result.2))).trans hfull
+  rw [← eval_replicate_extractLabels_map observe] at hmap
+  have hmasked : maskedSample source observe truth (fun value =>
+      Boosting.sampleWeight bound numerator threshold (votes value) (truth value)) =
+      (fun sample => (observe sample.1, sample.2)) <$>
+        maskedSample source id truth (fun value =>
+          Boosting.sampleWeight bound numerator threshold (votes value) (truth value)) := by
+    simp only [maskedSample, map_bind, Functor.map_map, id_eq]
+  rw [← hmasked] at hmap
+  rw [OracleComp.replicate_map count source observe]
+  simpa only [ProbComp.eval_replicate, ProbComp.eval_map, maskedSample_map_fst, PMF.map_id,
+    PMF.bind_map, PMF.map_bind, PMF.map_comp, Function.comp_def, List.map_ofFn] using hmap
 
 end Cslib.Crypto.Pseudoentropy

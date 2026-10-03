@@ -105,6 +105,7 @@ The first extraction ingredients are checked:
 | [Prediction](Prediction.lean) and [Hybrid/Sequence](Hybrid/Sequence.lean) | Shared trial-bit prediction and independent-sequence hybrid combinators, with strict PPT certificates and an exact signed reduction loss. |
 | [Hybrid/SavedPrediction](Hybrid/SavedPrediction.lean) | Strict PPT sampling of bounded predictor descriptions, total efficient evaluation, and exact agreement with the coordinate predictor on every bounded observation. |
 | [Boosting/Learner](Pseudoentropy/Boosting/Learner.lean) and [Learning](Pseudoentropy/Learning.lean) | Uniform sampling, sign selection, and weighted validation turn a noticeable sequence gap into the boosting learner's correlation contract, with strict PPT certificates and explicit failure bounds. |
+| [SequenceLearner](Pseudoentropy/SequenceLearner.lean) | One certified sequence test supplies the concrete adaptive learner and final strict PPT predictor. The complete sampling-failure bound is negligible for polynomial parameters and at least `n` confidence bits. |
 | [MaskedExtraction](Pseudoentropy/MaskedExtraction.lean) | Extracting repeated soft-masked labels preserves all observations and the public hash seed. Its explicit statistical error bounds the loss in the sequence reduction; polynomial mask precision eventually adds at most `n + 2` information bits, independently of its degree. |
 | [LinearHash](../../Computability/Probabilistic/LinearHash.lean) | Boolean-matrix hashing, its word implementation, its PPT sampler, and exact agreement with the finite extraction experiment. |
 | [Extraction](Extraction.lean) | A source indistinguishable from a sufficiently diffuse comparison source yields computationally uniform extraction. |
@@ -222,7 +223,8 @@ to generate those data. `length_sample_le` bounds every description in terms of 
 parameter, repetition count, observation width, and fixed test clock. The checked client examples
 prove that the boosting loop's truncation preserves prediction whenever its bound covers this
 size. Both the decoder and evaluator are total on arbitrary words, and no efficient inverse of
-the abstract parameter or observation encoding is assumed.
+the abstract parameter or observation encoding is assumed. The learning reduction requires replay
+only on observations in the source's support.
 
 The [concrete learner](Pseudoentropy/Boosting/Learner.lean) validates a saved predictor on fresh
 labeled examples. It draws the example's weight coin, checks the prediction if that coin accepts,
@@ -253,11 +255,12 @@ depend on the distinguisher.
 hash seed. `extractLabels_distance_le` transfers the conditional-entropy estimate to this program;
 `maskedSample_weight_extract` instantiates it with the soft density. The client proof for repeated
 sampling and matrix hashing is `unfold extractTraining; ppt`. The tests also instantiate the bound
-with a mask that depends on the hidden label and a constant public observation.
+with a mask that depends on the hidden label and a constant word observation. Public observations
+may live in an infinite type: extraction first reveals the finite source draw, then forgets it
+through the observation map.
 `extractedSequence_learn_error_pow` then pays this extraction error before applying the learner:
 advantage at least `epsilon + dyadicSize count / r` yields the stated correlation guarantee.
-The final construction still needs explicit uniform repetition and precision choices and the
-combined loop and final-selection failure bound.
+The final construction still needs explicit uniform repetition and precision choices.
 
 The [sampled decisions](Pseudoentropy/Boosting/Decision.lean) implement the overlapping density
 and majority guards from Figure 2 and Claim 2.6 of the uniform hard-core write-up. With weight
@@ -311,12 +314,24 @@ all training runs and prediction coins. Training and applying the resulting mode
 strict PPT certificates; the predictor receives only the public observation. The visible-label
 example checks the full program with an error bound of `1/4 - 1/1024 + 2^(-n)`.
 
+[`SequenceLearner`](Pseudoentropy/SequenceLearner.lean) supplies the concrete learner for this
+training algorithm. `exists_evaluator` obtains one fixed efficient evaluator from the sequence
+test's certificate. Each round samples bounded descriptions against its current mask, chooses
+their orientation by fresh validation, and stores the selected description. `predict_error`
+turns a distinguishing gap against every dense masked sequence into prediction error at most
+`delta / 2 - 1 / t + failureBound`. The bound covers all guards, learning, and final selection.
+For polynomial parameters and confidence at least `n`, it is negligible and eventually at most
+`1 / (2 * t)`.
+
+The [sequence learner example](../../../CslibTests/ComputationalCryptoSequenceLearner.lean)
+starts from a certified test on visible labels and constructs the entire strict PPT predictor.
+It proves eventual error at most `1/4 - 1/32768`, including the actual sampled learner's failures.
+
 The uniform asymptotic parameter choices and the application to a pseudoentropy pair remain
 to be proved.
 Following the write-up's set-oracle route would additionally require a cached membership simulation.
 The clock replaces the write-up's worst-dense-set stopping test; the current program does not
-implement that test. The conditional loop theorem and final predictor do not yet prove the uniform
-hard-core lemma.
+implement that test. The complete sequence reduction does not yet prove the uniform hard-core lemma.
 
 `ComputationallyIndistinguishable.extract_uniform` still assumes its comparison source and
 negligible collision bound. Negligible collisions of the OWF output alone do not give the entropy
@@ -574,7 +589,7 @@ the modules that formalize them and distinguish these proved ingredients from th
 For the constructive uniform hard-core argument we also follow Thomas Holenstein,
 *Key Agreement from Weak Bit Agreement*, STOC 2005, Section 2.2,
 [write-up](https://crypto.ethz.ch/publications/files/Holens05.pdf). The checked potential analysis
-and clocked program, conditional on its learner contract, are ingredients of that uniform reduction.
+and clocked program with its concrete sequence learner are ingredients of that uniform reduction.
 
 The module docstrings cite the underlying mathematics: Arora–Barak and Boneh–Shoup for the
 security definitions, and Goldreich–Levin with Trevisan's lecture notes for the decoding argument.

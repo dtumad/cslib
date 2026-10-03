@@ -198,7 +198,7 @@ theorem saved_descriptions_supply_validation_gap
   refine ⟨c, d, predict, hefficient, ?_⟩
   intro n count width source observe mask hwidth
   apply maskedSequence_validation_gap source observe id mask
-  intro bit
+  intro bit _
   simpa only [maskedSequencePredictor, wordEncoding, Function.Embedding.refl_apply, id_eq] using
     hlaw n (maskedSample source observe id mask) ((fun bit => (observe bit, bit)) <$> source)
       count width (observe bit) (hwidth bit)

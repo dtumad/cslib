@@ -19,6 +19,7 @@ import CslibTests.ComputationalCryptoMachines
 import CslibTests.ComputationalCryptoMasking
 import CslibTests.ComputationalCryptoPrograms
 import CslibTests.ComputationalCryptoReductions
+import CslibTests.ComputationalCryptoSequenceLearner
 import CslibTests.Congruence
 import CslibTests.DFA
 import CslibTests.FreeMonad

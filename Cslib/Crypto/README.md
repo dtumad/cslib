@@ -446,9 +446,15 @@ samples orientations and selects descriptions by fresh weighted validation. A no
 bias gives the loop's truncated-predictor contract with an explicit discovery-and-selection error;
 the full learner is strict PPT. The [sequence reduction](Computational/Pseudoentropy/Learning.lean)
 supplies that bias from a distinguishing gap of either sign. The
+[complete sequence learner](Computational/Pseudoentropy/SequenceLearner.lean) now combines the
+saved evaluator, adaptive learner, and final prediction program. A sequence gap against every
+dense mask gives one prediction-error bound; its total sampling failure is negligible for
+polynomial parameters and confidence at least `n`. An end-to-end test constructs the evaluator
+from a certified sequence test and proves an eventual prediction advantage. The
 [masked-source extraction bound](Computational/Pseudoentropy/MaskedExtraction.lean) now gives
 the statistical error for every sufficiently dense vote collection, preserving all observations
-and the public hash seed. Its information bound eventually charges only `n + 2` extra bits for
+and the public hash seed, including observations represented as arbitrary words. Its information
+bound eventually charges only `n + 2` extra bits for
 any polynomial mask precision, independently of its degree. Explicit uniform asymptotic parameter
 choices and the application to a pseudoentropy pair remain to be proved.
 Following the write-up's set-oracle formulation would additionally require a cached membership

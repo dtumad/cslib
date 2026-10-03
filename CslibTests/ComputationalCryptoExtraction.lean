@@ -142,22 +142,23 @@ theorem extractTraining_isPPT {source : ℕ → ProbComp (Word × Bool)}
   ppt
 
 /-- A hidden-label-dependent mask still supplies half a bit per sample for extraction. The
-public observation is constant; one original label is masked and the other is retained. -/
+public observation is an empty word; one original label is masked and the other is retained.
+The observation type is infinite, even though the underlying source has just two outcomes. -/
 theorem extraction_with_hidden_label_mask (count outputBits : ℕ) {slack : ℝ}
     (hslack : 0 ≤ slack) :
     let seed := OracleComp.uniform (Fin outputBits → BitString count)
-    let source := Pseudoentropy.maskedSample (OracleComp.uniform Bool) (fun _ => ()) id
+    let source := Pseudoentropy.maskedSample (OracleComp.uniform Bool) (fun _ => ([] : Word)) id
       (fun bit => Pseudoentropy.Boosting.sampleWeight 0 2 0 [true] bit)
     dist (ProbComp.eval (OracleComp.replicate count source >>=
         Pseudoentropy.extractLabels seed
           (fun rows bits => LinearHash.hash rows (wordBits count bits))))
       ((ProbComp.eval seed).bind (fun rows => (PMF.uniformOfFintype (BitString outputBits)).map
-        (fun bits => (List.replicate count (), rows, bits)))) ≤
+        (fun bits => (List.replicate count ([] : Word), rows, bits)))) ≤
       2 * Real.exp (-2 * slack ^ 2 / (count * 9)) +
         Real.sqrt ((2 : ℝ) ^ outputBits * (2 * (2 : ℝ) ^ (-(count / 2 - slack)))) / 2 := by
   dsimp only
   have h := Pseudoentropy.maskedSample_weight_extract (OracleComp.uniform Bool)
-    (fun _ => ()) id (fun _ => [true]) count 1 0 2 0
+    (fun _ => ([] : Word)) id (fun _ => [true]) count 1 0 2 0
     (by intro bit _; norm_num [OracleComp.uniform, PMF.uniformOfFintype_apply])
     (OracleComp.uniform (Fin outputBits → BitString count))
     (fun rows bits => LinearHash.hash rows (wordBits count bits))
@@ -167,14 +168,19 @@ theorem extraction_with_hidden_label_mask (count outputBits : ℕ) {slack : ℝ}
         PMF.uniformOfFintype_apply, Fintype.sum_bool, Pseudoentropy.Boosting.voteMargin,
         Pseudoentropy.Boosting.weight, dyadicSize]) hslack
   have hpublic : ProbComp.eval (OracleComp.replicate count
-      ((fun _ : Bool => ()) <$> OracleComp.uniform Bool)) = PMF.pure (List.replicate count ()) := by
-    rw [ProbComp.eval_replicate]
-    have hconstant : (List.ofFn : (Fin count → Unit) → List Unit) =
-        Function.const _ (List.replicate count ()) := by
+      ((fun _ : Bool => ([] : Word)) <$> OracleComp.uniform Bool)) =
+        PMF.pure (List.replicate count ([] : Word)) := by
+    rw [OracleComp.replicate_map, ProbComp.eval_map, ProbComp.eval_replicate, PMF.map_comp]
+    have hconstant : (fun values : Fin count → Bool =>
+        (List.ofFn values).map (fun _ => ([] : Word))) =
+        Function.const _ (List.replicate count ([] : Word)) := by
       funext values
-      rw [show values = fun _ => () from Subsingleton.elim _ _, List.ofFn_const]
-      rfl
-    rw [hconstant, PMF.map_const]
+      rw [List.map_ofFn]
+      change List.ofFn (fun _ : Fin count => ([] : Word)) = List.replicate count []
+      rw [List.ofFn_const]
+    simpa only [Function.comp_def, hconstant] using
+      (PMF.map_const (pi (fun _ : Fin count => ProbComp.eval (OracleComp.uniform Bool)))
+        (List.replicate count ([] : Word)))
   rw [hpublic, PMF.pure_bind] at h
   norm_num only [Nat.log_zero_right, Nat.cast_add, Nat.cast_one, Nat.cast_zero, Nat.cast_ofNat] at h
   simpa only [PMF.map_bind, PMF.map_comp, Function.comp_def, id_eq, BitString,
