@@ -103,6 +103,7 @@ The first extraction ingredients are checked:
 | [Masking](Pseudoentropy/Masking.lean) | Fresh randomized labels with conditional entropy at least the soft-mask density, and a strict PPT sequence-to-prediction reduction with an exact weighted-bias identity. |
 | [Prediction](Prediction.lean) and [Hybrid/Sequence](Hybrid/Sequence.lean) | Shared trial-bit prediction and independent-sequence hybrid combinators, with strict PPT certificates and an exact signed reduction loss. |
 | [Hybrid/SavedPrediction](Hybrid/SavedPrediction.lean) | Strict PPT sampling of bounded predictor descriptions, total efficient evaluation, and exact agreement with the coordinate predictor on every bounded observation. |
+| [Boosting/Learner](Pseudoentropy/Boosting/Learner.lean) and [Learning](Pseudoentropy/Learning.lean) | Uniform sampling, sign selection, and weighted validation turn a noticeable sequence gap into the boosting learner's correlation contract, with strict PPT certificates and explicit failure bounds. |
 | [LinearHash](../../Computability/Probabilistic/LinearHash.lean) | Boolean-matrix hashing, its word implementation, its PPT sampler, and exact agreement with the finite extraction experiment. |
 | [Extraction](Extraction.lean) | A source indistinguishable from a sufficiently diffuse comparison source yields computationally uniform extraction. |
 
@@ -221,9 +222,21 @@ prove that the boosting loop's truncation preserves prediction whenever its boun
 size. Both the decoder and evaluator are total on arbitrary words, and no efficient inverse of
 the abstract parameter or observation encoding is assumed.
 
-This supplies the coordinate reduction for the direct soft-weight route. The extraction estimate
-for these masked sources, selection of the successful sign, and amplification to the boosting
-learner's high-probability contract remain to be proved.
+The [concrete learner](Pseudoentropy/Boosting/Learner.lean) validates a saved predictor on fresh
+labeled examples. It draws the example's weight coin, checks the prediction if that coin accepts,
+and otherwise returns a fair bit. Its validation bias is exactly half the weighted correlation.
+`learn` draws signed descriptions and selects by repeated validation; the orientation is sampled
+and tested uniformly. If the average validation probability differs from `1/2` by at least `1 / r`,
+then the learned predictor has weighted correlation at least `1 / (2 * r)`, except with probability
+`(((confidence + 1) * (4 * r)^2) + 1) * 2^(-confidence)`.
+
+`learn_goodPredictor_error_pow` gives the loop's actual contract, including truncation, when the
+code bound covers the descriptions and `gamma ≤ 1 / (2 * r)`. The shared `sampleBest` combinator
+handles discovery and empirical selection on arbitrary encoded candidate types, while preserving
+description bounds on every execution. The complete learner's client certificate composes with
+`ppt`. The [sequence bridge](Pseudoentropy/Learning.lean) supplies its average bias from a
+distinguishing gap of either sign and the saved evaluator's replay law. The extraction estimate
+providing that gap for every dense boosting state remains to be proved.
 
 The [sampled decisions](Pseudoentropy/Boosting/Decision.lean) implement the overlapping density
 and majority guards from Figure 2 and Claim 2.6 of the uniform hard-core write-up. With weight
@@ -270,10 +283,11 @@ bound. `State.Successful.selectSlope_advantage` proves this inverse-polynomial a
 client example certifies the configured search with `unfold ...; ppt`. The remaining reduction
 must pay for selection failure together with the loop's guard and learner failures.
 
-The weak learner and combined failure accounting remain to be constructed. Following the
-write-up's set-oracle route would additionally require a cached membership simulation. The clock
-replaces the write-up's worst-dense-set stopping test; the current program does not implement that
-test. The conditional loop theorem and final predictor do not yet prove the uniform hard-core lemma.
+The masked-source extraction premise and combined failure accounting remain to be proved.
+Following the write-up's set-oracle route would additionally require a cached membership simulation.
+The clock replaces the write-up's worst-dense-set stopping test; the current program does not
+implement that test. The conditional loop theorem and final predictor do not yet prove the uniform
+hard-core lemma.
 
 `ComputationallyIndistinguishable.extract_uniform` still assumes its comparison source and
 negligible collision bound. Negligible collisions of the OWF output alone do not give the entropy
@@ -444,6 +458,7 @@ The first exercises led to these shared interfaces:
 | Simplifying large fixed unary parameters exhausted recursion depth. | `polytime` certifies fully specified constant outputs before expanding their representation. |
 | A prediction callback returned a conditional Boolean with a captured negated bit. | Boolean postprocessing handles fixed unary operations, conditional singleton results, and constructed output encodings. |
 | Repeated-sample hybrids required coordinate bookkeeping. | `sequenceTest` simulates the surrounding lists and preserves the exact signed gap; `bitPredictor` shares the prediction step with the existing hard-core proof. |
+| A weak learner needed to sample candidates and select one reliably. | `sampleBest` composes discovery and empirical selection, carries support bounds through failures, and has a synthesized strict PPT certificate. |
 
 For example, truncation is a short client proof:
 

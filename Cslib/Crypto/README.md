@@ -438,9 +438,14 @@ into a predictor with an exact weighted-bias identity. Its client efficiency pro
 The [saved predictor](Computational/Hybrid/SavedPrediction.lean) now has exact replay, strict PPT
 sampling, and a description bound independent of the boosting state used to sample its examples.
 Its total efficient evaluator accepts arbitrary word codes, and the checked size bound justifies
-truncation before storage. The weak learner's amplification and combined failure accounting remain
-to be proved; following
-the write-up's set-oracle formulation would additionally require a cached membership simulation.
+truncation before storage. The [concrete learner](Computational/Pseudoentropy/Boosting/Learner.lean)
+samples orientations and selects descriptions by fresh weighted validation. A noticeable average
+bias gives the loop's truncated-predictor contract with an explicit discovery-and-selection error;
+the full learner is strict PPT. The [sequence reduction](Computational/Pseudoentropy/Learning.lean)
+supplies that bias from a distinguishing gap of either sign. The extraction estimate providing a
+gap on every dense boosting state and the combined loop-and-final-selection failure accounting
+remain to be proved. Following the write-up's set-oracle formulation would additionally require
+a cached membership simulation.
 The three-source game argument and conversion of this pair into an expanding generator also remain
 to be proved.
 The [computational guide](Computational/README.md#toward-general-one-way-functions) records the

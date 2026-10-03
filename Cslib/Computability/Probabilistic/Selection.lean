@@ -70,4 +70,38 @@ theorem IsPPTOn.selectBest {α : Type} {input : α ↪ Word}
 private meta def pptSelection : Lean.Elab.Tactic.TacticM Unit :=
   Cslib.Tactic.PPT.applyHead #[(``OracleComp.selectBest, ``IsPPTOn.selectBest)]
 
+/-- Selecting from an efficiently computed list charges for the whole list and each test. -/
+theorem IsPPTOn.selectFrom {α β : Type} {input : α ↪ Word} {output : β ↪ Word}
+    {values : α → List β} {trials : α → ℕ} {test : α → β → ProbComp Bool} (fallback : β)
+    (hvalues : IsPolyTime input (fun a => listEncoding output (values a)))
+    (htrials : IsPolyTime input (fun a => unaryEncoding (trials a)))
+    (htest : IsPPTOn (pairEncoding input output) boolEncoding
+      (fun pair => test pair.1 pair.2)) :
+    IsPPTOn input output
+      (fun a => OracleComp.selectFrom (values a) (trials a) (test a) fallback) := by
+  unfold OracleComp.selectFrom
+  ppt
+
+@[aesop safe -10 tactic (rule_sets := [PPT])]
+private meta def pptSelectFrom : Lean.Elab.Tactic.TacticM Unit :=
+  Cslib.Tactic.PPT.applyHead #[(``OracleComp.selectFrom, ``IsPPTOn.selectFrom)]
+
+/-- Sampling a polynomial candidate pool and selecting empirically is a uniform strict PPT
+program. Both the generator and the validation test may capture the original input. -/
+theorem IsPPTOn.sampleBest {α β : Type} {input : α ↪ Word} {output : β ↪ Word}
+    {source : α → ProbComp β} {test : α → β → ProbComp Bool} {count trials : α → ℕ}
+    (fallback : β) (hsource : IsPPTOn input output source)
+    (htest : IsPPTOn (pairEncoding input output) boolEncoding
+      (fun pair => test pair.1 pair.2))
+    (hcount : IsPolyTime input (fun a => unaryEncoding (count a)))
+    (htrials : IsPolyTime input (fun a => unaryEncoding (trials a))) :
+    IsPPTOn input output (fun a =>
+      OracleComp.sampleBest (count a) (trials a) (source a) (test a) fallback) := by
+  unfold OracleComp.sampleBest
+  ppt
+
+@[aesop safe -10 tactic (rule_sets := [PPT])]
+private meta def pptSampleBest : Lean.Elab.Tactic.TacticM Unit :=
+  Cslib.Tactic.PPT.applyHead #[(``OracleComp.sampleBest, ``IsPPTOn.sampleBest)]
+
 end Cslib.Probability

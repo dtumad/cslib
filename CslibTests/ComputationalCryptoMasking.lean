@@ -6,7 +6,7 @@ Authors: Samuel Schlesinger
 
 module
 
-public import Cslib.Crypto.Computational.Pseudoentropy.Masking
+public import Cslib.Crypto.Computational.Pseudoentropy.Learning
 public import Cslib.Crypto.Computational.Hybrid.SavedPrediction
 
 /-!
@@ -15,7 +15,8 @@ public import Cslib.Crypto.Computational.Hybrid.SavedPrediction
 The examples check hidden-label-dependent masks, fresh randomness on repeated inputs, signed
 hybrid cancellation, the loss from unused sampled indices, and strict PPT composition with
 arbitrary certified training sources and distinguishers. Saved descriptions preserve the same
-prediction law, and their size contract justifies truncation before storage.
+prediction law, and their size contract justifies truncation before storage. The concrete learner
+composes these descriptions with fresh validation, including negatively biased candidates.
 -/
 
 public section
@@ -154,6 +155,69 @@ theorem coordinateDescriptions_realize {test : ℕ → List (Word × Bool) → P
   simpa [coordinateDescriptions, coordinatePrediction, maskedSequencePredictor, maskedTraining,
     wordEncoding] using hlaw n (maskedTraining n (source n)) (source n) ((n + 1) ^ 2)
       ((n + 1) ^ 3) observation hwidth
+
+/-- Sample descriptions and learn a signed predictor using fresh labeled validation examples. -/
+noncomputable def coordinateLearner (source : ℕ → ProbComp (Word × Bool))
+    (c d : ℕ) (predict : Word → Word → Bool) (n : ℕ) : ProbComp Word :=
+  Boosting.learn (coordinateDescriptions source c d n)
+    (fun code => Boosting.weightedTrial (source n)
+      (fun pair => Boosting.sampleWeight n 1 0 pair.1 pair.2)
+      (fun pair => pure (predict code pair.1 == pair.2))) ((n + 1) ^ 2) ((n + 1) ^ 3)
+
+/-- Sampling, orientation, and validation require no machine bookkeeping in client proofs. -/
+theorem coordinateLearner_isPPT {source : ℕ → ProbComp (Word × Bool)}
+    {predict : Word → Word → Bool}
+    (hsource : IsPPTOn unaryEncoding (pairEncoding wordEncoding boolEncoding) source)
+    (hpredict : IsPolyTime coinInputEncoding (fun pair => [predict pair.1 pair.2])) (c d : ℕ) :
+    IsPPTOn unaryEncoding wordEncoding (coordinateLearner source c d predict) := by
+  have hdescriptions := coordinateDescriptions_isPPT hsource c d
+  unfold coordinateLearner
+  apply Boosting.learn_isPPT hdescriptions <;> ppt
+
+/-- The evaluator extracted from an arbitrary certified distinguisher supplies the learner's
+validation identity. The source's hidden label is never passed to that evaluator. -/
+theorem saved_descriptions_supply_validation_gap
+    {test : ℕ → List (Word × Bool) → ProbComp Bool}
+    (htest : IsPPTOn (pairEncoding unaryEncoding
+      (listEncoding (pairEncoding wordEncoding boolEncoding))) boolEncoding
+        (fun pair => test pair.1 pair.2)) :
+    ∃ (c d : ℕ) (predict : Word → Word → Bool),
+      IsPolyTime coinInputEncoding (fun pair => [predict pair.1 pair.2]) ∧
+      ∀ (n count width : ℕ) (source : ProbComp Bool) (observe : Bool → Word)
+          (mask : Bool → ProbComp Bool), (∀ bit, (observe bit).length ≤ width) →
+        let original := (fun bit => (observe bit, bit)) <$> source
+        let masked := maskedSample source observe id mask
+        let candidates := SavedPrediction.sample wordEncoding (unaryEncoding n)
+          masked original count c d width
+        winProbability (OracleComp.replicate count original >>= test n) -
+            winProbability (OracleComp.replicate count masked >>= test n) =
+          (dyadicSize count : ℝ) * (winProbability (candidates >>= fun code =>
+            Boosting.weightedTrial source mask
+              (fun bit => pure (predict code (observe bit) == bit))) - 1 / 2) := by
+  obtain ⟨c, d, predict, hefficient, hlaw⟩ := SavedPrediction.exists_evaluator htest
+  refine ⟨c, d, predict, hefficient, ?_⟩
+  intro n count width source observe mask hwidth
+  apply maskedSequence_validation_gap source observe id mask
+  intro bit
+  simpa only [maskedSequencePredictor, wordEncoding, Function.Embedding.refl_apply, id_eq] using
+    hlaw n (maskedSample source observe id mask) ((fun bit => (observe bit, bit)) <$> source)
+      count width (observe bit) (hwidth bit)
+
+/-- Validation selects the complementary orientation when every original predictor is wrong.
+This exercises negative bias, rather than assuming the successful sign as advice. -/
+theorem learner_corrects_negative_bias (confidence : ℕ) :
+    ((ProbComp.eval (Boosting.learn (pure []) (fun _ => pure false) confidence 2)).toOuterMeasure
+      {code | Boosting.signedPredict (fun _ (_ : Unit) => false) code () ≠ true}).toReal ≤
+      ((confidence + 1) * 64 + 1) * (1 / 2 : ℝ) ^ confidence := by
+  have h := Boosting.learn_error_pow (pure []) (fun _ => pure false) confidence 2 (by decide)
+    (by norm_num [winProbability, Game.winProbability])
+  convert h using 2
+  · congr 2
+    ext code
+    simp only [Boosting.signedPredict, Boosting.signedTest]
+    cases hsign : code.headD false <;> norm_num [winProbability, Game.winProbability]
+  · push_cast
+    ring
 
 /-- The boosting loop may truncate every returned code without changing any prediction, once
 its bound covers the saved descriptions. This holds for arbitrary source programs and codes. -/

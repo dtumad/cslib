@@ -186,6 +186,7 @@ public import Cslib.Crypto.Computational.Prediction
 public import Cslib.Crypto.Computational.Pseudoentropy.Basic
 public import Cslib.Crypto.Computational.Pseudoentropy.Boosting.Clipped
 public import Cslib.Crypto.Computational.Pseudoentropy.Boosting.Decision
+public import Cslib.Crypto.Computational.Pseudoentropy.Boosting.Learner
 public import Cslib.Crypto.Computational.Pseudoentropy.Boosting.Loop
 public import Cslib.Crypto.Computational.Pseudoentropy.Boosting.Potential
 public import Cslib.Crypto.Computational.Pseudoentropy.Boosting.Program
@@ -195,6 +196,7 @@ public import Cslib.Crypto.Computational.Pseudoentropy.Boosting.Selection
 public import Cslib.Crypto.Computational.Pseudoentropy.Boosting.Vote
 public import Cslib.Crypto.Computational.Pseudoentropy.HashPair
 public import Cslib.Crypto.Computational.Pseudoentropy.HashReduction
+public import Cslib.Crypto.Computational.Pseudoentropy.Learning
 public import Cslib.Crypto.Computational.Pseudoentropy.Masking
 public import Cslib.Crypto.Computational.Pseudoentropy.OneWay
 public import Cslib.Crypto.Computational.Pseudoentropy.Reduction

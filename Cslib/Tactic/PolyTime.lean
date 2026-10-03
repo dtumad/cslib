@@ -341,6 +341,7 @@ attribute [aesop safe apply (rule_sets := [PolyTime])]
   Cslib.Probability.IsPolyTime.bitPair_fst
   Cslib.Probability.IsPolyTime.bitPair_snd
   Cslib.Probability.IsPolyTime.getD
+  Cslib.Probability.IsPolyTime.list_getD
   Cslib.Probability.IsPolyTime.range
   Cslib.Probability.isPolyTime_list_headD
   Cslib.Probability.isPolyTime_list_tail

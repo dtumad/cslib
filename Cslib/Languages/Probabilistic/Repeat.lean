@@ -25,11 +25,11 @@ This is a semantic combinator. Its uniform PPT certificate is supplied separatel
 
 namespace Cslib
 
-universe u
+universe u v
 
 namespace OracleComp
 
-variable {Query : Type u} {Response : Query → Type u} {α : Type*}
+variable {Query : Type u} {Response : Query → Type u} {α : Type v}
 
 /-- Run a program a bounded number of times, collecting results in execution order. -/
 def replicate : ℕ → OracleComp Query Response α → OracleComp Query Response (List α)
@@ -66,6 +66,15 @@ theorem replicate_snoc (count : ℕ) (program : OracleComp Query Response α) :
       (fun last => front ++ [last]) <$> program) := by
   simpa only [replicate, bind_pure, bind_pure_comp, map_pure, Functor.map_map, Function.comp_def]
     using replicate_add count 1 program
+
+/-- Applying a deterministic function to each draw commutes with collecting the draws. -/
+theorem replicate_map {β : Type v} (count : ℕ) (program : OracleComp Query Response α)
+    (f : α → β) :
+    replicate count (f <$> program) = List.map f <$> replicate count program := by
+  induction count with
+  | zero => simp
+  | succ count ih =>
+    simp only [replicate_succ, ih, bind_map_left, map_bind, Functor.map_map, List.map_cons]
 
 /-- Count the true results of a bounded number of runs of a Boolean program. -/
 def countTrue (count : ℕ) (program : OracleComp Query Response Bool) :

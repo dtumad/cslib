@@ -174,6 +174,17 @@ theorem toOuterMeasure_bind_failure_toReal_le (p : PMF α) (kernel : α → PMF 
   simpa only [ENNReal.toReal_add (toOuterMeasure_ne_top p preᶜ) ENNReal.ofReal_ne_top,
     ENNReal.toReal_ofReal herror] using ENNReal.toReal_mono hfinite h
 
+/-- If a randomized test beats a threshold on average, at least its excess probability mass
+consists of inputs whose conditional acceptance probability reaches that threshold. -/
+theorem toOuterMeasure_rate_ge (p : PMF α) (kernel : α → PMF β) (event : Set β)
+    {threshold : ℝ} (hthreshold : 0 ≤ threshold) :
+    ((p.bind kernel).toOuterMeasure event).toReal - threshold ≤
+      (p.toOuterMeasure {a | threshold ≤ ((kernel a).toOuterMeasure event).toReal}).toReal := by
+  have h := toOuterMeasure_bind_failure_toReal_le p kernel
+    {a | ((kernel a).toOuterMeasure event).toReal < threshold} event hthreshold
+    (fun a _ ha => le_of_lt ha)
+  simpa only [Set.compl_ofPred, not_lt] using (sub_le_iff_le_add.mpr h)
+
 /-- Randomized postprocessing averages the outcome probabilities over any discrete input. -/
 theorem bind_apply_toReal_tsum (p : PMF α) (kernel : α → PMF β) (b : β) :
     (p.bind kernel b).toReal = ∑' a, (p a).toReal * (kernel a b).toReal := by

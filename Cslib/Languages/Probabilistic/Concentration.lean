@@ -86,6 +86,37 @@ theorem countTrue_average_deviation_pow (confidence inverseTolerance : ℕ)
     _ ≤ 2 * (1 / 2 : ℝ) ^ (confidence + 1) := by gcongr
     _ = _ := by rw [pow_succ]; ring
 
+/-- Polynomially many independent draws find a good value except with exponentially small
+probability whenever one draw succeeds with inverse-polynomial probability. The predicate is
+used only in the proof and need not be efficiently decidable. -/
+theorem replicate_failure_pow {α : Type} (source : ProbComp α) (good : α → Prop)
+    (confidence inverseSuccess : ℕ) (hinverse : 0 < inverseSuccess)
+    (hsuccess : (1 : ℝ) / inverseSuccess ≤
+      ((eval source).toOuterMeasure {value | good value}).toReal) :
+    ((eval (OracleComp.replicate ((confidence + 1) * inverseSuccess ^ 2) source)).toOuterMeasure
+      {values | ¬ ∃ value ∈ values, good value}).toReal ≤ (1 / 2 : ℝ) ^ confidence := by
+  classical
+  have hgood : (eval ((fun value => decide (good value)) <$> source) true).toReal =
+      ((eval source).toOuterMeasure {value | good value}).toReal := by
+    rw [eval_map, ← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
+    congr 2
+    ext value
+    simp
+  have h := countTrue_average_deviation_pow confidence inverseSuccess hinverse
+    ((fun value => decide (good value)) <$> source)
+  rw [hgood] at h
+  simp only [OracleComp.countTrue, OracleComp.replicate_map, Functor.map_map, eval_map,
+    PMF.toOuterMeasure_map_apply] at h
+  refine le_trans ?_ h
+  apply ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top _ _)
+  apply MeasureTheory.measure_mono
+  intro values hbad
+  have hzero : (values.map (fun value => decide (good value))).count true = 0 := by
+    rw [List.count_eq_zero]
+    simpa only [List.mem_map, decide_eq_true_eq, Set.mem_ofPred_eq] using hbad
+  simpa only [Set.mem_preimage, Set.mem_ofPred_eq, hzero, Nat.cast_zero, zero_div, zero_sub,
+    abs_neg, abs_of_nonneg ENNReal.toReal_nonneg] using hsuccess
+
 /-- An invalid threshold decision requires the empirical rate to miss the true probability
 by at least the permitted tolerance. Both answers are valid inside the overlap interval. -/
 theorem testProbabilityLT_error_le_deviation (count numerator denominator : ℕ)

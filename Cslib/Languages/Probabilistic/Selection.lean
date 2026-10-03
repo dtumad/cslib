@@ -44,9 +44,47 @@ def selectBest (count trials : ℕ) (test : ℕ → OracleComp Query Response Bo
     OracleComp Query Response ℕ :=
   (fun state => state.2.1) <$> iterate count (selectStep trials test) (0, 0, 0)
 
+/-- Select an empirically best value from a list, returning the fallback for an empty list. -/
+def selectFrom {α : Type} (values : List α) (trials : ℕ)
+    (test : α → OracleComp Query Response Bool) (fallback : α) : OracleComp Query Response α := do
+  let chosen ← selectBest values.length trials (fun i => test (values[i]?.getD fallback))
+  return values[chosen]?.getD fallback
+
+/-- Draw a candidate pool and select the candidate with the highest empirical score. -/
+def sampleBest {α : Type} (count trials : ℕ) (source : OracleComp Query Response α)
+    (test : α → OracleComp Query Response Bool) (fallback : α) : OracleComp Query Response α := do
+  let values ← replicate count source
+  selectFrom values trials test fallback
+
 end OracleComp
 
 namespace ProbComp
+
+/-- Selection can only return a listed candidate or the supplied fallback. This holds on every
+execution, independently of estimation accuracy. -/
+theorem selectFrom_support {α : Type} (values : List α) (trials : ℕ)
+    (test : α → ProbComp Bool) (fallback : α) {chosen : α}
+    (hchosen : chosen ∈ (eval (OracleComp.selectFrom values trials test fallback)).support) :
+    chosen = fallback ∨ chosen ∈ values := by
+  simp only [OracleComp.selectFrom, bind_pure_comp, eval_map, PMF.mem_support_map_iff] at hchosen
+  obtain ⟨i, _, rfl⟩ := hchosen
+  cases hvalue : values[i]? with
+  | none => simp
+  | some value =>
+    right
+    exact List.mem_of_getElem? hvalue
+
+/-- Empirical selection preserves the support of its candidate sampler, apart from the fixed
+fallback. In particular, bounds on descriptions survive every statistical failure. -/
+theorem sampleBest_support {α : Type} (count trials : ℕ) (source : ProbComp α)
+    (test : α → ProbComp Bool) (fallback : α) {chosen : α}
+    (hchosen : chosen ∈ (eval (OracleComp.sampleBest count trials source test fallback)).support) :
+    chosen = fallback ∨ chosen ∈ (eval source).support := by
+  rw [OracleComp.sampleBest, eval_bind, PMF.mem_support_bind_iff] at hchosen
+  obtain ⟨values, hvalues, hchosen⟩ := hchosen
+  rcases selectFrom_support values trials test fallback hchosen with hdefault | hmem
+  · exact Or.inl hdefault
+  · exact Or.inr (((mem_support_replicate_iff count source values).mp hvalues).2 _ hmem)
 
 /-- Candidate selection keeps both indices within the elapsed count and the success count within
 the trial budget on every execution, regardless of statistical estimation errors. -/
@@ -155,6 +193,76 @@ theorem selectBest_error_pow (count confidence inverseTolerance : ℕ) (hcount :
   simpa only [mul_one_div] using selectBest_error_le count
     ((confidence + 1) * inverseTolerance ^ 2) hcount test (by positivity)
     (fun i _ => countTrue_average_deviation_pow confidence inverseTolerance htolerance (test i))
+
+/-- Empirical selection from a nonempty list loses at most twice the estimation tolerance
+relative to every listed candidate, except for one small failure term per candidate. -/
+theorem selectFrom_error_pow {α : Type} (values : List α) (hvalues : 0 < values.length)
+    (confidence inverseTolerance : ℕ) (htolerance : 0 < inverseTolerance)
+    (test : α → ProbComp Bool) (fallback : α) :
+    ((eval (OracleComp.selectFrom values
+      ((confidence + 1) * inverseTolerance ^ 2) test fallback)).toOuterMeasure
+      {chosen | ¬ (chosen ∈ values ∧ ∀ value ∈ values,
+        (eval (test value) true).toReal ≤
+          (eval (test chosen) true).toReal + 2 / inverseTolerance)}).toReal ≤
+      values.length * (1 / 2 : ℝ) ^ confidence := by
+  simp only [OracleComp.selectFrom, bind_pure_comp, eval_map, PMF.toOuterMeasure_map_apply]
+  refine le_trans ?_ (selectBest_error_pow values.length confidence inverseTolerance hvalues
+    htolerance (fun i => test (values[i]?.getD fallback)))
+  apply ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top _ _)
+  apply MeasureTheory.measure_mono
+  intro chosen hbad hgood
+  obtain ⟨hchosen, hbest⟩ := hgood
+  apply hbad
+  refine ⟨?_, ?_⟩
+  · simp only [List.getElem?_eq_getElem hchosen, Option.getD_some]
+    exact List.getElem_mem hchosen
+  · intro value hmem
+    obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hmem
+    simpa only [List.getElem?_eq_getElem hi, Option.getD_some] using hbest i hi
+
+/-- A noticeable chance of drawing a good candidate can be amplified by sampling a pool and
+estimating every candidate. The two failure terms pay separately for discovery and selection. -/
+theorem sampleBest_error_pow {α : Type} (source : ProbComp α) (test : α → ProbComp Bool)
+    (fallback : α) (confidence inverseSuccess inverseTolerance : ℕ)
+    (hsuccess : 0 < inverseSuccess) (htolerance : 0 < inverseTolerance) (threshold : ℝ)
+    (hgood : (1 : ℝ) / inverseSuccess ≤ ((eval source).toOuterMeasure
+      {value | threshold ≤ (eval (test value) true).toReal}).toReal) :
+    ((eval (OracleComp.sampleBest ((confidence + 1) * inverseSuccess ^ 2)
+      ((confidence + 1) * inverseTolerance ^ 2) source test fallback)).toOuterMeasure
+        {chosen | ¬ threshold - 2 / inverseTolerance ≤ (eval (test chosen) true).toReal}).toReal ≤
+      (((confidence + 1) * inverseSuccess ^ 2 : ℕ) + 1) * (1 / 2 : ℝ) ^ confidence := by
+  let count := (confidence + 1) * inverseSuccess ^ 2
+  have hcount : 0 < count := by dsimp [count]; positivity
+  have hdiscover := replicate_failure_pow source
+    (fun value => threshold ≤ (eval (test value) true).toReal) confidence inverseSuccess
+    hsuccess hgood
+  have hselect := Probability.PMF.toOuterMeasure_bind_failure_toReal_le
+    (eval (OracleComp.replicate count source))
+    (fun values => eval (OracleComp.selectFrom values
+      ((confidence + 1) * inverseTolerance ^ 2) test fallback))
+    {values | ∃ value ∈ values, threshold ≤ (eval (test value) true).toReal}
+    {chosen | ¬ threshold - 2 / inverseTolerance ≤ (eval (test chosen) true).toReal}
+    (error := count * (1 / 2 : ℝ) ^ confidence) (by positivity) (by
+      intro values hvalues hgood
+      have hlength := ((mem_support_replicate_iff count source values).mp hvalues).1
+      have h := selectFrom_error_pow values (by lia) confidence inverseTolerance htolerance
+        test fallback
+      rw [hlength] at h
+      refine le_trans ?_ h
+      apply ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top _ _)
+      apply MeasureTheory.measure_mono
+      intro chosen hbad hchosen
+      obtain ⟨value, hmem, hvalue⟩ := hgood
+      have := hchosen.2 value hmem
+      exact hbad (by linarith))
+  simp only [Set.compl_ofPred] at hselect
+  change ((eval (OracleComp.sampleBest count _ source test fallback)).toOuterMeasure _).toReal ≤ _
+  rw [OracleComp.sampleBest, eval_bind]
+  calc
+    _ ≤ _ := hselect
+    _ ≤ (1 / 2 : ℝ) ^ confidence + count * (1 / 2 : ℝ) ^ confidence := by
+      gcongr
+    _ = _ := by dsimp [count]; push_cast; ring
 
 end ProbComp
 
