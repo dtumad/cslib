@@ -151,8 +151,8 @@ theorem maskedSample_dyadic_mass_ge_eventually {α β : ℕ → Type}
       ∀ pair ∈ (ProbComp.eval (maskedSample (source n) (observe n) (truth n) mask)).support,
       (2 : ℝ) ^ (-((sourceBits n + n + 2 : ℕ) : ℝ)) ≤
         (ProbComp.eval (maskedSample (source n) (observe n) (truth n) mask) pair).toReal := by
-  have hvanishes := negligible_polynomial_mul
-    (negligible_geometric (ratio := (1 / 2 : ℝ)) (by norm_num)) (fun _ => by positivity) hbound 0
+  have hvanishes :=
+    (negligible_geometric (ratio := (1 / 2 : ℝ)) (by norm_num)).polynomiallyBounded_mul hbound 0
   simp only [pow_zero, one_mul] at hvanishes
   filter_upwards [hvanishes.eventually_le_const (by norm_num : (0 : ℝ) < 1)] with n hn
   have hpow : bound n ≤ 2 ^ n := by

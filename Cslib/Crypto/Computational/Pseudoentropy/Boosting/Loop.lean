@@ -13,8 +13,8 @@ public import Cslib.Crypto.Computational.Pseudoentropy.Boosting.Program
 
 The potential invariant refers to the predictor descriptions stored by the executable program.
 Its active branch records density restoration and accumulated potential decrease. Its stopped
-branch records the error of the executable majority predictor. The learner must establish
-weighted correlation for its truncated output; this is an explicit remaining obligation.
+branch records the error of the executable majority predictor. Weighted correlation for the
+learner's truncated output is an explicit hypothesis, discharged by `Boosting.Learner`.
 
 ## References
 
@@ -419,8 +419,8 @@ theorem run_invariant :
       hstate (fun yes => hlearn _))
 
 /-- The executable loop produces the majority-or-dense-margin guarantee, except with its
-explicit total error. Constructing the learner and the final clipped-vote predictor are separate
-requirements; neither is assumed to follow from one-wayness by this theorem. -/
+explicit total error. The learner contract is supplied by `Boosting.Learner`; `Boosting.Training`
+combines this guarantee with the final clipped-vote predictor. -/
 theorem run_sound :
     ((ProbComp.eval (run evaluate
       ((fun x => (observe x, truth x)) <$> source) learn params)).toOuterMeasure

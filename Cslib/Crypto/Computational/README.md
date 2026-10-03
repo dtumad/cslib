@@ -138,9 +138,10 @@ Cryptographic notions live in `Cslib.Crypto`; efficiency predicates and encoding
 
 | Interface | Purpose |
 | --- | --- |
-| [Game](../Game.lean), [Basic](Basic.lean) | `Negligible`, acceptance probability, advantage, and computational indistinguishability. |
+| [Negligible](../Negligible.lean) | Negligible decay, polynomial losses, square roots, and changes of security parameter. |
+| [Game](../Game.lean), [Basic](Basic.lean) | Acceptance probability, advantage, and computational indistinguishability. |
 | [Reduction](Reduction.lean) | Certified deterministic and randomized postprocessing. |
-| [Hybrid](Hybrid.lean), [Game/Hybrid](../Game/Hybrid.lean) | Game hops, polynomial reduction losses, and reindexing negligible bounds. |
+| [Hybrid](Hybrid.lean), [Game/Hybrid](../Game/Hybrid.lean) | Game hops and polynomial reduction losses. |
 | [Statistical](Statistical.lean) | Negligible statistical distance implies computational security. |
 | [OneWay](OneWay.lean), [HardCore](HardCore.lean) | Inversion and prediction games. |
 | [PseudorandomGenerator](PseudorandomGenerator.lean) | Efficient generation, output length, expansion, and the shared `PRG.Family.Secure` property. |

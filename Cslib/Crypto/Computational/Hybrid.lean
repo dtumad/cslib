@@ -43,23 +43,23 @@ theorem advantage_hybrid_le (games : ℕ → ProbComp Bool) (hops : ℕ) (ε : �
 
 /-- Polynomially many program hops with a common negligible bound remain negligible. -/
 theorem negligible_hybrid {games : ℕ → ℕ → ProbComp Bool} {hops : ℕ → ℕ} {ε : ℕ → ℝ}
-    (hpoly : PolynomiallyBounded hops) (hε : Negligible ε) (hε₀ : ∀ n, 0 ≤ ε n)
+    (hpoly : PolynomiallyBounded hops) (hε : Negligible ε)
     (hstep : ∀ n i, i < hops n → advantage (games n i) (games n (i + 1)) ≤ ε n) :
     Negligible (fun n => advantage (games n 0) (games n (hops n))) :=
-  Game.negligible_hybrid (games := fun n i => ProbComp.eval (games n i)) hpoly hε hε₀ hstep
+  Game.negligible_hybrid (games := fun n i => ProbComp.eval (games n i)) hpoly hε hstep
 
 /-- A polynomial hybrid argument for ensembles. Each distinguisher may have its own negligible
 bound, but that bound must cover all adjacent hybrids uniformly. -/
 theorem ComputationallyIndistinguishable.hybrid {hybrids : ℕ → ℕ → PMF Word}
     {hops : ℕ → ℕ} (hpoly : PolynomiallyBounded hops)
     (hstep : ∀ adversary : Distinguisher, IsPPT boolEncoding adversary →
-      ∃ ε : ℕ → ℝ, Negligible ε ∧ (∀ n, 0 ≤ ε n) ∧ ∀ n i, i < hops n →
+      ∃ ε : ℕ → ℝ, Negligible ε ∧ ∀ n i, i < hops n →
         advantage (distinguishingGame (hybrids n i) (adversary n))
           (distinguishingGame (hybrids n (i + 1)) (adversary n)) ≤ ε n) :
     ComputationallyIndistinguishable (fun n => hybrids n 0) (fun n => hybrids n (hops n)) := by
   intro adversary hPPT
-  obtain ⟨ε, hε, hε₀, hstep⟩ := hstep adversary hPPT
+  obtain ⟨ε, hε, hstep⟩ := hstep adversary hPPT
   exact negligible_hybrid
-    (games := fun n i => distinguishingGame (hybrids n i) (adversary n)) hpoly hε hε₀ hstep
+    (games := fun n i => distinguishingGame (hybrids n i) (adversary n)) hpoly hε hstep
 
 end Cslib.Crypto

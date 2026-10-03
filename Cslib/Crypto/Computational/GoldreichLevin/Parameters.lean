@@ -9,7 +9,7 @@ module
 public import Cslib.Crypto.Computational.GoldreichLevin.Reduction
 public import Cslib.Foundations.Data.Nat.PolynomialBound
 public import Mathlib.Data.Nat.Log
-public import Cslib.Crypto.Game
+public import Cslib.Crypto.Negligible
 
 /-!
 # Goldreich–Levin parameters and the asymptotic reduction

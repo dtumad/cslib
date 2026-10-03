@@ -7,7 +7,6 @@ Authors: Samuel Schlesinger
 module
 
 public import Cslib.Crypto.Game
-public import Cslib.Foundations.Data.Nat.PolynomialBound
 public import Cslib.Probability.PMF
 public import Mathlib.Basic.Real.Basic
 
@@ -26,57 +25,9 @@ grows with the parameter. The common bound may depend on the distinguisher.
 
 @[expose] public section
 
-namespace Cslib.Crypto
+namespace Cslib.Crypto.Game
 
 open scoped BigOperators
-
-/-- Polynomial factors preserve a nonnegative negligible bound. -/
-theorem negligible_polynomial_mul {ε : ℕ → ℝ} {p : ℕ → ℕ}
-    (hε : Negligible ε) (hε₀ : ∀ n, 0 ≤ ε n) (hp : PolynomiallyBounded p) :
-    Negligible (fun n => (p n : ℝ) * ε n) := by
-  obtain ⟨c, d, hp⟩ := hp
-  have hbound : Negligible (fun n => (c : ℝ) * ((n : ℝ) + 1) ^ d * ε n) := by
-    convert hε.polynomial_mul (Polynomial.C (c : ℝ) * (Polynomial.X + 1) ^ d) using 1
-    ext n
-    simp
-  apply negligible_of_le hbound (fun n => mul_nonneg (Nat.cast_nonneg _) (hε₀ n))
-  intro n
-  apply mul_le_mul_of_nonneg_right _ (hε₀ n)
-  exact_mod_cast hp n
-
-open Filter Topology in
-/-- Negligible decay survives reindexing when the new parameter tends to infinity and the old
-parameter is polynomially bounded in it. The reindexing function need not be computable. -/
-theorem Negligible.comp_of_polynomial_bound {ε : ℕ → ℝ} {index bound : ℕ → ℕ}
-    (hε : Negligible ε) (hindex : Tendsto index atTop atTop)
-    (hbound : PolynomiallyBounded bound) (hle : ∀ᶠ n in atTop, n ≤ bound (index n)) :
-    Negligible (fun n => ε (index n)) := by
-  have habs : Negligible (fun n => |ε n|) := hε.trans_abs_le (fun _ => by simp)
-  intro degree
-  have hlimit := (negligible_polynomial_mul habs (fun _ => abs_nonneg _)
-    (hbound.pow degree) 0).comp hindex
-  simp only [pow_zero, one_mul, Nat.cast_pow, Function.comp_def] at hlimit
-  apply (tendsto_zero_iff_abs_tendsto_zero _).2
-  refine squeeze_zero' (Eventually.of_forall (fun _ => abs_nonneg _)) ?_ hlimit
-  filter_upwards [hle] with n hn
-  simp only [Function.comp_def, abs_mul, abs_pow,
-    abs_of_nonneg (Nat.cast_nonneg n : (0 : ℝ) ≤ n)]
-  gcongr
-
-open Filter in
-/-- Negligible success is eventually smaller than the reciprocal of any positive
-polynomially bounded loss. -/
-theorem Negligible.eventually_le_inv_polynomial {ε : ℕ → ℝ} (hε : Negligible ε)
-    (hε₀ : ∀ n, 0 ≤ ε n) {p : ℕ → ℕ} (hp : PolynomiallyBounded p)
-    (hpos : ∀ n, 0 < p n) :
-    ∀ᶠ n in atTop, ε n ≤ 1 / (p n : ℝ) := by
-  have h := negligible_polynomial_mul hε hε₀ hp 0
-  simp only [pow_zero, one_mul] at h
-  filter_upwards [h.eventually_le_const (by norm_num : (0 : ℝ) < 1)] with n hn
-  apply (le_div_iff₀ (by exact_mod_cast hpos n)).mpr
-  simpa only [mul_comm] using hn
-
-namespace Game
 
 /-- A uniformly selected experiment accepts with the average of its acceptance probabilities. -/
 theorem winProbability_uniform {α : Type*} [Fintype α] [Nonempty α] (games : α → Game) :
@@ -168,23 +119,23 @@ theorem advantage_hybrid_le (games : ℕ → Game) (hops : ℕ) (ε : ℝ)
 
 /-- Polynomially many hops with a common negligible bound have negligible total advantage. -/
 theorem negligible_hybrid {games : ℕ → ℕ → Game} {hops : ℕ → ℕ} {ε : ℕ → ℝ}
-    (hpoly : PolynomiallyBounded hops) (hε : Negligible ε) (hε₀ : ∀ n, 0 ≤ ε n)
+    (hpoly : PolynomiallyBounded hops) (hε : Negligible ε)
     (hstep : ∀ n i, i < hops n → advantage (games n i) (games n (i + 1)) ≤ ε n) :
     Negligible (fun n => advantage (games n 0) (games n (hops n))) :=
-  negligible_of_le (negligible_polynomial_mul hε hε₀ hpoly)
+  negligible_of_le (hε.polynomiallyBounded_mul hpoly)
     (fun _ => advantage_nonneg _ _) (fun n => advantage_hybrid_le _ _ _ (hstep n))
 
 /-- A hybrid argument with a common hop bound for each admissible adversary. -/
 theorem Secure.hybrid {Adversary : Type*} {games : Adversary → ℕ → ℕ → Game}
     {Admissible : Adversary → Prop} {hops : ℕ → ℕ} (hpoly : PolynomiallyBounded hops)
     (hstep : ∀ adversary, Admissible adversary →
-      ∃ ε : ℕ → ℝ, Negligible ε ∧ (∀ n, 0 ≤ ε n) ∧ ∀ n i, i < hops n →
+      ∃ ε : ℕ → ℝ, Negligible ε ∧ ∀ n i, i < hops n →
         advantage (games adversary n i) (games adversary n (i + 1)) ≤ ε n) :
     Secure (fun adversary n => games adversary n 0)
       (fun adversary n => games adversary n (hops n)) Admissible := by
   intro adversary ha
-  obtain ⟨ε, hε, hε₀, hstep⟩ := hstep adversary ha
-  exact negligible_hybrid hpoly hε hε₀ hstep
+  obtain ⟨ε, hε, hstep⟩ := hstep adversary ha
+  exact negligible_hybrid hpoly hε hstep
 
 /-- A reduction may lose a polynomial factor and incur a negligible error. The bounds may
 depend on the whole adversary, while the reduced adversary remains uniform. -/
@@ -201,10 +152,7 @@ theorem Secure.of_reduction_with_loss {Source Target : Type*}
   intro adversary ha
   obtain ⟨loss, error, hloss, herror, hbound⟩ := hbound adversary ha
   exact negligible_of_le
-    ((negligible_polynomial_mul (h _ (hadmissible adversary ha))
-      (fun _ => advantage_nonneg _ _) hloss).add herror)
+    (((h _ (hadmissible adversary ha)).polynomiallyBounded_mul hloss).add herror)
     (fun _ => advantage_nonneg _ _) hbound
 
-end Game
-
-end Cslib.Crypto
+end Cslib.Crypto.Game

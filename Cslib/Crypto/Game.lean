@@ -6,12 +6,8 @@ Authors: Samuel Schlesinger
 
 module
 
-public import Cslib.Init
-public import Mathlib.Analysis.Asymptotics.SuperpolynomialDecay
-public import Mathlib.Analysis.Real.Sqrt
-public import Mathlib.Analysis.SpecificLimits.Normed
-public import Mathlib.Probability.Distributions.Uniform
-public import Mathlib.Probability.ProbabilityMassFunction.Constructions
+public import Cslib.Crypto.Negligible
+public import Cslib.Probability.PMF
 
 /-!
 # Security of Boolean experiments
@@ -30,66 +26,6 @@ The advantage convention is the absolute difference of acceptance probabilities,
 namespace Cslib.Crypto
 
 open scoped NNReal
-
-/-- An advantage is negligible when it decays faster than every inverse polynomial in the
-security parameter. This is Mathlib's superpolynomial decay, specialized to natural parameters. -/
-abbrev Negligible (ε : ℕ → ℝ) : Prop :=
-  Asymptotics.SuperpolynomialDecay Filter.atTop (fun n : ℕ => (n : ℝ)) ε
-
-@[simp] theorem negligible_zero : Negligible (fun _ => 0) :=
-  Asymptotics.superpolynomialDecay_zero _ _
-
-/-- Geometric decay with ratio strictly between minus one and one is negligible. -/
-theorem negligible_geometric {ratio : ℝ} (h : |ratio| < 1) :
-    Negligible (fun n => ratio ^ n) :=
-  fun degree => tendsto_pow_const_mul_const_pow_of_abs_lt_one degree h
-
-/-- A constant nonzero advantage is not negligible. -/
-theorem not_negligible_const {c : ℝ} (hc : c ≠ 0) : ¬ Negligible (fun _ => c) := by
-  intro h
-  have ht : Filter.Tendsto (fun _ : ℕ => c) Filter.atTop (nhds 0) := by simpa using h 0
-  exact hc (tendsto_nhds_unique tendsto_const_nhds ht)
-
-/-- A pointwise smaller nonnegative advantage is negligible. -/
-theorem negligible_of_le {ε δ : ℕ → ℝ} (hδ : Negligible δ)
-    (hε : ∀ n, 0 ≤ ε n) (hle : ∀ n, ε n ≤ δ n) : Negligible ε := by
-  apply hδ.trans_abs_le
-  intro n
-  simpa only [abs_of_nonneg (hε n), abs_of_nonneg ((hε n).trans (hle n))] using hle n
-
-/-- Taking a square root preserves negligible decay. -/
-theorem Negligible.sqrt {ε : ℕ → ℝ} (h : Negligible ε) :
-    Negligible (fun n => Real.sqrt (ε n)) := by
-  intro degree
-  have hlimit := Real.continuous_sqrt.continuousAt.tendsto.comp (h (2 * degree))
-  have hroot (n : ℕ) : Real.sqrt ((n : ℝ) ^ (2 * degree) * ε n) =
-      (n : ℝ) ^ degree * Real.sqrt (ε n) := by
-    rw [show (n : ℝ) ^ (2 * degree) = ((n : ℝ) ^ degree) ^ 2 by ring,
-      Real.sqrt_mul (sq_nonneg _), Real.sqrt_sq (by positivity)]
-  simpa only [Function.comp_def, hroot, Real.sqrt_zero] using hlimit
-
-open Filter Topology in
-/-- Halving a unary security parameter preserves negligible decay. -/
-theorem Negligible.div_two {ε : ℕ → ℝ} (h : Negligible ε) : Negligible (fun n => ε (n / 2)) := by
-  have hhalf : Tendsto (fun n : ℕ => n / 2) atTop atTop := by
-    refine tendsto_atTop.2 (fun b => ?_)
-    filter_upwards [eventually_ge_atTop (2 * b)] with n hn
-    lia
-  intro degree
-  apply (tendsto_zero_iff_abs_tendsto_zero _).2
-  have hdecay := h.polynomial_mul
-    ((Polynomial.C (2 : ℝ) * (Polynomial.X + 1)) ^ degree)
-  have hlimit := (hdecay 0).comp hhalf
-  simp only [pow_zero, one_mul, Polynomial.eval_pow, Polynomial.eval_mul,
-    Polynomial.eval_C, Polynomial.eval_add, Polynomial.eval_X, Polynomial.eval_one,
-    Function.comp_def] at hlimit
-  apply squeeze_zero (fun _ => abs_nonneg _) ?_ (by simpa using hlimit.abs)
-  intro n
-  simp only [abs_mul, abs_pow, abs_of_nonneg (show (0 : ℝ) ≤ n from Nat.cast_nonneg n),
-    abs_of_nonneg (by positivity : (0 : ℝ) ≤ (n / 2 : ℕ) + 1)]
-  gcongr
-  have hn : n ≤ 2 * (n / 2 + 1) := by lia
-  exact_mod_cast hn
 
 /-- The distribution of the Boolean result of a security experiment. -/
 abbrev Game := PMF Bool
@@ -117,12 +53,7 @@ theorem advantage_comm (real ideal : Game) : advantage real ideal = advantage id
 /-- Complementing a game's answer exchanges acceptance and rejection. -/
 @[simp] theorem winProbability_not (game : Game) :
     winProbability (game.map Bool.not) = 1 - winProbability game := by
-  have hsum : (game false).toReal + (game true).toReal = 1 := by
-    rw [← ENNReal.toReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)]
-    have h := game.tsum_coe
-    simp only [tsum_fintype, Fintype.sum_bool] at h
-    rw [add_comm, h]
-    simp
+  have hsum := Probability.PMF.sum_toReal game
   simp [winProbability, PMF.map_apply, tsum_fintype] at *
   linarith
 

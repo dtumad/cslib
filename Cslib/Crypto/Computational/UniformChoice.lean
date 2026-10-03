@@ -125,8 +125,7 @@ theorem ComputationallyIndistinguishable.uniform_bound
       advantage (real n >>= reduction n) (ideal n >>= reduction n)) := by
     simpa only [distinguishingGame, advantage, ProbComp.eval_bind, ProbComp.eval_sample]
       using hsecure reduction hreduce
-  have hscaled := negligible_polynomial_mul hnegligible
-    (fun _ => advantage_nonneg _ _)
+  have hscaled := hnegligible.polynomiallyBounded_mul
     (dyadicSize_polynomiallyBounded.comp hbound.polynomiallyBounded)
   refine ⟨_, hscaled.sqrt, fun _ => Real.sqrt_nonneg _, fun n index hindex => ?_⟩
   exact Real.le_sqrt_of_sq_le (UniformChoice.advantage_sq_le (bound n)

@@ -7,7 +7,6 @@ Authors: Samuel Schlesinger
 module
 
 public import Cslib.Crypto.Computational.Pseudoentropy.Basic
-public import Cslib.Crypto.Game.Hybrid
 public import Cslib.Computability.Probabilistic.Selection
 
 /-!
@@ -112,10 +111,9 @@ theorem HasGap.eventually_indexed_error_ge {pair : SamplablePair} {gap : ℕ →
       ((n + 1) * (4 * inverseTolerance n) ^ 2) (pair.sample n) (predict n)) := by
     ppt
   have hselected := hgap.eventually_error_ge _ hefficient
-  have hdecay := negligible_polynomial_mul
-    (negligible_geometric (ratio := (1 / 2 : ℝ)) (by norm_num)) (fun _ => by positivity)
-    hcount.polynomiallyBounded
-  have hsmall := hdecay.eventually_le_inv_polynomial (fun _ => by positivity)
+  have hdecay := (negligible_geometric (ratio := (1 / 2 : ℝ)) (by norm_num))
+    |>.polynomiallyBounded_mul hcount.polynomiallyBounded
+  have hsmall := hdecay.eventually_le_inv_polynomial
     (show PolynomiallyBounded (fun n => 2 * inverseTolerance n) from
       (PolynomiallyBounded.const 2).mul htolerance.polynomiallyBounded)
     (fun n => Nat.mul_pos (by decide) (hpos n))

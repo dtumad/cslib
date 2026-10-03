@@ -30,9 +30,11 @@ The caller supplies `Admissible`; these definitions do not assert computational 
 The seed and ideal distributions are explicit parameters, defaulting to uniform sampling on
 finite types. This also supports distributions on words, where the ambient type is infinite.
 
-[`Game`](Game.lean) supplies acceptance probability, distinguishing advantage, and negligible
-security for Boolean experiments. The semantic PRG definitions and the computational definitions
-share this layer. [`Computational/PseudorandomGenerator`](Computational/PseudorandomGenerator.lean)
+[`Negligible`](Negligible.lean) collects decay bounds, polynomial losses, and changes of security
+parameter. [`Game`](Game.lean) supplies acceptance probability, distinguishing advantage, and
+negligible security for Boolean experiments. The semantic PRG definitions and the computational
+definitions share this layer.
+[`Computational/PseudorandomGenerator`](Computational/PseudorandomGenerator.lean)
 instantiates `Family.Secure` with uniform words and `IsPPTTest`, then requires deterministic
 polynomial-time evaluation and strict length expansion. `IsPPTTest` requires one uniform machine
 for the entire test family. It is equivalent to the PPT restriction on programs interpreting
@@ -84,9 +86,10 @@ The supporting layers are:
   a fixed finite-control machine. The security parameter is encoded in unary. Machine steps account
   for local computation, fair coins, query construction, and reading oracle answers; the oracle's
   own computation is external. Merely counting oracle queries is not a PPT certificate.
-- [`Game`](Game.lean) and [`Computational/Basic`](Computational/Basic.lean): shared negligible
-  security, computational indistinguishability, complementing game answers, and the two-hop
-  hybrid inequality, reusing Mathlib's superpolynomial decay.
+- [`Negligible`](Negligible.lean), [`Game`](Game.lean), and
+  [`Computational/Basic`](Computational/Basic.lean): shared negligible security, computational
+  indistinguishability, complementing game answers, and the two-hop hybrid inequality, reusing
+  Mathlib's superpolynomial decay.
 - [`Computational/OneWay`](Computational/OneWay.lean): `OneWayPermutation` combines one-wayness
   with a length-preserving bijection. Its output on a uniform seed is proved exactly uniform;
   appending an independent fair bit gives the uniform distribution at the expanded length.

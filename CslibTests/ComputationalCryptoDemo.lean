@@ -241,10 +241,10 @@ theorem complement_advantage (X Y : ℕ → PMF Word) (adversary : Distinguisher
 /-- Quadratically many hops remain secure when every hop obeys the same negligible bound.
 The bound may depend on the adversary; it must be uniform over the hop index. -/
 theorem quadratic_hybrid (games : ℕ → ℕ → ProbComp Bool) (ε : ℕ → ℝ)
-    (hε : Negligible ε) (hε₀ : ∀ n, 0 ≤ ε n)
+    (hε : Negligible ε)
     (hstep : ∀ n i, i < n ^ 2 → advantage (games n i) (games n (i + 1)) ≤ ε n) :
     Negligible (fun n => advantage (games n 0) (games n (n ^ 2))) :=
-  negligible_hybrid (PolynomiallyBounded.id.pow 2) hε hε₀ hstep
+  negligible_hybrid (PolynomiallyBounded.id.pow 2) hε hstep
 
 /-- A statistical approximation and a computational reduction compose in the same game proof. -/
 theorem statistical_then_computational (real approximate ideal : ℕ → PMF Word)

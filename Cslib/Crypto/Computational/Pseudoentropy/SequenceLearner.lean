@@ -276,7 +276,7 @@ theorem failureBound_negligible {params : ℕ → Parameters} {inverseGap : ℕ 
       (fun _ => by positivity)
     intro n
     exact pow_le_pow_of_le_one (by norm_num) (by norm_num) (hbudget n)
-  apply negligible_polynomial_mul hdecay (fun _ => by positivity)
+  apply hdecay.polynomiallyBounded_mul
   unfold Parameters.predictionGridBound Parameters.predictionInverseTolerance Parameters.clock
     Parameters.inverseRate Parameters.denominator
   fun_prop
@@ -296,8 +296,8 @@ theorem failureBound_eventually_le {params : ℕ → Parameters} {inverseGap : �
     unfold Parameters.predictionInverseTolerance Parameters.inverseRate Parameters.denominator
     fun_prop
   simpa only [Nat.cast_mul, Nat.cast_ofNat] using
-    hfailure.eventually_le_inv_polynomial (fun _ => by unfold failureBound; positivity)
-      htolerance (fun n => Nat.mul_pos (by decide) (params n).predictionInverseTolerance_pos)
+    hfailure.eventually_le_inv_polynomial htolerance
+      (fun n => Nat.mul_pos (by decide) (params n).predictionInverseTolerance_pos)
 
 section Correctness
 

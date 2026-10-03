@@ -8,10 +8,10 @@ module
 
 public import Cslib.Crypto.Computational.Pseudoentropy.WordReduction
 public import Cslib.Crypto.Computational.OneWay.Normalize
-public import Cslib.Crypto.Game.Hybrid
 public import Cslib.Computability.Probabilistic.CoinTape
 
-/-!+# The pseudoentropy prediction gap from one-wayness
+/-!
+# The pseudoentropy prediction gap from one-wayness
 
 The executable hashed parity reduction has polynomial loss. One-wayness therefore makes its
 inversion term negligible, leaving an inverse-polynomial gap between feasible prediction and
@@ -58,10 +58,9 @@ theorem eventually_prediction_entropy_le {f : Word → Word} (hf : OneWay f)
   have hloss : Negligible (fun n => 128 * (dyadicSize (16 * hashCount n) : ℝ) ^ 2 *
       winProbability (inversionGame f (wordInverter f evaluate c d 3) n)) := by
     simpa only [Nat.cast_mul, Nat.cast_ofNat, Nat.cast_pow] using
-      negligible_polynomial_mul hinversion (fun _ => winProbability_nonneg _)
+      hinversion.polynomiallyBounded_mul
         (show PolynomiallyBounded (fun n => 128 * dyadicSize (16 * hashCount n) ^ 2) by fun_prop)
   have hsmall := hloss.eventually_le_inv_polynomial
-    (fun _ => mul_nonneg (by positivity) (winProbability_nonneg _))
     hashCount_polynomiallyBounded (fun n => Nat.pos_of_ne_zero (NeZero.ne (hashCount n)))
   filter_upwards [hsmall, eventually_ge_atTop 8] with n hsmall hn
   have h := word_prediction_entropy_le f (finiteFunction n) (encodeImage n)

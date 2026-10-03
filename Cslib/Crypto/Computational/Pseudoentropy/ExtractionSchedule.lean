@@ -6,7 +6,7 @@ Authors: Samuel Schlesinger
 
 module
 
-public import Cslib.Crypto.Game
+public import Cslib.Crypto.Negligible
 public import Cslib.Tactic.PolyTime
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
 

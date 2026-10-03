@@ -349,16 +349,8 @@ theorem advantage_le (generator : Word → Word) (count : ℕ → ℕ) (adversar
 /-- Efficient unary counts give a polynomial bound on the reduction's dyadic loss. -/
 theorem loss_polynomial {count : ℕ → ℕ}
     (hcount : IsPolyTime unaryEncoding (fun n => unaryEncoding (count n))) :
-    PolynomiallyBounded (fun n => 2 ^ (Nat.log 2 (count n) + 1)) := by
-  have hpoly : PolynomiallyBounded count := by
-    simpa [PolynomiallyBounded, unaryEncoding] using hcount.length_le
-  refine (PolynomiallyBounded.const 2 |>.mul (hpoly.add (PolynomiallyBounded.const 1))).mono ?_
-  intro n
-  by_cases hzero : count n = 0
-  · simp [hzero]
-  · have hpow := Nat.pow_log_le_self 2 hzero
-    rw [pow_succ]
-    lia
+    PolynomiallyBounded (fun n => 2 ^ (Nat.log 2 (count n) + 1)) :=
+  dyadicSize_polynomiallyBounded.comp hcount.polynomiallyBounded
 
 /-- Polynomially many expansions preserve the secure choice in a uniformly efficient family.
 The choice is supplied only in the proof; each reduction receives its index as ordinary input. -/
@@ -395,8 +387,7 @@ theorem indexed_indistinguishable {generator : ℕ → ℕ → Word → Word}
       (count := fun input : ℕ × ℕ => count input.1)
       (adversary := fun input : ℕ × ℕ => adversary input.1 input.2)
       hgenerator (by polytime) (by polytime) hadversary
-  have h := negligible_polynomial_mul (hsecure reduction hreduce)
-    (fun _ => Game.advantage_nonneg _ _) (loss_polynomial hcount)
+  have h := (hsecure reduction hreduce).polynomiallyBounded_mul (loss_polynomial hcount)
   exact h.congr (fun n => (test_advantage_eq _ _ _ _).symm)
 
 /-- Polynomially many seed expansions preserve computational indistinguishability. -/
@@ -408,8 +399,7 @@ theorem indistinguishable {generator : Word → Word} {count : ℕ → ℕ}
   intro adversary hadversary
   have hreduce := reduction_isPPT hgenerator.polyTime hcount hadversary
   have hnegligible := hgenerator.indistinguishable _ hreduce
-  have hloss := negligible_polynomial_mul hnegligible
-    (fun n => advantage_nonneg _ _) (loss_polynomial hcount)
+  have hloss := hnegligible.polynomiallyBounded_mul (loss_polynomial hcount)
   convert hloss using 1
   funext n
   exact advantage_eq generator count adversary n
