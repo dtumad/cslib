@@ -323,6 +323,14 @@ efficiency proofs and a growing loop whose one invariant establishes both output
 polynomial time. Unknown algorithms still require certificates, and arbitrary unbounded
 accumulators do not qualify for the finite-state fold rule.
 
+The corresponding [adaptive probabilistic rule](../Computability/Probabilistic/Adaptive.lean)
+certifies `OracleComp.iterate`: a strict PPT body and one invariant bound every reachable state
+and give the final postcondition. The body can capture the original input. Separate
+[error rules](../Languages/Probabilistic/Iteration.lean) add local failure probabilities across
+adaptive rounds; correctness may fail with the stated probability, while the size bound must
+hold on every path. The [examples](../../CslibTests/ComputationalCryptoIteration.lean) exercise
+both interfaces without exposing the saved-coin implementation.
+
 The [`ppt`](../Tactic/PPT.lean) tactic combines this deterministic interface with typed probabilistic
 sequencing. It handles multiple random draws, captured inputs, runtime-dependent sampling lengths,
 conditionals, and calls to certified adversaries. The full Goldreich–Levin inverter uses these
@@ -339,6 +347,15 @@ the seeded prediction-to-inversion bound, the Goldreich–Levin theorem, and the
 construction from a one-way permutation.
 Its proofs use the library's named lemmas without machine
 bookkeeping. Efficient output encoding alone makes no claim of pseudorandomness.
+
+The [reduction exercises](../../CslibTests/ComputationalCryptoReductions.lean) build on this
+walkthrough. [`Computational/Stretch`](Computational/Stretch.lean) proves polynomial stretch
+amplification through one uniform randomized hybrid reduction, with an exact dyadic loss bounded
+by twice the positive iteration count. It also proves security under output truncation.
+[`Computational/Reduction`](Computational/Reduction.lean) supplies the shared deterministic and
+randomized postprocessing rules. The computational guide records the interface changes prompted
+by these proofs: bounded-growth iteration, charged bounded-index sampling, and an averaging
+hybrid theorem that does not require a separately supplied common negligible bound.
 
 [`CslibTests/ComputationalCrypto.lean`](../../CslibTests/ComputationalCrypto.lean) exercises fair-coin
 and oracle PPT witnesses, adaptive queries, persistent state, pause/resume across a query,
@@ -367,8 +384,54 @@ positions, two successive invocations through the existing unary loop, and the z
 ### Further development
 
 **One-way permutations imply pseudorandom generators** is proved, including strict uniform PPT
-reductions, the Goldreich–Levin decoder, and one-bit expansion at every seed length. The next target
-is **one-way functions imply pseudorandom generators**; that implication is not yet proved.
+reductions, the Goldreich–Levin decoder, and one-bit expansion at every seed length. Stretch
+amplification gives any efficiently computed strictly larger output length, with polynomial time
+proved for the resulting generator and its reduction. The next target is **one-way functions
+imply pseudorandom generators**; that implication is not yet proved.
+
+The first steps on that route are checked: output collisions of general OWFs are negligible,
+the strong leftover hash lemma applies to two-universal hashing with public seeds and side
+information, and Boolean-matrix extraction has a uniform PPT implementation.
+[`Computational/Extraction`](Computational/Extraction.lean) transfers computational
+indistinguishability through this extractor, with an explicit high-entropy comparison-source
+hypothesis. These ingredients do not yet complete the HILL generator construction.
+Goldreich–Levin now handles arbitrary output lengths, and a separate uniform reduction supplies
+fixed-output-length normalization. The finite entropy layer proves the chain rule and the
+averaged hash-isolation bound from Lemma 3 of the write-up.
+The [hashed parity pair](Computational/Pseudoentropy/HashPair.lean) now realizes that bound
+with a strict PPT sampler, an exact sampling law, and an injective public encoding. Its
+[finite prediction-to-inversion bound](Computational/Pseudoentropy/HashReduction.lean) handles
+unequal fibers and saved predictor coins with an explicit cubic loss. The
+[word reduction](Computational/Pseudoentropy/WordReduction.lean) proves the exact game
+correspondences and certifies the inverter as strict PPT.
+[`OneWay.exists_pseudoentropyPair`](Computational/Pseudoentropy/OneWay.lean) consequently gives
+a samplable pseudoentropy pair from every general word OWF, with gap `1 / (2 * (n + 7))` below
+the conditional-entropy prediction threshold. Its
+[uniform seed realization](Computational/Pseudoentropy/Seed.lean) preserves the exact joint law
+and accounts for unused coins in the entropy chain rule. Independent repetitions now have checked
+conditional-information and conditional-mass concentration bounds, with loss measured against
+the seed length. [Smoothed conditional extraction](../Probability/EntropyExtraction.lean) now
+turns these bounds into statistical closeness while preserving the public marginal and hash seed.
+The [hard-core boosting analysis](Computational/Pseudoentropy/Boosting/Progress.lean) proves the
+potential decrease and finite round bound, following
+[Holenstein's uniform hard-core proof](https://crypto.ethz.ch/publications/files/Holens05.pdf).
+The [weight sampler](Computational/Pseudoentropy/Boosting/Sampling.lean) realizes dyadic soft
+weights exactly with fair bits. Shared bounded repetition and success counting have strict PPT
+certificates, independent product laws, and Hoeffding error bounds. A polynomial trial budget
+gives inverse-polynomial accuracy with exponentially small failure. The sampled threshold
+decisions now have [strict PPT programs and guard guarantees](Computational/Pseudoentropy/Boosting/Decision.lean),
+including a bound on the error of the executable majority predictor. The
+[clocked loop](Computational/Pseudoentropy/Boosting/Program.lean) now has a strict PPT certificate
+and state-size bounds on every execution. Its [correctness theorem](Computational/Pseudoentropy/Boosting/Loop.lean)
+connects the stored votes to the potential proof and bounds total error by the clock times the
+sum of the two test errors and the learner error. It assumes a learner contract for the truncated
+predictor descriptions. The cached membership simulation, weak learner, and final clipped-vote
+predictor remain to be combined into the uniform hard-core lemma. The three-source game argument and conversion of
+this pair into an expanding generator also remain to be proved.
+The [computational guide](Computational/README.md#toward-general-one-way-functions) records the
+remaining obligations and cites
+[Holenstein's write-up](https://crypto.ethz.ch/publications/files/Holens06.pdf) and the
+[original HILL theorem](https://doi.org/10.1137/S0097539793244708).
 
 The semantic PRG family API introduced in
 [#876](https://github.com/leanprover/cslib/pull/876) is integrated with the computational definition.

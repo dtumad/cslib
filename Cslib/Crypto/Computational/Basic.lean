@@ -40,6 +40,27 @@ noncomputable def winProbability (game : ProbComp Bool) : ℝ :=
 theorem winProbability_nonneg (game : ProbComp Bool) : 0 ≤ winProbability game :=
   ENNReal.toReal_nonneg
 
+/-- Implication between deterministic winning conditions gives a probability bound. -/
+theorem winProbability_pure_mono {first second : Bool} (h : first = true → second = true) :
+    winProbability (pure first) ≤ winProbability (pure second) := by
+  cases first <;> cases second <;> simp_all [winProbability, Game.winProbability]
+
+/-- Replacing each reachable continuation by one with larger success probability can only
+increase the success probability of the complete game. -/
+theorem winProbability_bind_mono {α : Type} (program : ProbComp α)
+    {first second : α → ProbComp Bool}
+    (h : ∀ a ∈ (ProbComp.eval program).support,
+      winProbability (first a) ≤ winProbability (second a)) :
+    winProbability (program >>= first) ≤ winProbability (program >>= second) := by
+  apply ENNReal.toReal_mono (PMF.apply_ne_top _ _)
+  simp only [ProbComp.eval_bind, PMF.bind_apply]
+  apply ENNReal.tsum_le_tsum
+  intro a
+  by_cases ha : a ∈ (ProbComp.eval program).support
+  · apply mul_le_mul_right
+    exact (ENNReal.toReal_le_toReal (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)).mp (h a ha)
+  · simp only [(PMF.apply_eq_zero_iff _ _).mpr ha, zero_mul, le_refl]
+
 /-- A finite random choice averages the continuation's winning probabilities. -/
 theorem winProbability_sample_bind {α : Type} [Fintype α] (distribution : PMF α)
     (game : α → ProbComp Bool) :

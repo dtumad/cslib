@@ -71,20 +71,38 @@ theorem IsPolyTime.iterate_spec {α : Type} {encode : α → Word}
   hinitial.iterate_encoded_spec (stateEncoding := wordEncoding)
     hcount hstep invariant hinit hpreserve hsize hbound
 
-/-- A loop whose encoded state never grows inherits its initializer's polynomial size bound. -/
+/-- A bounded loop may grow its encoded state by a fixed number of cells per iteration.
+The initializer and unary iteration count supply the overall polynomial size bound. -/
+theorem IsPolyTime.iterate_encoded_of_bounded_growth {α State : Type} {encode : α → Word}
+    {stateEncoding : State → Word} {initial : α → State} {count : α → ℕ} {step : State → State}
+    (hinitial : IsPolyTime encode (fun a => stateEncoding (initial a)))
+    (hcount : IsPolyTime encode (fun a => List.replicate (count a) true))
+    (hstep : IsPolyTime stateEncoding (fun state => stateEncoding (step state)))
+    {growth : ℕ} (hgrowth : ∀ state,
+      (stateEncoding (step state)).length ≤ (stateEncoding state).length + growth) :
+    IsPolyTime encode (fun a => stateEncoding (step^[count a] (initial a))) := by
+  obtain ⟨ci, di, hi⟩ := hinitial.length_le
+  obtain ⟨cc, dc, hc⟩ := hcount.length_le
+  simp only [List.length_replicate] at hc
+  exact (hinitial.iterate_encoded_spec hcount hstep
+    (fun a index state => (stateEncoding state).length ≤
+      (stateEncoding (initial a)).length + index * growth)
+    (fun _ => by simp)
+    (by intro a index state _ h; have := hgrowth state; nlinarith)
+    (size := fun n => ci * (n + 1) ^ di + cc * (n + 1) ^ dc * growth) (by fun_prop)
+    (fun a index state hindex h => h.trans
+      (Nat.add_le_add (hi a) (Nat.mul_le_mul_right growth (hindex.trans (hc a)))))).1
+
+/-- A loop whose encoded state never grows is the zero-growth special case. -/
 theorem IsPolyTime.iterate_encoded_of_length_le {α State : Type} {encode : α → Word}
     {stateEncoding : State → Word} {initial : α → State} {count : α → ℕ} {step : State → State}
     (hinitial : IsPolyTime encode (fun a => stateEncoding (initial a)))
     (hcount : IsPolyTime encode (fun a => List.replicate (count a) true))
     (hstep : IsPolyTime stateEncoding (fun state => stateEncoding (step state)))
     (hshrink : ∀ state, (stateEncoding (step state)).length ≤ (stateEncoding state).length) :
-    IsPolyTime encode (fun a => stateEncoding (step^[count a] (initial a))) := by
-  obtain ⟨c, d, hlength⟩ := hinitial.length_le
-  exact (hinitial.iterate_encoded_spec hcount hstep
-    (fun a _ state => (stateEncoding state).length ≤ (stateEncoding (initial a)).length)
-    (fun _ => le_rfl) (fun _ _ state _ h => (hshrink state).trans h)
-    (size := fun length => c * (length + 1) ^ d) ⟨c, d, fun _ => le_rfl⟩
-    (fun a _ _ _ h => h.trans (hlength a))).1
+    IsPolyTime encode (fun a => stateEncoding (step^[count a] (initial a))) :=
+  hinitial.iterate_encoded_of_bounded_growth hcount hstep (growth := 0)
+    (by simpa using hshrink)
 
 /-- An efficiently bounded word loop with a length-nonincreasing body is polynomial time. -/
 theorem IsPolyTime.iterate_of_length_le {α : Type} {encode : α → Word}

@@ -8,6 +8,7 @@ module
 
 public import Cslib.Crypto.Game
 public import Cslib.Foundations.Data.Nat.PolynomialBound
+public import Cslib.Probability.PMF
 public import Mathlib.Basic.Real.Basic
 
 /-!
@@ -43,7 +44,68 @@ theorem negligible_polynomial_mul {ε : ℕ → ℝ} {p : ℕ → ℕ}
   apply mul_le_mul_of_nonneg_right _ (hε₀ n)
   exact_mod_cast hp n
 
+open Filter in
+/-- Negligible success is eventually smaller than the reciprocal of any positive
+polynomially bounded loss. -/
+theorem Negligible.eventually_le_inv_polynomial {ε : ℕ → ℝ} (hε : Negligible ε)
+    (hε₀ : ∀ n, 0 ≤ ε n) {p : ℕ → ℕ} (hp : PolynomiallyBounded p)
+    (hpos : ∀ n, 0 < p n) :
+    ∀ᶠ n in atTop, ε n ≤ 1 / (p n : ℝ) := by
+  have h := negligible_polynomial_mul hε hε₀ hp 0
+  simp only [pow_zero, one_mul] at h
+  filter_upwards [h.eventually_le_const (by norm_num : (0 : ℝ) < 1)] with n hn
+  apply (le_div_iff₀ (by exact_mod_cast hpos n)).mpr
+  simpa only [mul_comm] using hn
+
 namespace Game
+
+/-- A uniformly selected experiment accepts with the average of its acceptance probabilities. -/
+theorem winProbability_uniform {α : Type*} [Fintype α] [Nonempty α] (games : α → Game) :
+    winProbability ((PMF.uniformOfFintype α).bind games) =
+      (∑ a, winProbability (games a)) / Fintype.card α := by
+  rw [winProbability, Probability.PMF.bind_apply_toReal]
+  simp only [PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast,
+    winProbability, div_eq_mul_inv, Finset.sum_mul]
+  apply Finset.sum_congr rfl
+  intro a _
+  ring
+
+/-- Randomly choosing an adjacent hybrid telescopes signed gaps before taking absolute values.
+Unused indices run the same rejecting game on both sides. This gives a single uniform reduction
+with loss `capacity`, without selecting a length-dependent best hop. -/
+theorem advantage_hybrid_average (games : ℕ → Game) (hops capacity : ℕ) [NeZero capacity]
+    (hle : hops ≤ capacity) :
+    advantage (games 0) (games hops) = (capacity : ℝ) *
+      advantage
+        ((PMF.uniformOfFintype (Fin capacity)).bind
+          (fun i => if i.val < hops then games i.val else PMF.pure false))
+        ((PMF.uniformOfFintype (Fin capacity)).bind
+          (fun i => if i.val < hops then games (i.val + 1) else PMF.pure false)) := by
+  have hsum : (∑ i : Fin capacity, if i.val < hops then
+      winProbability (games i.val) - winProbability (games (i.val + 1)) else 0) =
+      winProbability (games 0) - winProbability (games hops) := by
+    rw [Fin.sum_univ_eq_sum_range (fun i => if i < hops then
+      winProbability (games i) - winProbability (games (i + 1)) else 0)]
+    calc
+      (∑ i ∈ Finset.range capacity, if i < hops then
+          winProbability (games i) - winProbability (games (i + 1)) else 0) =
+          ∑ i ∈ Finset.range hops, if i < hops then
+            winProbability (games i) - winProbability (games (i + 1)) else 0 :=
+        (Finset.sum_subset (Finset.range_mono hle) (by intro i _ hi; simp_all)).symm
+      _ = ∑ i ∈ Finset.range hops,
+          (winProbability (games i) - winProbability (games (i + 1))) :=
+        Finset.sum_congr rfl (fun i hi => ite_eq_left (Finset.mem_range.mp hi))
+      _ = _ := Finset.sum_range_sub' (fun i => winProbability (games i)) hops
+  rw [advantage, advantage, winProbability_uniform, winProbability_uniform]
+  simp only [Fintype.card_fin, ← sub_div, ← Finset.sum_sub_distrib]
+  have hdiff (i : Fin capacity) :
+      winProbability (if i.val < hops then games i.val else PMF.pure false) -
+        winProbability (if i.val < hops then games (i.val + 1) else PMF.pure false) =
+      if i.val < hops then winProbability (games i.val) - winProbability (games (i.val + 1))
+        else 0 := by split_ifs <;> simp
+  simp only [hdiff, hsum, abs_div, abs_of_nonneg (Nat.cast_nonneg capacity : (0 : ℝ) ≤ capacity)]
+  have hcapacity : (capacity : ℝ) ≠ 0 := by exact_mod_cast NeZero.ne capacity
+  field_simp
 
 /-- The advantage between the endpoints is at most the sum of all adjacent advantages. -/
 theorem advantage_hybrid_le_sum (games : ℕ → Game) (hops : ℕ) :

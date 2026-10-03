@@ -8,6 +8,8 @@ module
 
 public import Cslib.Init
 public import Mathlib.Analysis.Asymptotics.SuperpolynomialDecay
+public import Mathlib.Analysis.Real.Sqrt
+public import Mathlib.Analysis.SpecificLimits.Normed
 public import Mathlib.Probability.Distributions.Uniform
 public import Mathlib.Probability.ProbabilityMassFunction.Constructions
 
@@ -37,6 +39,11 @@ abbrev Negligible (ε : ℕ → ℝ) : Prop :=
 @[simp] theorem negligible_zero : Negligible (fun _ => 0) :=
   Asymptotics.superpolynomialDecay_zero _ _
 
+/-- Geometric decay with ratio strictly between minus one and one is negligible. -/
+theorem negligible_geometric {ratio : ℝ} (h : |ratio| < 1) :
+    Negligible (fun n => ratio ^ n) :=
+  fun degree => tendsto_pow_const_mul_const_pow_of_abs_lt_one degree h
+
 /-- A constant nonzero advantage is not negligible. -/
 theorem not_negligible_const {c : ℝ} (hc : c ≠ 0) : ¬ Negligible (fun _ => c) := by
   intro h
@@ -49,6 +56,17 @@ theorem negligible_of_le {ε δ : ℕ → ℝ} (hδ : Negligible δ)
   apply hδ.trans_abs_le
   intro n
   simpa only [abs_of_nonneg (hε n), abs_of_nonneg ((hε n).trans (hle n))] using hle n
+
+/-- Taking a square root preserves negligible decay. -/
+theorem Negligible.sqrt {ε : ℕ → ℝ} (h : Negligible ε) :
+    Negligible (fun n => Real.sqrt (ε n)) := by
+  intro degree
+  have hlimit := Real.continuous_sqrt.continuousAt.tendsto.comp (h (2 * degree))
+  have hroot (n : ℕ) : Real.sqrt ((n : ℝ) ^ (2 * degree) * ε n) =
+      (n : ℝ) ^ degree * Real.sqrt (ε n) := by
+    rw [show (n : ℝ) ^ (2 * degree) = ((n : ℝ) ^ degree) ^ 2 by ring,
+      Real.sqrt_mul (sq_nonneg _), Real.sqrt_sq (by positivity)]
+  simpa only [Function.comp_def, hroot, Real.sqrt_zero] using hlimit
 
 open Filter Topology in
 /-- Halving a unary security parameter preserves negligible decay. -/

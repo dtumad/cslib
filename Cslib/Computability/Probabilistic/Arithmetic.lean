@@ -89,6 +89,13 @@ theorem IsPolyTime.unary_sub
     hf.iterate_of_length_le (step := List.tail) hg (isPolyTime_tail wordEncoding)
       (by intro word; simp)
 
+/-- Cap an efficiently computed unary number by another efficiently computed bound. -/
+theorem IsPolyTime.unary_min
+    (hf : IsPolyTime encode (fun a => List.replicate (f a) true))
+    (hg : IsPolyTime encode (fun a => List.replicate (g a) true)) :
+    IsPolyTime encode (fun a => List.replicate (min (f a) (g a)) true) := by
+  simpa only [Nat.sub_sub_eq_min] using hf.unary_sub (hf.unary_sub hg)
+
 /-- Compare efficiently computed unary numbers, returning one Boolean bit. -/
 theorem IsPolyTime.unary_lt
     (hf : IsPolyTime encode (fun a => List.replicate (f a) true))
@@ -103,6 +110,14 @@ theorem IsPolyTime.unary_lt
       have h : m < n := by lia
       simp [h, List.replicate_succ]
   simpa only [heq] using (hg.unary_sub hf).headD false
+
+/-- Non-strict comparison of efficiently computed unary numbers. -/
+theorem IsPolyTime.unary_le
+    (hf : IsPolyTime encode (fun a => List.replicate (f a) true))
+    (hg : IsPolyTime encode (fun a => List.replicate (g a) true)) :
+    IsPolyTime encode (fun a => [decide (f a ≤ g a)]) := by
+  simpa only [List.map_cons, List.map_nil, ← decide_not, not_lt] using
+    (hg.unary_lt hf).map not
 
 /-- Test equality of efficiently computed unary numbers. -/
 theorem IsPolyTime.unary_eq

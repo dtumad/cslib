@@ -41,6 +41,12 @@ at most one spare bit. It applies `f` to the first word, retains the second word
 and appends the inner product modulo two of the two words. The spare bit lets the construction
 handle odd seed lengths as well as even ones.
 
+[`Stretch`](Stretch.lean) amplifies this one-bit generator to any efficiently computed output
+length strictly greater than the seed length. `PseudorandomGenerator.amplify` takes the desired
+length and its unary polynomial-time certificate. The checked
+[reduction examples](../../../CslibTests/ComputationalCryptoReductions.lean) include the resulting
+OWP-to-polynomial-stretch theorem, as well as two-step expansion and truncation.
+
 ## Reading the proof
 
 Read [HardCore.lean](HardCore.lean) first for the cryptographic argument: a hard-core bit appended
@@ -63,6 +69,169 @@ implementation of the reduction, and the final asymptotic security argument. In 
 `wordInverter_isPPT` and `negligible_parityPrediction` in
 [WordReduction](GoldreichLevin/WordReduction.lean) connect the decoder to computational security.
 
+## Toward general one-way functions
+
+The general OWF-to-PRG theorem is not yet proved. We are following
+[Holenstein's write-up](https://crypto.ethz.ch/publications/files/Holens06.pdf), with the original
+Håstad–Impagliazzo–Levin–Luby theorem credited below. A general one-way function can have an uneven
+output distribution; appending a hard-core bit does not make that distribution uniform.
+
+The first extraction ingredients are checked:
+
+| Module | Proved result |
+| --- | --- |
+| [Goldreich–Levin](GoldreichLevin/WordReduction.lean) | Every OWF has the padded inner-product hard-core predicate. Output lengths may vary; the predictor's coin budget depends on its actual image. |
+| [OneWay/Normalize](OneWay/Normalize.lean) | Every general word OWF yields an OWF with output length determined solely by input length, matching the write-up's fixed-width setting. |
+| [OneWay/Collision](OneWay/Collision.lean) | Every OWF has negligible output collision probability. An independent uniform preimage guess is the PPT reduction; image lengths may vary. |
+| [Collision](../../Probability/Collision.lean) | Collision probability on arbitrary discrete spaces, its finite sum formula, and a distance-to-uniform bound. |
+| [UniversalHash](../../Probability/UniversalHash.lean) | The strong leftover hash lemma, including revealed side information and a pointwise mass-bound corollary. |
+| [Conditioning](../../Probability/Conditioning.lean) and [Entropy](../../Probability/Entropy.lean) | Discrete conditional distributions, finite Shannon entropy in bits, and the deterministic entropy chain rule. |
+| [HashIsolation](../../Probability/HashIsolation.lean) | Hash collisions bound the remaining predicate entropy. Averaging over hash lengths gives the logarithmic-fiber bound in Holenstein's Lemma 3. |
+| [Pseudoentropy/HashPair](Pseudoentropy/HashPair.lean) | The hashed parity candidate, its complete entropy bound, and a strict PPT word sampler with exact distribution and injective public encoding. |
+| [Guessing](../../Probability/Guessing.lean) and [Pseudoentropy/Reduction](Pseudoentropy/Reduction.lean) | Replacing partially uniform leakage by a uniform guess, with a concrete loss in decoder success. The unknown split point is used only in the proof. |
+| [Pseudoentropy/HashReduction](Pseudoentropy/HashReduction.lean) | The finite matrix-hash prediction-to-inversion bound from Lemma 4, including unequal fibers, saved predictor coins, and an explicit cubic loss. |
+| [Pseudoentropy/WordReduction](Pseudoentropy/WordReduction.lean) | A strict PPT inverter and exact agreement of both word games with the finite saved-coin experiments. |
+| [Pseudoentropy/Basic](Pseudoentropy/Basic.lean) and [Pseudoentropy/OneWay](Pseudoentropy/OneWay.lean) | Every general word OWF yields a strict PPT samplable pseudoentropy pair with prediction gap `1 / (2 * (n + 7))`. |
+| [Pseudoentropy/Seed](Pseudoentropy/Seed.lean) | Every such sampler has a polynomial-time deterministic evaluator driven by one uniform seed. The entropy chain rule counts all seed bits, including unused coins. |
+| [Product](../../Probability/Product.lean), [Concentration](../../Probability/Concentration.lean), and [EntropyConcentration](../../Probability/EntropyConcentration.lean) | Independent finite products, their conditional laws, and Hoeffding bounds on conditional information and excessive conditional masses. |
+| [EntropyExtraction](../../Probability/EntropyExtraction.lean) | Smoothed leftover hashing with public side information, followed by extraction from independent repetitions at almost their total conditional Shannon entropy. |
+| [Pseudoentropy/Boosting](Pseudoentropy/Boosting/Progress.lean) | The clipped weight potential, the density invariant, per-round progress, and the finite clock bound for constructive hard-core boosting. |
+| [Boosting/Sampling](Pseudoentropy/Boosting/Sampling.lean) | Exact fair-bit sampling of dyadic soft weights, a strict PPT certificate, and agreement with the density used in the potential proof. |
+| [Boosting/Vote](Pseudoentropy/Boosting/Vote.lean) and [Boosting/Decision](Pseudoentropy/Boosting/Decision.lean) | Executable majority prediction, rational density and stopping tests, and their guard guarantees with exponentially small sampling error. |
+| [Boosting/Program](Pseudoentropy/Boosting/Program.lean) and [Boosting/Loop](Pseudoentropy/Boosting/Loop.lean) | A strict PPT clocked loop, state bounds on every execution, and its majority-or-dense-margin guarantee with an explicit learner hypothesis and total error bound. |
+| [LinearHash](../../Computability/Probabilistic/LinearHash.lean) | Boolean-matrix hashing, its word implementation, its PPT sampler, and exact agreement with the finite extraction experiment. |
+| [Extraction](Extraction.lean) | A source indistinguishable from a sufficiently diffuse comparison source yields computationally uniform extraction. |
+
+`LinearHash.extract count input` draws `count * input.length` fair bits for the matrix and
+returns that seed followed by `count` hash bits. Both experiments reveal the seed; all of its
+randomness and output length are accounted for. The matrix family uses more seed bits than
+Holenstein's field-multiplication family, but evaluation and seed length remain polynomial.
+The [extraction examples](../../../CslibTests/ComputationalCryptoExtraction.lean) check this
+public-seed distinction and give a complete client reduction through the computational API.
+Matrix parsing, dot products, and uniform-tape laws now live in the shared
+[bitstring programming module](../../Computability/Probabilistic/BitString.lean), also used by
+Goldreich–Levin.
+
+The shared [`wordDecode`](GoldreichLevin/WordDecoder.lean) accepts a predictor that captures
+arbitrary runtime data. Its polynomial-time certificate, exact uniform-mask law, and
+probability-of-recovery guarantee are separate reusable contracts. The existing hard-core
+reduction uses this decoder; subsequent reductions can capture a public hash and digest too.
+
+The [entropy examples](../../../CslibTests/ComputationalCryptoEntropy.lean) check the units,
+conditioning direction, and null events. The isolation bound reveals the complete hash seed and
+allows the hidden predicate to depend on that seed, as required when it also contains a parity
+query. `HashPair.sample f n` samples a hash length, a matrix, a parity query, and an input, then
+returns the encoded observation and parity bit. Its finite joint law satisfies Holenstein's
+Lemma 3 bound. The hash length is exactly uniform in a power-of-two range `q = hashCount n`,
+with `n + 6 ≤ q ≤ 2 * (n + 7)`. The extra lengths make the truncation threshold valid for every
+fiber, and the dyadic range accounts for the sampling detail approximated in the write-up's
+footnote 3.
+
+`matrixInverter_success_ge` proves the finite Lemma 4 reduction: prediction correlation at least
+`1 - H(hidden | observation) - 1/q` gives inversion probability at least
+`1 / (128 * q * dyadicSize(16*q)^2)`. The inverter guesses a hash length, matrix, and digest,
+then uses the shared decoder. It receives neither a fiber size nor a split point.
+`matrixPrediction_entropy_le_of_coins` extends the bound to independent saved coins reused
+throughout decoding. The [word reduction](Pseudoentropy/WordReduction.lean) now proves both
+game correspondences and certifies the complete inverter as strict PPT. Its saved-coin evaluator
+trims a common tape to each query's own budget, so varying digest lengths preserve the exact
+prediction distribution.
+
+[`OneWay.exists_pseudoentropyPair`](Pseudoentropy/OneWay.lean) combines this reduction with
+output normalization and negligible inversion success. It returns a `SamplablePair` with gap
+`1 / (2 * (n + 7))`. `SamplablePair.HasGap` follows Definitions 3 and 4 of the write-up:
+every uniform PPT predictor eventually has signed correlation at most
+`1 - H(hidden | observation) - gap`. The record includes an injective observation encoding,
+the finite joint law, and an exact strict PPT sampler. The entropy examples also check that an
+independent fair hidden bit cannot have a positive gap: unpredictability alone is insufficient.
+
+`SamplablePair.exists_seedRealization` supplies the deterministic uniform-seed presentation used
+by Definition 4 of the write-up. Its efficient evaluator comes from the sampler's checked machine
+replay. The entropy chain rule accounts for the public observation, hidden bit, and remaining
+seed. A regression example deliberately ignores one of two seed bits and proves that the ignored
+bit remains in the third entropy term.
+
+For a seed length `L`, `k` independent samples satisfy the conditional-information lower-tail bound
+`Pr[sum information <= k H - t] <= exp(-2 t^2 / (k L^2))` for `t >= 0`.
+The corresponding bound on excessive conditional masses is checked too, using Mathlib's
+independence and Hoeffding theorems. This is a variant of the concentration step in Section 3.3:
+it uses the complete seed length rather than claiming Proposition 1's sharper alphabet-size loss.
+[`EntropyExtraction`](../../Probability/EntropyExtraction.lean) now supplies the smoothing and
+extraction step. If conditional masses exceed `mass` only with probability `delta`, its error is
+at most `2 * delta + sqrt(2 * |Output| * mass) / 2`. The bound averages over the original public
+marginal, and both experiments reveal the complete independent hash seed. Conditioning is used
+only in the proof; the extractor still runs on the original source.
+
+`IsTwoUniversal.leftover_hash_pi_conditional` combines this result with concentration. Writing
+`lambda = k H - t`, hashing to `m` bits has error at most
+`2 exp(-2 t^2 / (k L^2)) + sqrt(2^(m + 1 - lambda)) / 2`.
+This is our seed-length variant of Lemma 2. The extraction examples instantiate it for any
+samplable pair through its saved-seed interface. They also check a rare fully leaked branch:
+leakage on one of sixteen branches still permits a nontrivial bound, without a worst-case
+conditional-entropy assumption on every branch.
+
+The [boosting analysis](Pseudoentropy/Boosting/Progress.lean) follows Section 2.2 of Holenstein's
+[uniform hard-core proof](https://crypto.ethz.ch/publications/files/Holens05.pdf).
+`step_progress` proves a decrease of `gamma * delta^2 / 8` after charging for an optional
+threshold increase. `dense_margin_of_iterations` gives positive average prediction advantage on
+every `delta`-dense soft set after `steps * gamma^2 * delta^3 >= 4` valid rounds.
+The proof handles equality at the clock boundary and permits arbitrary finite source distributions;
+soft sets avoid rounding cardinalities.
+
+The [weight sampler](Pseudoentropy/Boosting/Sampling.lean) implements this curve exactly at
+dyadic rates, using vote counts, saturating natural subtraction, and a bounded fair-bit draw.
+Its acceptance probability agrees with the weight in the potential proof, and averaging over
+source examples gives exactly the soft density. Each call uses fresh randomness; a random-set
+membership oracle will additionally need to cache repeated answers.
+The [boosting examples](../../../CslibTests/ComputationalCryptoBoosting.lean) check clipping,
+weighted prediction, an exact clock boundary, and independence of repeated draws. The example
+`weightTrials` counts polynomially many sampled weights; its strict PPT proof is
+`unfold weightTrials; ppt`. Its cubic budget estimates the weight to tolerance `1 / (n + 1)`
+with failure at most `2^(-n)`. `sampleWeight_density_deviation` supplies the analogous concentration
+bound when every trial samples a fresh source example before drawing its weight coin.
+
+The [sampled decisions](Pseudoentropy/Boosting/Decision.lean) implement the overlapping density
+and majority guards from Figure 2 and Claim 2.6 of the uniform hard-core write-up. With weight
+rate `eta = gamma * delta`, the density comparison uses `delta * (1 + eta / 32)`; the majority
+comparison uses `13 * delta / 32`. The checked contracts allow either answer in each overlap
+and bound an invalid answer by `2^(-k)`. Natural inverse bounds supply polynomial precision:
+`32 * inverseGamma * inverseDelta^2` for the density test and `32 * inverseDelta` for majority.
+`testShift_weights_sound` connects fresh weight trials to the potential's density.
+`testMajority_source_sound` certifies the actual majority predictor on a valid stopping result,
+including ties and the empty collection. The examples `majorityStop` and `densityShift` compose
+an arbitrary certified training sampler; both efficiency proofs close with `unfold ...; ppt`.
+
+The shared [adaptive loop rule](../../Computability/Probabilistic/Adaptive.lean) now certifies
+strict PPT iteration from a state-size invariant, including bodies that capture the original
+input. Its [probability rule](../../Languages/Probabilistic/Iteration.lean) adds the sampled
+guards' failure bounds across rounds without requiring independence between rounds.
+
+The [clocked boosting program](Pseudoentropy/Boosting/Program.lean) now composes these interfaces.
+Each round tests the majority, optionally shifts the threshold, and calls the supplied learner.
+Predictor descriptions are truncated before storage, so `run_isPPT` covers every execution,
+including incorrect tests and learner failures. Its state invariant bounds both the number of
+predictors and the size of every stored description; the client proof contains no machine internals.
+
+The [loop correctness proof](Pseudoentropy/Boosting/Loop.lean) follows the actual stored votes.
+If the learner supplies weighted correlation `gamma` on each dense measure except with
+probability `epsilon`, `run_sound` bounds total failure by
+`clock * (2 * 2^(-confidence) + epsilon)`. The result is either a majority predictor of error
+at most `7 * delta / 16` or a collection with the required margin on every dense soft set.
+The learner's contract concerns its **truncated** description. A checked visible-label example
+instantiates that contract with a perfect learner and gives total error at most `2^(-n)`.
+
+The cached membership simulation, weak learner, and final clipped-vote predictor with its sampled
+threshold remain to be constructed. The clock replaces the write-up's worst-dense-set stopping
+test; the current program does not implement that test. The conditional loop theorem alone does
+not prove the uniform hard-core lemma.
+
+`ComputationallyIndistinguishable.extract_uniform` still assumes its comparison source and
+negligible collision bound. Negligible collisions of the OWF output alone do not give the entropy
+surplus required for expansion. The remaining route needs the uniform hard-core lemma, the
+three-source game argument, removal of unknown entropy parameters, and a final uniform generator
+with stretch at every seed length. The Goldreich–Levin
+reduction now applies directly to arbitrary output words, with no length-preservation hypothesis.
+
 ## Definitions and conventions
 
 Cryptographic definitions live in `Cslib.Crypto`; efficiency predicates and encodings live in
@@ -74,9 +243,11 @@ Cryptographic definitions live in `Cslib.Crypto`; efficiency predicates and enco
 | [Ensemble](Ensemble.lean) | Polynomial bounds on sample lengths, connecting time polynomial in parameter plus input length to time polynomial in the parameter. |
 | [Hybrid](Hybrid.lean) | Polynomially many game hops with a common negligible bound on adjacent advantages. |
 | [Statistical](Statistical.lean) | Negligible statistical distance implies computational indistinguishability, including word ensembles. |
+| [Reduction](Reduction.lean) | Efficient deterministic and randomized postprocessing of indistinguishable ensembles. |
 | [OneWay](OneWay.lean) | `OneWay`, `OneWayPermutation`, and the inversion game, which accepts any preimage. |
 | [HardCore](HardCore.lean) | `HardCore`, the prediction game, and PRG security from a hard-core predicate. |
 | [PseudorandomGenerator](PseudorandomGenerator.lean) | `PseudorandomGenerator`: efficient evaluation, length expansion, and the shared `PRG.Family.Secure` property. |
+| [Stretch](Stretch.lean) | Uniform reductions for polynomial stretch amplification and output truncation. |
 | [PseudorandomFunction](PseudorandomFunction.lean) | `PseudorandomFunction` and adaptive oracle games with `n`-bit keys, queries, and answers. |
 
 A closed game has type `ProbComp Bool`; `winProbability` is its probability of returning `true`.
@@ -151,12 +322,81 @@ public closure rules; a Lean function type alone supplies no efficiency bound.
 
 The main programming interfaces are [composition](../../Computability/Probabilistic/Composition.lean),
 [encodings](../../Computability/Probabilistic/Encoding.lean),
-[folds](../../Computability/Probabilistic/Fold.lean), and
+[folds](../../Computability/Probabilistic/Fold.lean),
+[bounded probabilistic repetition](../../Computability/Probabilistic/Repeat.lean),
+[adaptive iteration](../../Computability/Probabilistic/Adaptive.lean), and
 [list operations](../../Computability/Probabilistic/List.lean).
 The `_with` combinators let callbacks capture runtime inputs. For growing loops,
 [`IsPolyTime.iterate_spec`](../../Computability/Probabilistic/Iteration.lean) uses one invariant
 to prove the final postcondition and bound intermediate sizes. A polynomial number of iterations
 also needs this size control to yield a polynomial-time algorithm.
+
+`OracleComp.iterate count step initial` feeds each random state into the next round.
+`IsPPTOn.iterate_spec` proves strict PPT and the final postcondition from one invariant;
+`iterate_with_spec` lets the body capture the input, and `iterate_of_bounded_growth` derives
+the size bound for fixed growth per round. The [adaptive examples](../../../CslibTests/ComputationalCryptoIteration.lean)
+include state-dependent word updates, a process that stops drawing after failure, and
+input-dependent sampling precision. Their proofs contain no machine configurations.
+
+The size invariant must hold on every possible execution. Correctness invariants may instead
+have per-round failure bounds: `ProbComp.iterate_failure_toReal_le` adds these bounds, and
+`iterate_failure_toReal_le_mul` gives `count * error` for a common bound. Each local bound is
+needed only where the preceding correctness invariant holds. No independence or finite-state
+assumption is required.
+
+`OracleComp.replicate count program` collects independent runs of a closed program, and
+`OracleComp.countTrue count program` counts successful Boolean runs. If the program is strict
+PPT and the unary count is polynomial time, `ppt` certifies either combinator. Output types may
+be infinite; the list encoding charges for the complete result. Their exact product laws are
+proved separately from efficiency in [Repeat](../../Languages/Probabilistic/Repeat.lean).
+The [concentration interface](../../Languages/Probabilistic/Concentration.lean) bounds the error
+of `countTrue` divided by the number of trials. For tolerance `1 / t`, where `t > 0`, the budget
+`(k + 1) * t^2` gives failure probability at most `2^(-k)`. The program returns a natural count;
+real arithmetic belongs to its correctness statement.
+`OracleComp.testProbabilityLT count numerator denominator program` compares that empirical rate
+to a rational threshold using natural cross-products. Its correctness contract gives overlapping
+upper and lower guards with the same error bound, so reduction proofs can use the guards without
+exposing their sampling implementation.
+
+## Writing reductions and improving the interfaces
+
+The [reduction examples](../../../CslibTests/ComputationalCryptoReductions.lean) exercise actual
+client proofs. Stretch amplification repeatedly expands an `n`-bit seed prefix, saving each new
+bit in the suffix. Its reduction samples a hop, adds the earlier uniform suffix, completes the
+remaining expansions, and calls the original distinguisher. Its PPT proof composes the sampler,
+the certified iteration, and the supplied adversary with `ppt`.
+
+`PRGStretch.advantage_eq` gives the exact reduction loss
+`2 ^ (Nat.log 2 (count n) + 1)`. For positive counts, `advantage_le` bounds this by `2 * count n`.
+The hop is sampled by one uniform algorithm; it is not selected separately at each input length.
+The sampler assigns unused indices to a rejecting branch on both sides. Thus the reduction uses
+a bounded number of fair bits even when the number of hops is not a power of two.
+
+The first exercises led to these shared interfaces:
+
+| Friction in the client proof | Framework change |
+| --- | --- |
+| A common negligible hop bound was an additional obligation. | `Game.advantage_hybrid_average` telescopes signed gaps for one randomized reduction. |
+| Choosing a hop needed a strict fair-coin sampler with a charged unary result. | `sampleBoundedIndex` uses logarithmically many bits and saturating binary decoding; the bound itself marks rejection. |
+| Repeated expansion grows its accumulator. | `IsPolyTime.iterate_encoded_of_bounded_growth` derives the loop size bound; the old shrinking-loop rule is its zero-growth specialization. |
+| Truncation and fresh random padding repeated the same reduction argument. | `ComputationallyIndistinguishable.map` and `.bind` preserve security under certified postprocessing, without sampling assumptions on the original ensembles. |
+| Inferring a transformation from its certificate left ambiguous function arguments. | Postprocessing maps and truncation targets are explicit arguments. |
+| A certified callback with an abstract output encoding failed under nested captured inputs. | `polytime` reduces the constructed argument tuple before matching the callback; the supplied certificate remains necessary. |
+| Similar implementations caused proof search to select unrelated sampler or test certificates. | `PPT.applyHead` shares dispatch by the program's syntactic head before unification. |
+| Simplifying large fixed unary parameters exhausted recursion depth. | `polytime` certifies fully specified constant outputs before expanding their representation. |
+
+For example, truncation is a short client proof:
+
+```lean
+example {generator : Word → Word}
+    (h : PseudorandomGenerator generator (fun n => 3 * n + 1)) :
+    PseudorandomGenerator (fun seed => (generator seed).take (2 * seed.length + 1))
+      (fun n => 2 * n + 1) :=
+  h.truncate (fun n => 2 * n + 1) (by polytime) (by intro n; lia) (by intro n; lia)
+```
+
+These exercises use the existing machine realizations. They do not extend stateful oracle
+composition, which remains the next distinct programming-interface challenge.
 
 ## What a PPT certificate means
 
@@ -210,10 +450,27 @@ The [PRF ideal game](PseudorandomFunction.lean) samples one random function and 
 repeated queries agree. The [machine examples](../../../CslibTests/ComputationalCryptoMachines.lean)
 also include a typed two-operation PPT program, a shared lazy-sampled oracle, and a check that
 encoding preserves its cache. A reusable random-oracle theory and
-an eager/lazy equivalence theorem remain future work, as do polynomial stretch amplification and
-the implication from general one-way functions to PRGs.
+an eager/lazy equivalence theorem remain future work, as does the implication from general
+one-way functions to PRGs.
 
 ## Sources and further reading
+
+The general OWF-to-PRG construction is the theorem of Johan Håstad, Russell Impagliazzo,
+Leonid Levin, and Michael Luby, *A Pseudorandom Generator from Any One-Way Function*,
+SIAM Journal on Computing 28(4), 1999,
+[DOI](https://doi.org/10.1137/S0097539793244708).
+Our guide for the general construction is Thomas Holenstein,
+*Pseudorandom Generators from One-Way Functions: A Simple Construction for Any Hardness*,
+TCC 2006, [write-up](https://crypto.ethz.ch/publications/files/Holens06.pdf).
+Section 3.3 supplies the collision-probability proof of the leftover hash lemma; Sections 4–5
+give the pseudo-entropy-pair construction and its conversion to a PRG. The general implication
+is not yet formalized here. In particular, the uniform hard-core lemma, the three-source game
+argument, and removal of unknown entropy parameters still need proofs. We cite individual results in
+the modules that formalize them and distinguish these proved ingredients from the full theorem.
+For the constructive uniform hard-core argument we also follow Thomas Holenstein,
+*Key Agreement from Weak Bit Agreement*, STOC 2005, Section 2.2,
+[write-up](https://crypto.ethz.ch/publications/files/Holens05.pdf). The checked potential analysis
+and clocked program, conditional on its learner contract, are ingredients of that uniform reduction.
 
 The module docstrings cite the underlying mathematics: Arora–Barak and Boneh–Shoup for the
 security definitions, and Goldreich–Levin with Trevisan's lecture notes for the decoding argument.

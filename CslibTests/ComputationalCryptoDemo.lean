@@ -9,6 +9,7 @@ module
 public import Cslib.Computability.Probabilistic.Output
 public import Cslib.Crypto.Computational.Hybrid
 public import Cslib.Crypto.Computational.GoldreichLevin.HardCore
+public import Cslib.Crypto.Computational.Pseudoentropy.OneWay
 public import Cslib.Crypto.Computational.Statistical
 
 /-!
@@ -22,8 +23,10 @@ a concrete answer-complementing reduction, and a polynomial hybrid argument unde
 common hop bound. The finite Goldreich–Levin decoder has a list-size and recovery guarantee,
 and its seeded randomized reduction converts prediction bias into inversion success in the
 word-based security game, with an explicit inverse-polynomial precision.
-The walkthrough concludes with the full OWP-to-PRG construction: the hard-core predicate and
-the reduction's PPT certificate are proved, including even and odd seed lengths.
+The walkthrough includes the full OWP-to-PRG construction: the hard-core predicate and
+the reduction's PPT certificate are proved, including even and odd seed lengths. For general
+one-way functions it now reaches a strict PPT samplable pseudoentropy pair, with an explicit
+inverse-polynomial gap; converting that pair to a PRG remains to be proved.
 -/
 
 public section
@@ -172,41 +175,48 @@ theorem recoverCorrelatedParity {n k : ℕ} (predictor : BitString n → Bool)
 open GoldreichLevin in
 /-- A predictor with absolute bias yields an inverter with explicit success probability.
 The seed is private and sampled once per invocation. This finite theorem does not assert PPT. -/
-theorem invertFromPrediction {n k : ℕ} {Coins : Type*} [Finite Coins]
-    (f : BitString n → BitString n)
-    (predictor : BitString n → Coins → BitString n → Bool)
+theorem invertFromPrediction {n k : ℕ} {Image Coins : Type*} [DecidableEq Image] [Finite Coins]
+    (f : BitString n → Image) (predictor : Image → Coins → BitString n → Bool)
     (coins : PMF Coins) (ε : ℝ) (hε : 0 < ε) (hk : 0 < k)
-    (hbias : ε ≤ |(predictionExperiment f predictor coins true).toReal - 1 / 2|)
+    (hbias : ε ≤ |(predictionExperiment f predictor (fun _ => coins) true).toReal - 1 / 2|)
     (hsize : (n : ℝ) ≤ 2 * (ε / 2) ^ 2 * (2 ^ k - 1 : ℕ)) :
-    ε / 8 ≤ (inversionExperiment f (invertSigned f predictor coins k) true).toReal :=
-  invertSigned_success_ge f predictor coins ε hε hk hbias hsize
+    ε / 8 ≤ (inversionExperiment f (invertSigned f predictor (fun _ => coins) k) true).toReal :=
+  invertSigned_success_ge f predictor (fun _ => coins) ε hε hk hbias hsize
 
 open GoldreichLevin in
 /-- A PPT predictor gives one efficient seeded evaluator and a bound valid at every input length.
 The inverter's certificate composes this evaluator with sampling and the decoder. -/
 theorem parityPredictionReduction (f : Word → Word)
-    (hlen : ∀ word, (f word).length = word.length) (adversary : Distinguisher)
+    (adversary : Distinguisher)
     (hPPT : IsPPT boolEncoding adversary) :
     ∃ (c d : ℕ) (evaluate : Word → Word → Word),
       IsPolyTime coinInputEncoding (fun pair => evaluate pair.1 pair.2) ∧
       ∀ degree n, |winProbability (parityPredictionGame f adversary n) - 1 / 2| ≤
         1 / (precision degree n : ℝ) +
           8 * winProbability (inversionGame f (wordInverter f evaluate c d degree) n) :=
-  exists_word_reduction f hlen adversary hPPT
+  exists_word_reduction f adversary hPPT
 
 open GoldreichLevin in
 /-- The complete Goldreich–Levin reduction rules out nonnegligible parity prediction. -/
 theorem parityIsHard (f : Word → Word) (hf : OneWay f)
-    (hlen : ∀ word, (f word).length = word.length) (adversary : Distinguisher)
+    (adversary : Distinguisher)
     (hPPT : IsPPT boolEncoding adversary) :
     Negligible (fun n => |winProbability (parityPredictionGame f adversary n) - 1 / 2|) :=
-  negligible_parityPrediction hf hlen adversary hPPT
+  negligible_parityPrediction hf adversary hPPT
 
 /-- A one-way permutation supplies the hard-core predicate, efficient generator, strict
 one-bit stretch, and indistinguishability from uniform. There is no extra efficiency hypothesis. -/
 theorem oneWayPermutation_to_PRG (f : Word → Word) (hf : OneWayPermutation f) :
     PseudorandomGenerator (GoldreichLevin.generator f) (fun n => n + 1) :=
   hf.pseudorandomGenerator
+
+/-- A general OWF already gives the next construction's interface: an exact strict PPT sampler
+and a prediction gap below its true entropy threshold. The proof handles output normalization,
+saved predictor coins, matrix hashing, decoding, and the inverter's efficiency internally. -/
+theorem oneWay_to_pseudoentropyPair (f : Word → Word) (hf : OneWay f) :
+    ∃ pair : Pseudoentropy.SamplablePair,
+      pair.HasGap (fun n => 1 / (2 * ((n : ℝ) + 7))) :=
+  hf.exists_pseudoentropyPair
 
 /-- A reduction that runs an adversary and complements its answer. -/
 def complement (adversary : Distinguisher) : Distinguisher :=

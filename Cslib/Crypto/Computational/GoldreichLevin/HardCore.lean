@@ -12,7 +12,7 @@ public import Cslib.Crypto.Computational.HardCore
 /-!
 # The Goldreich–Levin hard-core predicate
 
-Split a seed into two equal halves and an optional spare bit. Apply the one-way permutation to
+Split a seed into two equal halves and an optional spare bit. Apply the one-way function to
 the first half and retain the rest. The inner product of the two halves is a hard-core predicate.
 Keeping the spare bit extends the construction to every seed length.
 
@@ -134,13 +134,12 @@ theorem eval_paddedPrediction (f : Word → Word) (adversary : Distinguisher)
 
 /-- Goldreich–Levin supplies an efficient hard-core predicate for the padded function. Two fixed
 PPT reductions handle even and odd seed lengths; no length-dependent adversary is chosen. -/
-theorem padded_hardCore {f : Word → Word} (hf : OneWay f)
-    (hlen : ∀ word, (f word).length = word.length) :
+theorem padded_hardCore {f : Word → Word} (hf : OneWay f) :
     HardCore (paddedFunction f) paddedPredicate := by
   apply HardCore.of_unpredictable paddedPredicate_isPolyTime
   intro adversary hPPT
-  have heven := negligible_parityPrediction hf hlen _ (paddedPredictor_isPPT hPPT 0)
-  have hodd := negligible_parityPrediction hf hlen _ (paddedPredictor_isPPT hPPT 1)
+  have heven := negligible_parityPrediction hf _ (paddedPredictor_isPPT hPPT 0)
+  have hodd := negligible_parityPrediction hf _ (paddedPredictor_isPPT hPPT 1)
   apply negligible_of_le (Negligible.div_two (heven.add hodd)) (fun _ => abs_nonneg _)
   intro n
   have hgame := eval_paddedPrediction f adversary (n / 2) (n % 2) (by lia)
@@ -168,7 +167,7 @@ stretch. Goldreich–Levin supplies the hard-core predicate; uniformity supplies
 theorem OneWayPermutation.pseudorandomGenerator {f : Probability.Word → Probability.Word}
     (hf : OneWayPermutation f) :
     PseudorandomGenerator (generator f) (fun n => n + 1) :=
-  (padded_hardCore hf.oneWay hf.length_eq).pseudorandomGenerator
+  (padded_hardCore hf.oneWay).pseudorandomGenerator
     (paddedFunction_isPolyTime hf.oneWay.polyTime) (paddedFunction_length hf.length_eq)
     (paddedFunction_uniform hf)
 

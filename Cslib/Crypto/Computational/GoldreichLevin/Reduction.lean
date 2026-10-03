@@ -21,7 +21,9 @@ success at least `ε / 4`. A fixed random choice between the predictor and its c
 either sign of the bias: `invertSigned_success_ge` gives success at least `ε / 8` from absolute
 bias `ε`. Neither inverter receives the hidden preimage or chooses a sign based on it.
 
-The seed distribution may be any distribution on a finite type. For a strict PPT predictor,
+The image may have any type with decidable equality, and its length need not equal the input
+length. The finite seed type and its distribution may depend on the image; they are fixed before
+the independent parity query is sampled. For a strict PPT predictor,
 the coin-tape representation in `Cslib.Computability.Probabilistic.CoinTape` supplies the
 appropriate seeded behavior with a polynomial-time deterministic evaluator. `WordReduction`
 connects the encodings, certifies the complete inverter as PPT, and derives negligible prediction
@@ -42,6 +44,8 @@ namespace Cslib.Crypto.GoldreichLevin
 
 open Probability MeasureTheory
 open scoped ENNReal
+
+variable {Image : Type*} [DecidableEq Image]
 
 /-- Enumerate bitstrings by prepending each possible bit. This fixes an executable order. -/
 def allGuesses : (k : ℕ) → List (BitString k)
@@ -89,13 +93,13 @@ def candidateList {n k : ℕ} (predictor : BitString n → Bool)
   simp [candidateList, candidates]
 
 /-- Return the first candidate with the requested image, defaulting to zero if none matches. -/
-def checkCandidates {n : ℕ} (f : BitString n → BitString n) (image : BitString n)
+def checkCandidates {n : ℕ} (f : BitString n → Image) (image : Image)
     (list : List (BitString n)) : BitString n :=
   (list.find? (fun candidate => f candidate == image)).getD 0
 
 /-- If the original preimage is listed, checking finds a valid preimage.
 Injectivity is not needed. -/
-theorem checkCandidates_correct {n : ℕ} (f : BitString n → BitString n)
+theorem checkCandidates_correct {n : ℕ} (f : BitString n → Image)
     (x : BitString n) (list : List (BitString n)) (hx : x ∈ list) :
     f (checkCandidates f (f x) list) = f x := by
   unfold checkCandidates
@@ -108,14 +112,22 @@ theorem checkCandidates_correct {n : ℕ} (f : BitString n → BitString n)
     simpa using h
 
 /-- Decode a fixed predictor and check its candidate list against the given image. -/
-noncomputable def invertFixed {n : ℕ} (f : BitString n → BitString n)
-    (predictor : BitString n → Bool) (k : ℕ) (image : BitString n) : PMF (BitString n) :=
+noncomputable def invertFixed {n : ℕ} (f : BitString n → Image)
+    (predictor : BitString n → Bool) (k : ℕ) (image : Image) : PMF (BitString n) :=
   (PMF.uniformOfFintype (Fin k → BitString n)).map
     (fun masks => checkCandidates f image (candidateList predictor masks))
 
+/-- An injective representation of images preserves every candidate check and the decoder's
+entire output distribution, including its default output. -/
+theorem invertFixed_comp_injective {n : ℕ} {Encoded : Type*} [DecidableEq Encoded]
+    (f : BitString n → Image) (encode : Image → Encoded) (hencode : Function.Injective encode)
+    (predictor : BitString n → Bool) (k : ℕ) (image : Image) :
+    invertFixed (encode ∘ f) predictor k (encode image) = invertFixed f predictor k image := by
+  simp only [invertFixed, checkCandidates, Function.comp_apply, beq_eq_decide, hencode.eq_iff]
+
 /-- A correlated predictor yields a valid preimage with probability at least one half when
 there are enough masks. The algorithm receives only the image; `x` occurs only in the guarantee. -/
-theorem invertFixed_success_ge_half {n k : ℕ} (f : BitString n → BitString n)
+theorem invertFixed_success_ge_half {n k : ℕ} (f : BitString n → Image)
     (predictor : BitString n → Bool) (x : BitString n) (ε : ℝ)
     (hε : 0 < ε) (hk : 0 < k) (h : 1 / 2 + ε ≤ agreement predictor x)
     (hsize : (n : ℝ) ≤ 2 * ε ^ 2 * (2 ^ k - 1 : ℕ)) :
@@ -144,56 +156,57 @@ theorem invertFixed_success_ge_half {n k : ℕ} (f : BitString n → BitString n
   linarith
 
 /-- Sample the predictor's seed once and reuse it throughout the decoder. -/
-noncomputable def invert {n : ℕ} {Coins : Type*} (f : BitString n → BitString n)
-    (predictor : BitString n → Coins → BitString n → Bool)
-    (coins : PMF Coins) (k : ℕ) (image : BitString n) : PMF (BitString n) :=
-  coins.bind fun seed => invertFixed f (predictor image seed) k image
+noncomputable def invert {n : ℕ} {Coins : Image → Type*} (f : BitString n → Image)
+    (predictor : (image : Image) → Coins image → BitString n → Bool)
+    (coins : (image : Image) → PMF (Coins image)) (k : ℕ) (image : Image) : PMF (BitString n) :=
+  (coins image).bind fun seed => invertFixed f (predictor image seed) k image
 
 /-- Average parity-prediction success over a uniform preimage, the seed, and a uniform query. -/
-noncomputable def predictionExperiment {n : ℕ} {Coins : Type*}
-    (f : BitString n → BitString n)
-    (predictor : BitString n → Coins → BitString n → Bool)
-    (coins : PMF Coins) : PMF Bool :=
+noncomputable def predictionExperiment {n : ℕ} {Coins : Image → Type*}
+    (f : BitString n → Image)
+    (predictor : (image : Image) → Coins image → BitString n → Bool)
+    (coins : (image : Image) → PMF (Coins image)) : PMF Bool :=
   (PMF.uniformOfFintype (BitString n)).bind fun x =>
-    coins.bind fun seed =>
+    (coins (f x)).bind fun seed =>
       (PMF.uniformOfFintype (BitString n)).map
         (fun r => predictor (f x) seed r == x ⬝ᵥ r)
 
 /-- Challenge the inverter with the image of a uniform input and accept any valid preimage. -/
-noncomputable def inversionExperiment {n : ℕ} (f : BitString n → BitString n)
-    (inverter : BitString n → PMF (BitString n)) : PMF Bool :=
+noncomputable def inversionExperiment {n : ℕ} (f : BitString n → Image)
+    (inverter : Image → PMF (BitString n)) : PMF Bool :=
   (PMF.uniformOfFintype (BitString n)).bind fun x =>
     (inverter (f x)).map (fun z => f z == f x)
 
-private theorem agreement_le_one {n : ℕ} (predictor : BitString n → Bool) (x : BitString n) :
+/-- Independent private randomness may be sampled before or after the inversion challenge. -/
+theorem inversionExperiment_bind {n : ℕ} {Coins : Type*} (f : BitString n → Image)
+    (coins : PMF Coins) (inverter : Coins → Image → PMF (BitString n)) :
+    inversionExperiment f (fun image => coins.bind (fun seed => inverter seed image)) =
+      coins.bind (fun seed => inversionExperiment f (inverter seed)) := by
+  simp only [inversionExperiment, PMF.map_bind]
+  rw [PMF.bind_comm]
+
+/-- Agreement with any fixed parity is a probability, hence at most one. -/
+theorem agreement_le_one {n : ℕ} (predictor : BitString n → Bool) (x : BitString n) :
     agreement predictor x ≤ 1 := by
   rw [agreement_eq_probability]
   exact (ENNReal.toReal_mono (by simp) (PMF.coe_le_one _ _)).trans_eq (by simp)
 
-private theorem sum_affine {α : Type*} [Fintype α] (p : PMF α)
-    (a b : ℝ) (g : α → ℝ) :
-    (∑ x, (p x).toReal * (a + b * g x)) =
-      a + b * ∑ x, (p x).toReal * g x := by
-  simp_rw [mul_add, mul_left_comm _ b]
-  rw [Finset.sum_add_distrib, ← Finset.sum_mul, PMF.sum_toReal, one_mul,
-    ← Finset.mul_sum]
-
 /-- Positive prediction bias `ε` gives inversion success at least `ε / 4`.
 For each fixed input and seed, either agreement is below `1 / 2 + ε / 2`, or decoding succeeds
 with probability at least one half. Averaging this dichotomy proves the reduction. -/
-theorem invert_success_ge {n k : ℕ} {Coins : Type*} [Finite Coins]
-    (f : BitString n → BitString n)
-    (predictor : BitString n → Coins → BitString n → Bool)
-    (coins : PMF Coins) (ε : ℝ) (hε : 0 < ε) (hk : 0 < k)
+theorem invert_success_ge {n k : ℕ} {Coins : Image → Type*} [∀ image, Finite (Coins image)]
+    (f : BitString n → Image)
+    (predictor : (image : Image) → Coins image → BitString n → Bool)
+    (coins : (image : Image) → PMF (Coins image)) (ε : ℝ) (hε : 0 < ε) (hk : 0 < k)
     (h : 1 / 2 + ε ≤ (predictionExperiment f predictor coins true).toReal)
     (hsize : (n : ℝ) ≤ 2 * (ε / 2) ^ 2 * (2 ^ k - 1 : ℕ)) :
     ε / 4 ≤ (inversionExperiment f (invert f predictor coins k) true).toReal := by
   classical
-  let := Fintype.ofFinite Coins
-  let success (x : BitString n) (seed : Coins) : ℝ :=
+  let (image : Image) := Fintype.ofFinite (Coins image)
+  let success (x : BitString n) (seed : Coins (f x)) : ℝ :=
     (((invertFixed f (predictor (f x) seed) k (f x)).map
       (fun z => f z == f x)) true).toReal
-  have hpoint (x : BitString n) (seed : Coins) :
+  have hpoint (x : BitString n) (seed : Coins (f x)) :
       agreement (predictor (f x) seed) x ≤ 1 / 2 + ε / 2 + 2 * success x seed := by
     by_cases hgood : 1 / 2 + ε / 2 ≤ agreement (predictor (f x) seed) x
     · have hs : 1 / 2 ≤ success x seed :=
@@ -203,13 +216,13 @@ theorem invert_success_ge {n k : ℕ} {Coins : Type*} [Finite Coins]
     · have hs : 0 ≤ success x seed := ENNReal.toReal_nonneg
       linarith
   have havg (x : BitString n) :
-      (∑ seed, (coins seed).toReal * agreement (predictor (f x) seed) x) ≤
-        1 / 2 + ε / 2 + 2 * ∑ seed, (coins seed).toReal * success x seed := by
+      (∑ seed, (coins (f x) seed).toReal * agreement (predictor (f x) seed) x) ≤
+        1 / 2 + ε / 2 + 2 * ∑ seed, (coins (f x) seed).toReal * success x seed := by
     calc
-      _ ≤ ∑ seed, (coins seed).toReal * (1 / 2 + ε / 2 + 2 * success x seed) :=
+      _ ≤ ∑ seed, (coins (f x) seed).toReal * (1 / 2 + ε / 2 + 2 * success x seed) :=
         Finset.sum_le_sum fun seed _ =>
           mul_le_mul_of_nonneg_left (hpoint x seed) ENNReal.toReal_nonneg
-      _ = _ := sum_affine coins _ _ _
+      _ = _ := PMF.sum_affine (coins (f x)) _ _ _
   have hbound :
       (predictionExperiment f predictor coins true).toReal ≤
         1 / 2 + ε / 2 +
@@ -217,28 +230,30 @@ theorem invert_success_ge {n k : ℕ} {Coins : Type*} [Finite Coins]
     simp only [predictionExperiment, inversionExperiment, invert, PMF.map_bind,
       PMF.bind_apply_toReal, ← agreement_eq_probability]
     change (∑ x, (PMF.uniformOfFintype (BitString n) x).toReal *
-      ∑ seed, (coins seed).toReal * agreement (predictor (f x) seed) x) ≤
+      ∑ seed, (coins (f x) seed).toReal * agreement (predictor (f x) seed) x) ≤
         1 / 2 + ε / 2 + 2 * ∑ x, (PMF.uniformOfFintype (BitString n) x).toReal *
-          ∑ seed, (coins seed).toReal * success x seed
+          ∑ seed, (coins (f x) seed).toReal * success x seed
     calc
       _ ≤ ∑ x, (PMF.uniformOfFintype (BitString n) x).toReal *
-          (1 / 2 + ε / 2 + 2 * ∑ seed, (coins seed).toReal * success x seed) :=
+          (1 / 2 + ε / 2 + 2 * ∑ seed, (coins (f x) seed).toReal * success x seed) :=
         Finset.sum_le_sum fun x _ =>
           mul_le_mul_of_nonneg_left (havg x) ENNReal.toReal_nonneg
-      _ = _ := sum_affine _ _ _ _
+      _ = _ := PMF.sum_affine _ _ _ _
   linarith
 
 /-- A fixed inverter for either sign of prediction bias. One independent fair bit chooses
 whether to complement the predictor; no advice about its bias is required. -/
-noncomputable def invertSigned {n : ℕ} {Coins : Type*} (f : BitString n → BitString n)
-    (predictor : BitString n → Coins → BitString n → Bool)
-    (coins : PMF Coins) (k : ℕ) (image : BitString n) : PMF (BitString n) :=
+noncomputable def invertSigned {n : ℕ} {Coins : Image → Type*} (f : BitString n → Image)
+    (predictor : (image : Image) → Coins image → BitString n → Bool)
+    (coins : (image : Image) → PMF (Coins image)) (k : ℕ) (image : Image) : PMF (BitString n) :=
   (PMF.uniformOfFintype Bool).bind fun flip =>
     invert f (fun y seed r => predictor y seed r ^^ flip) coins k image
 
-private theorem predictionExperiment_not {n : ℕ} {Coins : Type*}
-    (f : BitString n → BitString n)
-    (predictor : BitString n → Coins → BitString n → Bool) (coins : PMF Coins) :
+omit [DecidableEq Image] in
+private theorem predictionExperiment_not {n : ℕ} {Coins : Image → Type*}
+    (f : BitString n → Image)
+    (predictor : (image : Image) → Coins image → BitString n → Bool)
+    (coins : (image : Image) → PMF (Coins image)) :
     predictionExperiment f (fun y seed r => !(predictor y seed r)) coins =
       (predictionExperiment f predictor coins).map Bool.not := by
   simp only [predictionExperiment, PMF.map_bind, PMF.map_comp]
@@ -251,9 +266,10 @@ private theorem predictionExperiment_not {n : ℕ} {Coins : Type*}
   dsimp
   cases predictor (f x) seed r <;> cases x ⬝ᵥ r <;> rfl
 
-private theorem invertSigned_probability {n k : ℕ} {Coins : Type*}
-    (f : BitString n → BitString n)
-    (predictor : BitString n → Coins → BitString n → Bool) (coins : PMF Coins) :
+private theorem invertSigned_probability {n k : ℕ} {Coins : Image → Type*}
+    (f : BitString n → Image)
+    (predictor : (image : Image) → Coins image → BitString n → Bool)
+    (coins : (image : Image) → PMF (Coins image)) :
     (inversionExperiment f (invertSigned f predictor coins k) true).toReal =
       (1 / 2) * (inversionExperiment f (invert f predictor coins k) true).toReal +
       (1 / 2) * (inversionExperiment f
@@ -269,10 +285,10 @@ private theorem invertSigned_probability {n k : ℕ} {Coins : Type*}
 
 /-- Absolute prediction bias `ε` gives inversion success at least `ε / 8` using one fixed
 reduction for both signs. This is a finite probability bound, without a machine-time claim. -/
-theorem invertSigned_success_ge {n k : ℕ} {Coins : Type*} [Finite Coins]
-    (f : BitString n → BitString n)
-    (predictor : BitString n → Coins → BitString n → Bool)
-    (coins : PMF Coins) (ε : ℝ) (hε : 0 < ε) (hk : 0 < k)
+theorem invertSigned_success_ge {n k : ℕ} {Coins : Image → Type*} [∀ image, Finite (Coins image)]
+    (f : BitString n → Image)
+    (predictor : (image : Image) → Coins image → BitString n → Bool)
+    (coins : (image : Image) → PMF (Coins image)) (ε : ℝ) (hε : 0 < ε) (hk : 0 < k)
     (h : ε ≤ |(predictionExperiment f predictor coins true).toReal - 1 / 2|)
     (hsize : (n : ℝ) ≤ 2 * (ε / 2) ^ 2 * (2 ^ k - 1 : ℕ)) :
     ε / 8 ≤ (inversionExperiment f (invertSigned f predictor coins k) true).toReal := by

@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 
 public import Cslib.Crypto.Computational.GoldreichLevin.Parameters
-public import Cslib.Tactic.PolyTime
+public import Cslib.Computability.Probabilistic.BitString
 
 /-!
 # Word algorithms for Goldreich-Levin decoding
@@ -19,7 +19,8 @@ enumeration charges for the full encoded output and has a polynomial-time certif
 parameters. Candidate generation and first-match checking use maps, folds, filtering, and captured
 callbacks. Their results agree exactly with the finite decoder, including enumeration order and
 duplicate candidates. `WordReduction` combines these deterministic certificates with sampling
-to obtain a uniform PPT inverter.
+to obtain a uniform PPT inverter. `wordDecode` packages the full decoder for any captured
+predictor; its sampling law and recovery bound let other reductions reuse the same algorithm.
 -/
 
 @[expose] public section
@@ -27,68 +28,6 @@ to obtain a uniform PPT inverter.
 namespace Cslib.Crypto.GoldreichLevin
 
 open Probability
-
-/-- View a word as `n` coordinates, using false for missing bits. Valid lengths lose no data. -/
-def wordBits (n : ℕ) (word : Word) : BitString n := fun i => word[i.val]?.getD false
-
-/-- A finite bitstring survives the word representation unchanged. -/
-@[simp] theorem wordBits_ofFn {n : ℕ} (bits : BitString n) :
-    wordBits n (List.ofFn bits) = bits := by
-  funext i
-  simp [wordBits]
-
-/-- A correctly sized word survives the finite-coordinate representation unchanged. -/
-theorem ofFn_wordBits {n : ℕ} {word : Word} (hlen : word.length = n) :
-    List.ofFn (wordBits n word) = word := by
-  subst n
-  apply List.ext_getElem (by simp)
-  intro i hi hi'
-  simp [wordBits, List.getElem?_eq_getElem hi']
-
-/-- The row-major bijection between a flat bitstring and a matrix of masks. -/
-def maskEquiv (k n : ℕ) : BitString (k * n) ≃ (Fin k → BitString n) :=
-  (Equiv.arrowCongr finProdFinEquiv.symm (Equiv.refl Bool)).trans
-    (Equiv.curry (Fin k) (Fin n) Bool)
-
-/-- Interpret a flat sampled word as the decoder's base masks. -/
-def masksFromWord (k n : ℕ) (word : Word) : Fin k → BitString n :=
-  maskEquiv k n (wordBits (k * n) word)
-
-/-- Read one row of the sampled mask tape, padding missing bits with false. -/
-def maskRow (dimension row : ℕ) (word : Word) : Word :=
-  (List.range dimension).map (fun column => word[row * dimension + column]?.getD false)
-
-/-- A row reader captures the dimension and mask tape while accepting the row index. -/
-theorem maskRow_isPolyTime : IsPolyTime
-    (pairEncoding (pairEncoding unaryEncoding wordEncoding) unaryEncoding)
-    (fun input => maskRow input.1.1 input.2 input.1.2) := by
-  unfold maskRow
-  polytime
-
-/-- Read the mask tape as an ordinary list of rows, padding missing bits with false. -/
-def maskRows (count dimension : ℕ) (word : Word) : List Word :=
-  (List.range count).map (fun row => maskRow dimension row word)
-
-/-- Matrix parsing charges for the dimension, every runtime index, and the complete output. -/
-theorem maskRows_isPolyTime : IsPolyTime
-    (pairEncoding (pairEncoding unaryEncoding unaryEncoding) wordEncoding)
-    (fun input => listEncoding wordEncoding (maskRows input.1.1 input.1.2 input.2)) := by
-  have hparameters := isPolyTime_fst (pairEncoding unaryEncoding unaryEncoding) wordEncoding
-  exact hparameters.fst.range.list_map_with
-    (environment := pairEncoding unaryEncoding wordEncoding) (output := wordEncoding)
-    (f := fun env row => maskRow env.1 row env.2)
-    (hparameters.snd.pair (left := unaryEncoding) (right := wordEncoding)
-      (isPolyTime_snd (pairEncoding unaryEncoding unaryEncoding) wordEncoding)) maskRow_isPolyTime
-
-/-- The nested-list program is exactly the finite matrix interpretation, also on short tapes. -/
-theorem maskRows_eq_ofFn (count dimension : ℕ) (word : Word) :
-    maskRows count dimension word =
-      List.ofFn (fun row => List.ofFn (masksFromWord count dimension word row)) := by
-  apply List.ext_getElem (by simp [maskRows])
-  intro row hleft hright
-  apply List.ext_getElem (by simp [maskRows, maskRow])
-  intro column hleft' hright'
-  simp [maskRows, maskRow, masksFromWord, maskEquiv, wordBits, Nat.mul_comm, Nat.add_comm]
 
 /-- A fixed inverse-polynomial precision can be computed from an efficient unary parameter. -/
 theorem precision_isPolyTime {α : Type} {encode : α → Word} {parameter : α → ℕ}
@@ -158,22 +97,6 @@ theorem coordinateWords_eq_ofFn (dimension : ℕ) :
   simpa [coordinateWords] using
     coordinateWord_eq_ofFn_single (⟨index, by simpa using hright⟩ : Fin dimension)
 
-/-- Adding finite masks is exactly coordinatewise XOR of their word representations. -/
-theorem ofFn_add {n : ℕ} (left right : BitString n) :
-    List.ofFn (left + right) = (List.ofFn left).zipWith Bool.xor (List.ofFn right) := by
-  apply List.ext_getElem (by simp)
-  intro i hi hi'
-  simp [List.getElem_zipWith, Bool.add_eq_xor]
-
-/-- Mask addition in the decoder is uniformly efficient, including when the dimension varies
-with the input. Its certificate uses the ordinary `zipWith` combinator. -/
-theorem addMasks_isPolyTime {α : Type} {encode : α → Word} {n : α → ℕ}
-    {left right : (a : α) → BitString (n a)}
-    (hleft : IsPolyTime encode (fun a => List.ofFn (left a)))
-    (hright : IsPolyTime encode (fun a => List.ofFn (right a))) :
-    IsPolyTime encode (fun a => List.ofFn (left a + right a)) := by
-  simpa only [ofFn_add] using hleft.zipWith hright Bool.xor
-
 /-- XOR the rows selected by a word of bits. Missing selector bits are false. The accumulator
 starts at the requested dimension; rows of that dimension preserve its length. -/
 def xorSelected (dimension : ℕ) (selector : Word) (rows : List Word) : Word :=
@@ -238,26 +161,6 @@ theorem xorSelected_eq_ofFn_sum_subset {n k : ℕ} (indices : Finset (Fin k))
     xorSelected n (List.ofFn (fun i => decide (i ∈ indices)))
         (List.ofFn (fun i => List.ofFn (masks i))) = List.ofFn (∑ i ∈ indices, masks i) := by
   simpa using xorSelected_eq_ofFn_sum (fun i => decide (i ∈ indices)) masks
-
-/-- A Boolean dot product is a pointwise AND followed by a parity fold on words. -/
-theorem dotProduct_eq_foldl {n : ℕ} (left right : BitString n) :
-    left ⬝ᵥ right = ((List.ofFn left).zipWith Bool.and (List.ofFn right)).foldl Bool.xor false := by
-  have hzip : (List.ofFn left).zipWith Bool.and (List.ofFn right) =
-      List.ofFn (fun i => left i * right i) := by
-    apply List.ext_getElem (by simp)
-    intro i hi hi'
-    simp [List.getElem_zipWith, Bool.mul_eq_and]
-  rw [hzip, dotProduct, ← List.sum_ofFn]
-  simp [List.sum_eq_foldl, Bool.add_eq_xor, Bool.zero_eq_false]
-
-/-- The hard-core bit computation is uniformly efficient through word combinators. -/
-theorem dotProduct_isPolyTime {α : Type} {encode : α → Word} {n : α → ℕ}
-    {left right : (a : α) → BitString (n a)}
-    (hleft : IsPolyTime encode (fun a => List.ofFn (left a)))
-    (hright : IsPolyTime encode (fun a => List.ofFn (right a))) :
-    IsPolyTime encode (fun a => [left a ⬝ᵥ right a]) := by
-  simpa only [dotProduct_eq_foldl] using
-    (hleft.zipWith hright Bool.and).foldl_bool Bool.xor false
 
 /-- The finite decoder's ordered guesses, represented as ordinary words. -/
 def guessWords (count : ℕ) : List Word := (allGuesses count).map List.ofFn
@@ -418,22 +321,22 @@ def wordCandidates (predictor : Word → Bool) (dimension : ℕ)
     (rows guesses : List Word) : List Word :=
   guesses.map (wordCandidate predictor dimension rows (guesses.filter (fun word => word.any id)))
 
-/-- Candidate generation needs only the predictor and the efficiently prepared data. The guess
-collection's certificate already accounts for the number and size of candidates. -/
-theorem wordCandidates_isPolyTime {α Environment : Type} {encode : α ↪ Word}
-    {environment : Environment ↪ Word} {env : α → Environment}
-    {predictor : Environment → Word → Bool} {dimension : α → ℕ}
-    {rows guesses : α → List Word}
-    (hpredictor : IsPolyTime (pairEncoding environment wordEncoding)
+/-- Candidate generation captures ordinary runtime inputs in its predictor. The guess
+collection's certificate accounts for the number and size of candidates. -/
+theorem wordCandidates_isPolyTime {α : Type} {encode : α ↪ Word}
+    {predictor : α → Word → Bool} {dimension : α → ℕ} {rows guesses : α → List Word}
+    (hpredictor : IsPolyTime (pairEncoding encode wordEncoding)
       (fun pair => [predictor pair.1 pair.2]))
-    (henv : IsPolyTime encode (fun a => environment (env a)))
-    (hdimension : IsPolyTime encode (fun a => List.replicate (dimension a) true))
+    (hdimension : IsPolyTime encode (fun a => unaryEncoding (dimension a)))
     (hrows : IsPolyTime encode (fun a => listEncoding wordEncoding (rows a)))
     (hguesses : IsPolyTime encode (fun a => listEncoding wordEncoding (guesses a))) :
     IsPolyTime encode (fun a => listEncoding wordEncoding
-      (wordCandidates (predictor (env a)) (dimension a) (rows a) (guesses a))) := by
+      (wordCandidates (predictor a) (dimension a) (rows a) (guesses a))) := by
   unfold wordCandidates
   polytime
+
+attribute [aesop safe apply (rule_sets := [PolyTime])] wordCandidates_isPolyTime
+  guessWords_maskCount_isPolyTime
 
 /-- Candidate generation preserves the finite decoder's order and duplicates. -/
 theorem wordCandidates_eq_map {n k : ℕ} (predictor : Word → Bool) (masks : Fin k → BitString n) :
@@ -442,33 +345,108 @@ theorem wordCandidates_eq_map {n k : ℕ} (predictor : Word → Bool) (masks : F
   rw [wordCandidates, ← nonzeroGuessWords]
   simp only [guessWords, candidateList, List.map_map, Function.comp_def, wordCandidate_eq_ofFn]
 
-/-- Return the first candidate with the requested image, defaulting to a zero word of its length. -/
-def wordCheckCandidates (f : Word → Word) (image : Word) (candidates : List Word) : Word :=
+/-- Return the first matching candidate, defaulting to a zero word of the input dimension. -/
+def wordCheckCandidates (f : Word → Word) (dimension : ℕ) (image : Word)
+    (candidates : List Word) : Word :=
   (candidates.find? (fun candidate => f candidate == image)).getD
-    (List.replicate image.length false)
+    (List.replicate dimension false)
 
 /-- Candidate checking composes the supplied function, word equality, and collection search. -/
 theorem wordCheckCandidates_isPolyTime {α : Type} {encode : α ↪ Word} {f : Word → Word}
-    {image : α → Word} {candidates : α → List Word}
-    (hf : IsPolyTime wordEncoding f) (himage : IsPolyTime encode image)
+    {dimension : α → ℕ} {image : α → Word} {candidates : α → List Word}
+    (hf : IsPolyTime wordEncoding f)
+    (hdimension : IsPolyTime encode (fun a => unaryEncoding (dimension a)))
+    (himage : IsPolyTime encode image)
     (hcandidates : IsPolyTime encode (fun a => listEncoding wordEncoding (candidates a))) :
-    IsPolyTime encode (fun a => wordCheckCandidates f (image a) (candidates a)) := by
+    IsPolyTime encode (fun a => wordCheckCandidates f (dimension a) (image a) (candidates a)) := by
   unfold wordCheckCandidates
   exact hcandidates.list_findD_with (environment := wordEncoding) (element := wordEncoding)
     (predicate := fun image candidate => f candidate == image) himage
-    (by polytime) (himage.unaryLength.replicate false)
+    (by polytime) (hdimension.replicate false)
+
+attribute [aesop safe apply (rule_sets := [PolyTime])] wordCheckCandidates_isPolyTime
 
 /-- Searching the word representation preserves the finite decoder's first-match behavior. -/
 theorem wordCheckCandidates_eq_ofFn {n : ℕ} (f : Word → Word)
-    (finiteFunction : BitString n → BitString n)
-    (hf : ∀ bits, f (List.ofFn bits) = List.ofFn (finiteFunction bits))
-    (image : BitString n) (candidates : List (BitString n)) :
-    wordCheckCandidates f (List.ofFn image) (candidates.map List.ofFn) =
-      List.ofFn (checkCandidates finiteFunction image candidates) := by
+    (image : Word) (candidates : List (BitString n)) :
+    wordCheckCandidates f n image (candidates.map List.ofFn) =
+      List.ofFn (checkCandidates (fun bits => f (List.ofFn bits)) image candidates) := by
   have hzero : List.ofFn (0 : BitString n) = List.replicate n false := by
     change List.ofFn (fun _ : Fin n => false) = _
     simp
-  simp only [wordCheckCandidates, checkCandidates, List.find?_map, List.length_ofFn, hf,
-    beq_eq_decide, List.ofFn_inj, ← hzero, Option.getD_map, Function.comp_def]
+  simp only [wordCheckCandidates, checkCandidates, List.find?_map, ← hzero, Option.getD_map,
+    Function.comp_def, beq_eq_decide]
+
+/-- Decode a predictor using one mask tape, then check the candidates against the image.
+The predictor may capture arbitrary public data and saved coins independently of that image. -/
+def wordDecode (f : Word → Word) (predictor : Word → Bool) (degree dimension : ℕ)
+    (image masks : Word) : Word :=
+  wordCheckCandidates f dimension image (wordCandidates predictor dimension
+    (maskRows (maskCount dimension (precision degree dimension)) dimension masks)
+    (guessWords (maskCount dimension (precision degree dimension))))
+
+/-- The complete decoder accepts any efficient captured predictor. Its fixed precision degree
+bounds the complete guess enumeration, and the input dimension controls recovered word lengths. -/
+theorem wordDecode_isPolyTime {α : Type} {encode : α ↪ Word} {f : Word → Word}
+    {predictor : α → Word → Bool} {dimension : α → ℕ} {image masks : α → Word}
+    (degree : ℕ) (hf : IsPolyTime wordEncoding f)
+    (hpredictor : IsPolyTime (pairEncoding encode wordEncoding)
+      (fun pair => [predictor pair.1 pair.2]))
+    (hdimension : IsPolyTime encode (fun a => unaryEncoding (dimension a)))
+    (himage : IsPolyTime encode image) (hmasks : IsPolyTime encode masks) :
+    IsPolyTime encode (fun a =>
+      wordDecode f (predictor a) degree (dimension a) (image a) (masks a)) := by
+  unfold wordDecode
+  apply wordCheckCandidates_isPolyTime hf hdimension himage
+  apply wordCandidates_isPolyTime hpredictor hdimension
+  · polytime
+  · exact guessWords_maskCount_isPolyTime hdimension degree
+
+attribute [aesop safe apply (rule_sets := [PolyTime])] wordDecode_isPolyTime
+
+/-- The full word decoder agrees with its finite mathematical algorithm for every predictor
+and mask tape. No assumption about how the predictor obtains its auxiliary data is required. -/
+theorem wordDecode_eq_ofFn (f : Word → Word) (predictor : Word → Bool)
+    (degree dimension : ℕ) (image masks : Word) :
+    wordDecode f predictor degree dimension image masks =
+      List.ofFn (checkCandidates (fun bits => f (List.ofFn bits)) image
+        (candidateList (fun query => predictor (List.ofFn query))
+          (masksFromWord (maskCount dimension (precision degree dimension)) dimension masks))) := by
+  simp only [wordDecode, maskRows_eq_ofFn, wordCandidates_eq_map]
+  exact wordCheckCandidates_eq_ofFn f image _
+
+/-- Uniform mask bits give exactly the finite inversion experiment for a captured predictor. -/
+theorem uniform_wordDecode (f : Word → Word) (predictor : Word → Bool)
+    (degree dimension : ℕ) (image : Word) :
+    (uniformBits (maskCount dimension (precision degree dimension) * dimension)).map
+        (wordDecode f predictor degree dimension image) =
+      (invertFixed (n := dimension) (fun bits => f (List.ofFn bits))
+        (fun query => predictor (List.ofFn query))
+        (maskCount dimension (precision degree dimension)) image).map List.ofFn := by
+  rw [invertFixed, ← uniformBits_masksFromWord]
+  simp only [PMF.map_comp, Function.comp_def]
+  congr 1
+  funext masks
+  exact wordDecode_eq_ofFn f predictor degree dimension image masks
+
+/-- A sufficiently correlated word predictor yields a valid preimage with probability at least
+one half. Auxiliary data stay captured in `predictor`; the recovered preimage need not be `x`. -/
+theorem wordDecode_success_ge_half (f : Word → Word) (predictor : Word → Bool)
+    (degree : ℕ) {n : ℕ} (x : BitString n)
+    (h : 1 / 2 + (1 / (precision degree n : ℝ)) / 2 ≤
+      agreement (fun query => predictor (List.ofFn query)) x) :
+    1 / 2 ≤ (((uniformBits (maskCount n (precision degree n) * n)).map
+      (fun masks => f (wordDecode f predictor degree n (f (List.ofFn x)) masks) ==
+        f (List.ofFn x))) true).toReal := by
+  have hsuccess := invertFixed_success_ge_half (fun bits => f (List.ofFn bits))
+    (fun query => predictor (List.ofFn query)) x ((1 / (precision degree n : ℝ)) / 2)
+    (by have := precision_pos degree n; positivity) (maskCount_pos _ _) h
+    (maskCount_sufficient n _ (precision_pos degree n))
+  have hlaw := congrArg (fun p : PMF Word =>
+    ((p.map (fun candidate => f candidate == f (List.ofFn x))) true).toReal)
+      (uniform_wordDecode f predictor degree n (f (List.ofFn x)))
+  simp only [PMF.map_comp, Function.comp_def, beq_eq_decide] at hlaw ⊢
+  rw [hlaw]
+  simpa only [beq_eq_decide] using hsuccess
 
 end Cslib.Crypto.GoldreichLevin

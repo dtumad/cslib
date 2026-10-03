@@ -81,6 +81,22 @@ theorem bool₂_rule {α : Type} {encode : α → Word} (op : Bool → Bool → 
     (hg : IsPolyTime encode (fun a => [g a])) :
     IsPolyTime encode (fun a => [op (f a) (g a)]) := hf.bool₂ hg op
 
+-- Recognize tuple construction and bitwise combinations before generic rules unfold encodings.
+-- Callbacks with several captured inputs can have deeply nested tuple encodings.
+open Lean Meta Elab Tactic in
+@[aesop safe -10 tactic (rule_sets := [PolyTime])]
+private meta def polytimeConstruct : TacticM Unit := withMainContext do
+  let target := (← Core.betaReduce (← instantiateMVars (← getMainTarget))).consumeMData
+  unless target.isAppOf ``IsPolyTime do throwError "expected a polynomial-time goal"
+  let rule ← lambdaTelescope target.getAppArgs.back! fun _ body => do
+    if body.isAppOf ``DFunLike.coe && body.getAppArgs[4]!.isAppOf ``pairEncoding then
+      return ``IsPolyTime.pair
+    if body.isAppOf ``List.zipWith then return ``IsPolyTime.zipWith
+    if body.isAppOf ``List.cons && body.getAppArgs[1]!.isAppOf ``List.foldl &&
+        body.getAppArgs.back!.isAppOf ``List.nil then return ``IsPolyTime.foldl_bool
+    throwError "expected tuple construction or a bitwise combination"
+  liftMetaTactic fun goal => goal.applyConst rule
+
 open Lean Meta Elab Tactic in
 @[aesop safe -5 tactic (rule_sets := [PolyTime])]
 private meta def polytimeBool : TacticM Unit := withMainContext do
@@ -125,7 +141,8 @@ private meta def polytimeProjection : TacticM Unit := withMainContext do
       [(0, ``Prod.fst, ``on_fst_rule), (1, ``Prod.snd, ``on_snd_rule)] do
     let saved ← saveState
     try
-      let fn ← lambdaTelescope target.getAppArgs.back! fun args body => do
+      let program ← Core.betaReduce (← etaExpand target.getAppArgs.back!)
+      let fn ← lambdaTelescope program fun args body => do
         unless args.size == 1 do throwError "expected one input"
         let input := args[0]!
         let field ← mkAppM projection #[input]
@@ -232,6 +249,12 @@ private meta def polytimeCall : TacticM Unit := do
         try
           if tuple then
             let argument ← prepareArgument target.getAppArgs[0]! decl.type.getAppArgs[0]!
+            -- Reduce the constructed tuple before matching through an abstract output encoding.
+            -- Otherwise projections inside the encoded callback can block higher-order unification.
+            let composed ← withLocalDeclD `input target.getAppArgs[0]! fun input =>
+              mkLambdaFVars #[input] (mkApp decl.type.getAppArgs.back! (mkApp argument input))
+            unless ← isDefEq (← withReducible (reduce composed)) target.getAppArgs.back! do
+              throwError "the certified algorithm does not match this call"
             applyWithArguments ``IsPolyTime.comp_encoded #[(`f, argument), (`hg, decl.toExpr)]
           else
             applyWithArguments ``IsPolyTime.comp_pair #[(`hf, decl.toExpr)]
@@ -244,8 +267,29 @@ private meta def polytimeCall : TacticM Unit := do
 
 attribute [aesop norm simp (rule_sets := [PolyTime])]
   forall_and
-  Cslib.Probability.boolEncoding
-  Cslib.Probability.wordEncoding
+
+-- Preserve typed input embeddings in PPT goals: probabilistic composition needs their
+-- injectivity proofs. Only deterministic goals normalize these encodings to plain functions.
+open Lean Meta Elab Tactic Cslib.Probability in
+@[aesop norm -50 tactic (rule_sets := [PolyTime])]
+private meta def polytimeEncoding : TacticM Unit := withMainContext do
+  let target ← instantiateMVars (← getMainTarget)
+  unless target.isAppOf ``IsPolyTime do throwError "expected a polynomial-time goal"
+  evalTactic (← `(tactic| simp only [boolEncoding, wordEncoding]))
+
+-- Certify fully specified constant outputs before simplification expands large unary words.
+-- Normalization must not instantiate metavariables shared with other proof-search goals.
+open Lean Meta Elab Tactic in
+@[aesop norm -100 tactic (rule_sets := [PolyTime])]
+private meta def polytimeConstant : TacticM Unit := withMainContext do
+  let target ← instantiateMVars (← getMainTarget)
+  unless target.isAppOf ``IsPolyTime && !target.hasExprMVar do
+    throwError "expected a fully specified polynomial-time goal"
+  let program ← Core.betaReduce (← etaExpand target.getAppArgs.back!)
+  lambdaTelescope program fun inputs body => do
+    if inputs.any (fun input => body.containsFVar input.fvarId!) then
+      throwError "the output depends on the input"
+  liftMetaTactic fun goal => goal.applyConst ``isPolyTime_const
 
 attribute [aesop safe apply (index := [unindexed]) (rule_sets := [PolyTime])]
   foldl_rule
@@ -276,6 +320,7 @@ attribute [aesop safe apply (rule_sets := [PolyTime])]
   Cslib.Probability.IsPolyTime.flatMap
   Cslib.Probability.IsPolyTime.map
   Cslib.Probability.IsPolyTime.filter
+  Cslib.Probability.IsPolyTime.count
   Cslib.Probability.IsPolyTime.any
   Cslib.Probability.IsPolyTime.unaryLength
   Cslib.Probability.IsPolyTime.tail
@@ -299,7 +344,9 @@ attribute [aesop safe apply (rule_sets := [PolyTime])]
   Cslib.Probability.IsPolyTime.unary_mul
   Cslib.Probability.IsPolyTime.unary_pow
   Cslib.Probability.IsPolyTime.unary_sub
+  Cslib.Probability.IsPolyTime.unary_min
   Cslib.Probability.IsPolyTime.unary_lt
+  Cslib.Probability.IsPolyTime.unary_le
   Cslib.Probability.IsPolyTime.unary_eq
   Cslib.Probability.IsPolyTime.unary_div_two
   Cslib.Probability.IsPolyTime.unary_min_one

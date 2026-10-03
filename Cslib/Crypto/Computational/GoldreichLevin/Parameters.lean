@@ -76,12 +76,31 @@ theorem maskCount_sufficient (n precision : ℕ) (hp : 0 < precision) :
   rw [heq, le_div_iff₀ (by positivity)]
   nlinarith
 
+/-- Signed parity correlation is bounded by decoder success and its chosen accuracy.
+This pointwise form allows auxiliary input to be guessed in later reductions. -/
+theorem correlation_le_invertFixed {n : ℕ} {Image : Type*} [DecidableEq Image]
+    (f : BitString n → Image) (predictor : BitString n → Bool) (x : BitString n)
+    (precision : ℕ) (hp : 0 < precision) :
+    2 * agreement predictor x - 1 ≤ 1 / (precision : ℝ) +
+      2 * (((invertFixed f predictor (maskCount n precision) (f x)).map
+        (fun z => f z == f x)) true).toReal := by
+  have hpReal : (0 : ℝ) < precision := by exact_mod_cast hp
+  by_cases h : 1 / 2 + (1 / (precision : ℝ)) / 2 ≤ agreement predictor x
+  · have hsuccess := invertFixed_success_ge_half f predictor x _
+      (by positivity : 0 < (1 / (precision : ℝ)) / 2) (maskCount_pos n precision) h
+      (maskCount_sufficient n precision hp)
+    linarith [agreement_le_one predictor x, one_div_pos.mpr hpReal]
+  · have hsuccess : 0 ≤ (((invertFixed f predictor (maskCount n precision) (f x)).map
+        (fun z => f z == f x)) true).toReal := ENNReal.toReal_nonneg
+    linarith
+
 /-- The same inverter bounds all prediction biases, with an additive error of `1 / precision`.
 When the actual bias exceeds that error, the recovery bound applies to the actual bias itself. -/
-theorem invertSigned_advantage_le {n : ℕ} {Coins : Type*} [Finite Coins]
-    (f : BitString n → BitString n)
-    (predictor : BitString n → Coins → BitString n → Bool)
-    (coins : PMF Coins) (precision : ℕ) (hp : 0 < precision) :
+theorem invertSigned_advantage_le {n : ℕ} {Image : Type*} [DecidableEq Image]
+    {Coins : Image → Type*} [∀ image, Finite (Coins image)]
+    (f : BitString n → Image)
+    (predictor : (image : Image) → Coins image → BitString n → Bool)
+    (coins : (image : Image) → PMF (Coins image)) (precision : ℕ) (hp : 0 < precision) :
     |(predictionExperiment f predictor coins true).toReal - 1 / 2| ≤
       1 / (precision : ℝ) +
         8 * (inversionExperiment f
@@ -136,10 +155,11 @@ theorem randomMaskBits_polynomial (degree : ℕ) :
 For each power, multiply the pointwise reduction by that power of the parameter. The precision
 term is at most one and the inversion term tends to zero, giving superpolynomial decay. -/
 theorem negligible_prediction_of_negligible_inversion
-    {Coins : ℕ → Type*} [∀ n, Finite (Coins n)]
-    (f : (n : ℕ) → BitString n → BitString n)
-    (predictor : (n : ℕ) → BitString n → Coins n → BitString n → Bool)
-    (coins : (n : ℕ) → PMF (Coins n))
+    {Image : ℕ → Type*} [∀ n, DecidableEq (Image n)]
+    {Coins : (n : ℕ) → Image n → Type*} [∀ n image, Finite (Coins n image)]
+    (f : (n : ℕ) → BitString n → Image n)
+    (predictor : (n : ℕ) → (image : Image n) → Coins n image → BitString n → Bool)
+    (coins : (n : ℕ) → (image : Image n) → PMF (Coins n image))
     (hinversion : ∀ degree, Negligible (fun n =>
       (inversionExperiment (f n)
         (invertSigned (f n) (predictor n) (coins n)

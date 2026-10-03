@@ -39,6 +39,16 @@ open Probability
 noncomputable def generatorEnsemble (generator : Word → Word) (n : ℕ) : PMF Word :=
   (PRG.Generator.mk generator).outputDist (uniformBits n)
 
+/-- Postprocessing may use the original seed length, which equals the game's parameter. -/
+theorem generatorEnsemble_postprocess (generator : Word → Word) (f : ℕ → Word → Word) (n : ℕ) :
+    generatorEnsemble (fun seed => f seed.length (generator seed)) n =
+      (generatorEnsemble generator n).map (f n) := by
+  simp only [generatorEnsemble, PRG.Generator.outputDist, PRG.Generator.coe_mk, PMF.map_comp]
+  simp only [PMF.map]
+  apply PMF.bind_congr_on_support
+  intro seed hseed
+  simp only [Function.comp_def, length_of_mem_support_uniformBits hseed]
+
 /-- The semantic family API specializes to computational indistinguishability for PPT tests. -/
 theorem PRG.Family.secure_iff_indistinguishable {Seed : ℕ → Type*}
     (G : PRG.Family Seed (fun _ => Word)) (seed : ∀ n, PMF (Seed n)) (ideal : ℕ → PMF Word) :

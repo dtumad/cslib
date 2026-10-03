@@ -69,6 +69,21 @@ example (f : Word → Word) (hf : IsPolyTime wordEncoding f) :
   fail_if_success (clear hf; polytime)
   polytime
 
+/-- A typed callback can capture part of a nested environment and keep its abstract output encoding.
+This occurs when a repeated sampler maps its saved-coin evaluator over a list of coin tapes. -/
+example {α β : Type} {input : α ↪ Word} {output : β ↪ Word}
+    (evaluate : α → Word → β)
+    (hevaluate : IsPolyTime (pairEncoding input wordEncoding)
+      (fun pair => output (evaluate pair.1 pair.2))) :
+    IsPolyTime (pairEncoding (pairEncoding input wordEncoding) wordEncoding)
+      (fun pair => output (evaluate pair.1.1 pair.2)) := by
+  fail_if_success (clear hevaluate; polytime)
+  polytime
+
+/-- Large fixed unary outputs are certified without expanding a million list constructors. -/
+example : IsPolyTime unaryEncoding (fun _ : ℕ => unaryEncoding 1000000) := by
+  polytime
+
 /-- A fold can construct a growing accumulator using ordinary list syntax. -/
 example : IsPolyTime wordEncoding (fun word : Word =>
     word.foldl (fun reversed bit => bit :: reversed) []) := by

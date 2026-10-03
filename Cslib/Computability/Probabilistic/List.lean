@@ -22,7 +22,17 @@ that capture runtime data. Word equality checks both lengths and aligned bits.
 
 namespace Cslib.Probability
 
-variable {α Item : Type} {encode : α → Word} {count : α → ℕ}
+variable {α Item : Type} {encode : α → Word}
+
+/-- Count occurrences of an efficiently computed bit in an efficiently computed word. -/
+theorem IsPolyTime.count {word : α → Word} {bit : α → Bool}
+    (hword : IsPolyTime encode word) (hbit : IsPolyTime encode (fun a => [bit a])) :
+    IsPolyTime encode (fun a => List.replicate ((word a).count (bit a)) true) := by
+  simpa only [List.count_eq_length_filter, List.filter_map, List.length_map,
+    Function.comp_def, id_eq] using
+    ((hword.map_with_bit hbit (fun bit value => value == bit)).filter id).unaryLength
+
+variable {count : α → ℕ}
 
 /-- Test a fixed Boolean predicate on every bit of an efficient word. -/
 theorem IsPolyTime.any {word : α → Word} (hword : IsPolyTime encode word)

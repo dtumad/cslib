@@ -61,6 +61,28 @@ theorem length_of_mem_support_uniformBits {n : ℕ} {word : List Bool}
   obtain ⟨bits, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp h
   simp
 
+/-- Every word of the requested length has positive uniform probability, and no other word does. -/
+theorem mem_support_uniformBits_iff {n : ℕ} {word : List Bool} :
+    word ∈ (uniformBits n).support ↔ word.length = n := by
+  refine ⟨length_of_mem_support_uniformBits, fun h => ?_⟩
+  subst n
+  exact (PMF.mem_support_map_iff _ _ _).mpr
+    ⟨word.get, PMF.mem_support_uniformOfFintype _, List.ofFn_get _⟩
+
+/-- A prefix of a uniform word is uniform, with no condition on the discarded suffix. -/
+theorem uniformBits_take {n k : ℕ} (hkn : k ≤ n) :
+    (uniformBits n).map (List.take k) = uniformBits k := by
+  rw [show n = k + (n - k) by lia, uniformBits_add, PMF.map_bind]
+  calc
+    (uniformBits k).bind (fun seed =>
+        ((uniformBits (n - k)).map (seed ++ ·)).map (List.take k)) =
+        (uniformBits k).bind PMF.pure := by
+      apply PMF.bind_congr_on_support
+      intro seed hseed
+      have hlen := length_of_mem_support_uniformBits hseed
+      simp [Function.comp_def, ← hlen, PMF.map, PMF.bind_const]
+    _ = _ := PMF.bind_pure _
+
 /-- A length-preserving permutation sends a uniform word to a uniform word of the same length.
 This is a distributional fact and makes no assumption about computing the inverse. -/
 theorem uniformBits_map_of_bijective (f : List Bool → List Bool) (hf : Function.Bijective f)

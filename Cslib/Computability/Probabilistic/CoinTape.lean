@@ -9,6 +9,7 @@ module
 public import Cslib.Computability.Probabilistic.Encoding
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape
 public import Cslib.Computability.Machines.Turing.MultiTape.Oracle.ReplayInput
+public import Cslib.Tactic.PolyTime
 
 /-!
 # Random tapes for PPT witnesses
@@ -50,8 +51,26 @@ theorem isPolyTime_replay {k : ℕ} {State : Type} [Finite State]
   rw [Turing.MultiTapeTM.runFrom_eq_of_halt _ _ hbound h.1]
   exact h
 
-/-- A uniform PPT witness realizes its encoded result as a deterministic function of one
-uniform polynomial-length coin tape. The same machine and polynomial work for all inputs. -/
+/-- A typed PPT witness realizes its encoded result from one uniform polynomial-length tape.
+The same machine and polynomial work for all inputs in the given representation. -/
+theorem IsPPTOn.exists_coin_machine {α β : Type} {input : α → Word} {output : β ↪ Word}
+    {program : α → ProbComp β} (h : IsPPTOn input output program) :
+    ∃ (k states : ℕ) (machine : Turing.OracleTM k (Fin states)) (c d : ℕ),
+      ∀ a, (ProbComp.eval (program a)).map output =
+        (uniformBits (c * ((input a).length + 1) ^ d)).map
+          (fun coins => Turing.MultiTapePTM.runCoins (m := Id) machine (fun _ _ => [])
+            coins (input a)) := by
+  obtain ⟨k, states, machine, c, d, hmachine⟩ := h
+  refine ⟨k, states, machine, c, d, ?_⟩
+  intro a
+  rw [hmachine a]
+  change OracleComp.eval _ (Turing.OracleTM.runFrom machine _
+    (Turing.OracleTM.initialConfig machine _)) = _
+  rw [← Turing.OracleTM.runFrom_core]
+  exact Turing.MultiTapePTM.eval_run_eq_map_coins machine (fun _ => OracleComp.query)
+    (fun _ => PMF.pure []) (fun _ _ => []) (fun _ _ => by simp) _ _
+
+/-- The cryptographic parameter-and-input interface specializes the typed saved-tape law. -/
 theorem IsPPT.exists_coin_machine {α : Type} {encode : α ↪ Word}
     {program : ℕ → Word → ProbComp α} (h : IsPPT encode program) :
     ∃ (k states : ℕ) (machine : Turing.OracleTM k (Fin states)) (c d : ℕ),
@@ -59,15 +78,8 @@ theorem IsPPT.exists_coin_machine {α : Type} {encode : α ↪ Word}
         (uniformBits (c * ((parameterInput n input).length + 1) ^ d)).map
           (fun coins => Turing.MultiTapePTM.runCoins (m := Id) machine (fun _ _ => [])
             coins (parameterInput n input)) := by
-  obtain ⟨k, states, machine, c, d, hmachine⟩ := h
-  refine ⟨k, states, machine, c, d, ?_⟩
-  intro n input
-  rw [hmachine (n, input)]
-  change OracleComp.eval _ (Turing.OracleTM.runFrom machine _
-    (Turing.OracleTM.initialConfig machine _)) = _
-  rw [← Turing.OracleTM.runFrom_core]
-  exact Turing.MultiTapePTM.eval_run_eq_map_coins machine (fun _ => OracleComp.query)
-    (fun _ => PMF.pure []) (fun _ _ => []) (fun _ _ => by simp) _ _
+  obtain ⟨k, states, machine, c, d, hmachine⟩ := h.on.exists_coin_machine
+  exact ⟨k, states, machine, c, d, fun n input => hmachine (n, input)⟩
 
 /-- A Boolean PPT program has an exact fixed-coin realization. Decoding its single output bit
 preserves the entire distribution. -/
@@ -85,8 +97,22 @@ theorem IsPPT.exists_bool_coin_machine
   simpa [PMF.map_comp, Function.comp_def, boolEncoding, PMF.map,
     Function.Embedding.coeFn_mk] using heq
 
-/-- Every PPT program has one polynomial-time deterministic evaluator driven by a uniform
-polynomial-length seed. The evaluator and seed-length polynomial are fixed for the whole family. -/
+/-- The encoded evaluator for any typed PPT program is uniformly polynomial time in its saved
+tape and encoded input. Its seed-length polynomial is fixed for the whole family. -/
+theorem IsPPTOn.exists_polyTime_coin_evaluator {α β : Type} {input : α → Word} {output : β ↪ Word}
+    {program : α → ProbComp β} (h : IsPPTOn input output program) :
+    ∃ (c d : ℕ) (evaluate : Word → Word → Word),
+      IsPolyTime coinInputEncoding (fun pair => evaluate pair.1 pair.2) ∧
+      ∀ a, (ProbComp.eval (program a)).map output =
+        (uniformBits (c * ((input a).length + 1) ^ d)).map
+          (fun coins => evaluate coins (input a)) := by
+  obtain ⟨k, states, machine, c, d, hmachine⟩ := h.exists_coin_machine
+  exact ⟨c, d, fun coins input =>
+    Turing.MultiTapePTM.runCoins (m := Id) machine (fun _ _ => []) coins input,
+    isPolyTime_replay machine, hmachine⟩
+
+/-- A cryptographic PPT program has one efficient saved-coin evaluator for every parameter
+and auxiliary input. -/
 theorem IsPPT.exists_polyTime_coin_evaluator {α : Type} {encode : α ↪ Word}
     {program : ℕ → Word → ProbComp α} (h : IsPPT encode program) :
     ∃ (c d : ℕ) (evaluate : Word → Word → Word),
@@ -94,10 +120,8 @@ theorem IsPPT.exists_polyTime_coin_evaluator {α : Type} {encode : α ↪ Word}
       ∀ n input, (ProbComp.eval (program n input)).map encode =
         (uniformBits (c * ((parameterInput n input).length + 1) ^ d)).map
           (fun coins => evaluate coins (parameterInput n input)) := by
-  obtain ⟨k, states, machine, c, d, hmachine⟩ := h.exists_coin_machine
-  exact ⟨c, d, fun coins input =>
-    Turing.MultiTapePTM.runCoins (m := Id) machine (fun _ _ => []) coins input,
-    isPolyTime_replay machine, hmachine⟩
+  obtain ⟨c, d, evaluate, hefficient, hrealize⟩ := h.on.exists_polyTime_coin_evaluator
+  exact ⟨c, d, evaluate, hefficient, fun n input => hrealize (n, input)⟩
 
 /-- A Boolean PPT predictor has a polynomial-time seeded evaluator. Reading its first output
 bit recovers exactly the predictor's distribution at the prescribed random-tape length. -/
@@ -112,5 +136,85 @@ theorem IsPPT.exists_bool_polyTime_coin_evaluator
   exact ⟨c, d, fun coins input =>
     Turing.MultiTapePTM.runCoins (m := Id) machine (fun _ _ => []) coins input,
     isPolyTime_replay machine, hmachine⟩
+
+/-- Every typed PPT program has a total deterministic polynomial-time evaluator. Every coin
+word produces a supported result. Any uniform tape longer than the polynomial budget gives
+exactly the program's distribution; short tapes are padded and long tapes truncated.
+
+No decoder for arbitrary output words is assumed: the replay machine always produces a valid
+encoded result on a normalized tape, and its encoding is the evaluator's actual computation. -/
+theorem IsPPTOn.exists_total_seeded_evaluator {α β : Type} {input : α ↪ Word} {output : β ↪ Word}
+    {program : α → ProbComp β} (h : IsPPTOn input output program) :
+    ∃ (c d : ℕ) (evaluate : α → Word → β),
+      IsPolyTime (pairEncoding input wordEncoding) (fun pair => output (evaluate pair.1 pair.2)) ∧
+      (∀ a coins, evaluate a coins ∈ (ProbComp.eval (program a)).support) ∧
+      ∀ a length, c * ((input a).length + 1) ^ d ≤ length →
+        ProbComp.eval (program a) = (uniformBits length).map (evaluate a) := by
+  classical
+  obtain ⟨c, d, raw, hefficient, hrealize⟩ := h.exists_polyTime_coin_evaluator
+  let budget (a : α) := c * ((input a).length + 1) ^ d
+  let tape (a : α) (coins : Word) := (coins ++ List.replicate (budget a) false).take (budget a)
+  have htape (a : α) (coins : Word) : (tape a coins).length = budget a := by
+    simp [tape]
+  have hvalid (a : α) (coins : Word) : ∃ result,
+      result ∈ (ProbComp.eval (program a)).support ∧
+        output result = raw (tape a coins) (input a) := by
+    have hs : raw (tape a coins) (input a) ∈
+        ((uniformBits (budget a)).map (fun coins => raw coins (input a))).support :=
+      (PMF.mem_support_map_iff _ _ _).mpr
+        ⟨tape a coins, mem_support_uniformBits_iff.mpr (htape a coins), rfl⟩
+    rw [← hrealize a] at hs
+    exact (PMF.mem_support_map_iff _ _ _).mp hs
+  let evaluate (a : α) (coins : Word) := (hvalid a coins).choose
+  have hencode (a : α) (coins : Word) :
+      output (evaluate a coins) = raw (tape a coins) (input a) := (hvalid a coins).choose_spec.2
+  refine ⟨c, d, evaluate, ?_, fun a coins => (hvalid a coins).choose_spec.1, ?_⟩
+  · simp_rw [hencode]
+    have hinput := isPolyTime_fst input wordEncoding
+    have hcoins := isPolyTime_snd input wordEncoding
+    apply hefficient.comp_pair
+    · dsimp [tape, budget]
+      polytime
+    · exact hinput
+  · intro a length hlength
+    apply PMF.map_injective output.injective
+    rw [hrealize, PMF.map_comp, ← uniformBits_take hlength, PMF.map_comp]
+    apply PMF.bind_congr_on_support
+    intro coins hcoins
+    change PMF.pure (raw (coins.take (budget a)) (input a)) =
+      PMF.pure (output (evaluate a coins))
+    congr 1
+    have hcoinsLength := length_of_mem_support_uniformBits hcoins
+    simp only [hencode, tape, List.take_append_of_le_length
+      (show budget a ≤ coins.length by simpa only [budget, hcoinsLength] using hlength)]
+
+/-- Every typed PPT program has an efficient evaluator with exactly its distribution under a
+uniform polynomial-length seed. The total evaluator also supports arbitrary longer tapes. -/
+theorem IsPPTOn.exists_seeded_evaluator {α β : Type} {input : α ↪ Word} {output : β ↪ Word}
+    {program : α → ProbComp β} (h : IsPPTOn input output program) :
+    ∃ (c d : ℕ) (evaluate : α → Word → β),
+      IsPolyTime (pairEncoding input wordEncoding) (fun pair => output (evaluate pair.1 pair.2)) ∧
+      ∀ a, ProbComp.eval (program a) =
+        (uniformBits (c * ((input a).length + 1) ^ d)).map (evaluate a) := by
+  obtain ⟨c, d, evaluate, hefficient, _, hlaw⟩ := h.exists_total_seeded_evaluator
+  exact ⟨c, d, evaluate, hefficient, fun a => hlaw a _ le_rfl⟩
+
+/-- A predictor can use one larger saved tape across inputs of different lengths. The evaluator
+trims that tape to the input's own polynomial budget, preserving each prediction distribution.
+No machine internals are exposed to reductions using this interface. -/
+theorem IsPPT.exists_padded_bool_coin_evaluator
+    {program : ℕ → Word → ProbComp Bool} (h : IsPPT boolEncoding program) :
+    ∃ (c d : ℕ) (evaluate : Word → Word → Word),
+      IsPolyTime coinInputEncoding (fun pair => evaluate pair.1 pair.2) ∧
+      ∀ n input budget, c * ((parameterInput n input).length + 1) ^ d ≤ budget →
+        ProbComp.eval (program n input) = (uniformBits budget).map
+          (fun coins => (evaluate coins (parameterInput n input)).headD false) := by
+  obtain ⟨c, d, evaluate, hefficient, hrealize⟩ := h.exists_bool_polyTime_coin_evaluator
+  refine ⟨c, d, fun coins input => evaluate (coins.take (c * (input.length + 1) ^ d)) input,
+    ?_, ?_⟩
+  · apply hefficient.comp_pair <;> polytime
+  · intro n input budget hbudget
+    rw [hrealize, ← uniformBits_take hbudget, PMF.map_comp]
+    rfl
 
 end Cslib.Probability
