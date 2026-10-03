@@ -432,7 +432,11 @@ losses. Explicit polynomial precisions preserve an inverse-polynomial prediction
 Shared candidate selection has a strict PPT certificate and a reusable accuracy rule.
 The [fresh-mask sampler](Computational/Pseudoentropy/Masking.lean) also has a strict PPT certificate
 and conditional label entropy at least the soft-mask density, including weights that depend on
-the hidden label. A weak learner and combined failure accounting remain to be proved; following
+the hidden label. A strict PPT random-coordinate reduction now converts a sequence distinguisher
+into a predictor with an exact weighted-bias identity. Its client efficiency proof is
+`unfold coordinatePrediction; ppt`; the target's hidden label is never passed to the predictor.
+The weak learner's description bounds, amplification, and combined failure accounting remain
+to be proved; following
 the write-up's set-oracle formulation would additionally require a cached membership simulation.
 The three-source game argument and conversion of this pair into an expanding generator also remain
 to be proved.

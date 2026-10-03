@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 
 public import Cslib.Crypto.Computational.OneWay
+public import Cslib.Crypto.Computational.Prediction
 public import Cslib.Crypto.Computational.PseudorandomGenerator
 public import Cslib.Computability.Probabilistic.Input
 public import Cslib.Computability.Probabilistic.PolynomialTime
@@ -82,8 +83,7 @@ theorem HardCore.of_unpredictable {f : Word → Word} {predicate : Word → Bool
 
 /-- Use acceptance of an appended trial bit to predict the hidden predicate. -/
 def hardCorePredictor (adversary : Distinguisher) (trial : Bool) : Distinguisher :=
-  fun n image => (fun accept => if accept then trial else !trial) <$>
-    adversary n (image ++ [trial])
+  fun n image => trialPredictor (fun bit => adversary n (image ++ [bit])) trial
 
 /-- The reduction has a machine certificate, including construction of the extended input. -/
 theorem hardCorePredictor_isPPT {adversary : Distinguisher}
@@ -95,23 +95,6 @@ theorem hardCorePredictor_isPPT {adversary : Distinguisher}
 noncomputable def hardCoreIdeal (f : Word → Word) (n : ℕ) : PMF Word :=
   (uniformBits n).bind (fun seed =>
     (PMF.uniformOfFintype Bool).map (fun bit => f seed ++ [bit]))
-
-private theorem prediction_step (adversary : Distinguisher) (n : ℕ) (image : Word)
-    (bit : Bool) :
-    winProbability (adversary n (image ++ [bit])) -
-        (winProbability (adversary n (image ++ [false])) +
-          winProbability (adversary n (image ++ [true]))) / 2 =
-      (winProbability ((fun guess => guess == bit) <$> hardCorePredictor adversary false n image) +
-        winProbability ((fun guess => guess == bit) <$> hardCorePredictor adversary true n image) -
-        1) / 2 := by
-  cases bit with
-  | false => simp [hardCorePredictor]; ring
-  | true =>
-    simp only [beq_true, hardCorePredictor, Bool.not_false, Bool.ite_true_right,
-      Bool.decide_eq_true, Bool.or_false, Functor.map_map, Bool.not_true, Bool.ite_false_right,
-      Bool.and_true, id_map']
-    rw [winProbability_not]
-    ring
 
 private theorem real_probability (f : Word → Word) (predicate : Word → Bool)
     (adversary : Distinguisher) (n : ℕ) :
@@ -155,9 +138,12 @@ theorem hardCore_gap (f : Word → Word) (predicate : Word → Bool)
       (winProbability (predictionGame f predicate (hardCorePredictor adversary false) n) +
         winProbability (predictionGame f predicate (hardCorePredictor adversary true) n) - 1) /
         2 := by
+  have hstep (seed : Word) :=
+    trialPredictor_gap (fun trial => adversary n (f seed ++ [trial])) (predicate seed)
   rw [real_probability, ideal_probability, prediction_probability, prediction_probability,
     ← Finset.sum_sub_distrib]
-  simp_rw [← mul_sub, prediction_step]
+  simp only [hardCorePredictor]
+  simp_rw [← mul_sub, hstep]
   simp only [← mul_div_assoc, ← Finset.sum_div, mul_sub, mul_add, mul_one,
     Finset.sum_sub_distrib, Finset.sum_add_distrib, PMF.sum_toReal]
 

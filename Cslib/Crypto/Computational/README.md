@@ -100,7 +100,8 @@ The first extraction ingredients are checked:
 | [Boosting/Vote](Pseudoentropy/Boosting/Vote.lean) and [Boosting/Decision](Pseudoentropy/Boosting/Decision.lean) | Executable majority prediction, rational density and stopping tests, and their guard guarantees with exponentially small sampling error. |
 | [Boosting/Program](Pseudoentropy/Boosting/Program.lean) and [Boosting/Loop](Pseudoentropy/Boosting/Loop.lean) | A strict PPT clocked loop, state bounds on every execution, and its majority-or-dense-margin guarantee with an explicit learner hypothesis and total error bound. |
 | [Boosting/Clipped](Pseudoentropy/Boosting/Clipped.lean) and [Boosting/Selection](Pseudoentropy/Boosting/Selection.lean) | Exact dyadic randomized prediction, the lower-tail error bound, and uniform empirical selection of a slope with strict PPT certificates and explicit losses. |
-| [Masking](Pseudoentropy/Masking.lean) | Fresh randomized labels with conditional entropy at least the soft-mask density, exact sampling laws, and compositional strict PPT certificates. |
+| [Masking](Pseudoentropy/Masking.lean) | Fresh randomized labels with conditional entropy at least the soft-mask density, and a strict PPT sequence-to-prediction reduction with an exact weighted-bias identity. |
+| [Prediction](Prediction.lean) and [Hybrid/Sequence](Hybrid/Sequence.lean) | Shared trial-bit prediction and independent-sequence hybrid combinators, with strict PPT certificates and an exact signed reduction loss. |
 | [LinearHash](../../Computability/Probabilistic/LinearHash.lean) | Boolean-matrix hashing, its word implementation, its PPT sampler, and exact agreement with the finite extraction experiment. |
 | [Extraction](Extraction.lean) | A source indistinguishable from a sufficiently diffuse comparison source yields computationally uniform extraction. |
 
@@ -196,10 +197,22 @@ The [fresh-mask sampler](Pseudoentropy/Masking.lean) instead uses each sampled w
 whether to replace the label by a fresh fair bit. Its conditional label entropy is at least the
 soft density, even when the weight depends on the hidden label. This follows from general
 entropy concavity and the fact that revealing less information cannot reduce conditional entropy.
-The [entropy examples](../../../CslibTests/ComputationalCryptoEntropy.lean) check hidden-label
+The [masking examples](../../../CslibTests/ComputationalCryptoMasking.lean) check hidden-label
 masks, fresh randomness on repeated inputs, and a complete sampler whose efficiency proof is
-`unfold maskedTraining; ppt`. These are ingredients for a direct reduction using soft weights;
-the extraction, coordinate hybrid, and weak learner for that reduction remain to be proved.
+`unfold maskedTraining; ppt`.
+
+`maskedSequencePredictor` now turns a test on repeated samples into one uniform predictor. It
+samples a coordinate, fills the earlier positions with fresh masked examples and the later
+positions with original examples, and inserts a trial bit next to the target observation.
+Its signed mask-weighted prediction bias equals the complete sequence distinguishing gap
+divided by `dyadicSize count`. The target's hidden label and mask are absent from the predictor's
+inputs. The shared [sequence hybrid](Hybrid/Sequence.lean) proves this exact loss even when
+adjacent gaps have different signs, including zero repetitions and rejected padding indices.
+The complete client certificate is `unfold coordinatePrediction; ppt`.
+
+This supplies the coordinate reduction for the direct soft-weight route. The extraction estimate
+for these masked sources, bounded saved predictor descriptions, selection of the successful sign,
+and amplification to the boosting learner's high-probability contract remain to be proved.
 
 The [sampled decisions](Pseudoentropy/Boosting/Decision.lean) implement the overlapping density
 and majority guards from Figure 2 and Claim 2.6 of the uniform hard-core write-up. With weight
@@ -418,6 +431,8 @@ The first exercises led to these shared interfaces:
 | A certified callback with an abstract output encoding failed under nested captured inputs. | `polytime` reduces the constructed argument tuple before matching the callback; the supplied certificate remains necessary. |
 | Similar implementations caused proof search to select unrelated sampler or test certificates. | `PPT.applyHead` shares dispatch by the program's syntactic head before unification. |
 | Simplifying large fixed unary parameters exhausted recursion depth. | `polytime` certifies fully specified constant outputs before expanding their representation. |
+| A prediction callback returned a conditional Boolean with a captured negated bit. | Boolean postprocessing handles fixed unary operations, conditional singleton results, and constructed output encodings. |
+| Repeated-sample hybrids required coordinate bookkeeping. | `sequenceTest` simulates the surrounding lists and preserves the exact signed gap; `bitPredictor` shares the prediction step with the existing hard-core proof. |
 
 For example, truncation is a short client proof:
 

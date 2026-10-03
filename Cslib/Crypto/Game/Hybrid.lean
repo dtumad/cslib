@@ -70,17 +70,17 @@ theorem winProbability_uniform {α : Type*} [Fintype α] [Nonempty α] (games : 
   intro a _
   ring
 
-/-- Randomly choosing an adjacent hybrid telescopes signed gaps before taking absolute values.
+/-- Randomly choosing an adjacent hybrid telescopes signed gaps.
 Unused indices run the same rejecting game on both sides. This gives a single uniform reduction
 with loss `capacity`, without selecting a length-dependent best hop. -/
-theorem advantage_hybrid_average (games : ℕ → Game) (hops capacity : ℕ) [NeZero capacity]
+theorem winProbability_hybrid_average (games : ℕ → Game) (hops capacity : ℕ) [NeZero capacity]
     (hle : hops ≤ capacity) :
-    advantage (games 0) (games hops) = (capacity : ℝ) *
-      advantage
+    winProbability (games 0) - winProbability (games hops) = (capacity : ℝ) *
+      (winProbability
         ((PMF.uniformOfFintype (Fin capacity)).bind
-          (fun i => if i.val < hops then games i.val else PMF.pure false))
+          (fun i => if i.val < hops then games i.val else PMF.pure false)) - winProbability
         ((PMF.uniformOfFintype (Fin capacity)).bind
-          (fun i => if i.val < hops then games (i.val + 1) else PMF.pure false)) := by
+          (fun i => if i.val < hops then games (i.val + 1) else PMF.pure false))) := by
   have hsum : (∑ i : Fin capacity, if i.val < hops then
       winProbability (games i.val) - winProbability (games (i.val + 1)) else 0) =
       winProbability (games 0) - winProbability (games hops) := by
@@ -96,16 +96,29 @@ theorem advantage_hybrid_average (games : ℕ → Game) (hops capacity : ℕ) [N
           (winProbability (games i) - winProbability (games (i + 1))) :=
         Finset.sum_congr rfl (fun i hi => ite_eq_left (Finset.mem_range.mp hi))
       _ = _ := Finset.sum_range_sub' (fun i => winProbability (games i)) hops
-  rw [advantage, advantage, winProbability_uniform, winProbability_uniform]
+  rw [winProbability_uniform, winProbability_uniform]
   simp only [Fintype.card_fin, ← sub_div, ← Finset.sum_sub_distrib]
   have hdiff (i : Fin capacity) :
       winProbability (if i.val < hops then games i.val else PMF.pure false) -
         winProbability (if i.val < hops then games (i.val + 1) else PMF.pure false) =
       if i.val < hops then winProbability (games i.val) - winProbability (games (i.val + 1))
         else 0 := by split_ifs <;> simp
-  simp only [hdiff, hsum, abs_div, abs_of_nonneg (Nat.cast_nonneg capacity : (0 : ℝ) ≤ capacity)]
+  simp only [hdiff, hsum]
   have hcapacity : (capacity : ℝ) ≠ 0 := by exact_mod_cast NeZero.ne capacity
   field_simp
+
+/-- Averaging adjacent hybrids also preserves absolute distinguishing advantage, with the
+sampling-range loss and no length-dependent choice of the best hop. -/
+theorem advantage_hybrid_average (games : ℕ → Game) (hops capacity : ℕ) [NeZero capacity]
+    (hle : hops ≤ capacity) :
+    advantage (games 0) (games hops) = (capacity : ℝ) *
+      advantage
+        ((PMF.uniformOfFintype (Fin capacity)).bind
+          (fun i => if i.val < hops then games i.val else PMF.pure false))
+        ((PMF.uniformOfFintype (Fin capacity)).bind
+          (fun i => if i.val < hops then games (i.val + 1) else PMF.pure false)) := by
+  rw [advantage, advantage, winProbability_hybrid_average games hops capacity hle, abs_mul,
+    abs_of_nonneg (Nat.cast_nonneg capacity : (0 : ℝ) ≤ capacity)]
 
 /-- The advantage between the endpoints is at most the sum of all adjacent advantages. -/
 theorem advantage_hybrid_le_sum (games : ℕ → Game) (hops : ℕ) :

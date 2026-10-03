@@ -16,6 +16,7 @@ import CslibTests.ComputationalCryptoEntropy
 import CslibTests.ComputationalCryptoExtraction
 import CslibTests.ComputationalCryptoIteration
 import CslibTests.ComputationalCryptoMachines
+import CslibTests.ComputationalCryptoMasking
 import CslibTests.ComputationalCryptoPrograms
 import CslibTests.ComputationalCryptoReductions
 import CslibTests.Congruence

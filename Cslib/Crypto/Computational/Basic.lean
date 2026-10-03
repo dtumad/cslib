@@ -61,12 +61,19 @@ theorem winProbability_bind_mono {α : Type} (program : ProbComp α)
     exact (ENNReal.toReal_le_toReal (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)).mp (h a ha)
   · simp only [(PMF.apply_eq_zero_iff _ _).mpr ha, zero_mul, le_refl]
 
+/-- Binding a finite-valued program averages the continuation's winning probabilities. -/
+theorem winProbability_bind {α : Type} [Fintype α] (program : ProbComp α)
+    (game : α → ProbComp Bool) :
+    winProbability (program >>= game) =
+      ∑ a, (ProbComp.eval program a).toReal * winProbability (game a) := by
+  simp only [winProbability, ProbComp.eval_bind, PMF.bind_apply_toReal]
+
 /-- A finite random choice averages the continuation's winning probabilities. -/
 theorem winProbability_sample_bind {α : Type} [Fintype α] (distribution : PMF α)
     (game : α → ProbComp Bool) :
     winProbability (OracleComp.sample distribution >>= game) =
       ∑ a, (distribution a).toReal * winProbability (game a) := by
-  simp only [winProbability, ProbComp.eval_bind, ProbComp.eval_sample, PMF.bind_apply_toReal]
+  simp only [winProbability_bind, ProbComp.eval_sample]
 
 /-- Complementing a game's answer exchanges winning and losing. -/
 @[simp] theorem winProbability_not (game : ProbComp Bool) :

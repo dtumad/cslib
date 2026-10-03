@@ -177,9 +177,11 @@ public import Cslib.Crypto.Computational.GoldreichLevin.WordDecoder
 public import Cslib.Crypto.Computational.GoldreichLevin.WordReduction
 public import Cslib.Crypto.Computational.HardCore
 public import Cslib.Crypto.Computational.Hybrid
+public import Cslib.Crypto.Computational.Hybrid.Sequence
 public import Cslib.Crypto.Computational.OneWay
 public import Cslib.Crypto.Computational.OneWay.Collision
 public import Cslib.Crypto.Computational.OneWay.Normalize
+public import Cslib.Crypto.Computational.Prediction
 public import Cslib.Crypto.Computational.Pseudoentropy.Basic
 public import Cslib.Crypto.Computational.Pseudoentropy.Boosting.Clipped
 public import Cslib.Crypto.Computational.Pseudoentropy.Boosting.Decision

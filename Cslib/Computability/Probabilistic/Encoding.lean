@@ -330,6 +330,11 @@ theorem IsPolyTime.map_with_bit {word : γ → Word} {bit : γ → Bool}
     IsPolyTime encode (fun a => (word a).map (op (bit a))) := by
   simpa only [List.map_eq_flatMap] using hword.flatMap_with_bit hbit (fun x y => [op x y])
 
+/-- Apply any fixed Boolean operation to an efficiently computed bit. -/
+theorem IsPolyTime.bool₁ {f : γ → Bool} (hf : IsPolyTime encode (fun a => [f a]))
+    (op : Bool → Bool) : IsPolyTime encode (fun a => [op (f a)]) := by
+  simpa using hf.map op
+
 /-- Combine two efficiently computed bits by any fixed Boolean operation. -/
 theorem IsPolyTime.bool₂ {f g : γ → Bool}
     (hf : IsPolyTime encode (fun a => [f a])) (hg : IsPolyTime encode (fun a => [g a]))

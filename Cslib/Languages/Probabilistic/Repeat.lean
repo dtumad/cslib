@@ -47,6 +47,26 @@ theorem replicate_succ (count : ℕ) (program : OracleComp Query Response α) :
       List.cons first <$> replicate count program := by
   simp only [replicate, bind_pure_comp]
 
+/-- Splitting a repetition budget concatenates the two sampled lists in execution order. -/
+theorem replicate_add (first second : ℕ) (program : OracleComp Query Response α) :
+    replicate (first + second) program = (do
+      let front ← replicate first program
+      let back ← replicate second program
+      return front ++ back) := by
+  induction first with
+  | zero => simp
+  | succ first ih =>
+    simp only [Nat.succ_add, replicate_succ, ih, bind_assoc, bind_map_left, map_bind,
+      map_pure, List.cons_append]
+
+/-- Split off the last draw of a repeated program. -/
+theorem replicate_snoc (count : ℕ) (program : OracleComp Query Response α) :
+    replicate (count + 1) program = (do
+      let front ← replicate count program
+      (fun last => front ++ [last]) <$> program) := by
+  simpa only [replicate, bind_pure, bind_pure_comp, map_pure, Functor.map_map, Function.comp_def]
+    using replicate_add count 1 program
+
 /-- Count the true results of a bounded number of runs of a Boolean program. -/
 def countTrue (count : ℕ) (program : OracleComp Query Response Bool) :
     OracleComp Query Response ℕ :=

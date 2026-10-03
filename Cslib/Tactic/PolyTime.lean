@@ -75,6 +75,11 @@ theorem replicate_false_rule {α : Type} {encode : α → Word} {count : α → 
     (hcount : IsPolyTime encode (fun a => List.replicate (count a) true)) :
     IsPolyTime encode (fun a => List.replicate (count a) false) := hcount.replicate false
 
+/-- Fix the Boolean operation before solving its argument certificate. -/
+theorem bool₁_rule {α : Type} {encode : α → Word} (op : Bool → Bool)
+    {f : α → Bool} (hf : IsPolyTime encode (fun a => [f a])) :
+    IsPolyTime encode (fun a => [op (f a)]) := hf.bool₁ op
+
 /-- Fix the Boolean operation before solving its two argument certificates. -/
 theorem bool₂_rule {α : Type} {encode : α → Word} (op : Bool → Bool → Bool)
     {f g : α → Bool} (hf : IsPolyTime encode (fun a => [f a]))
@@ -102,20 +107,22 @@ open Lean Meta Elab Tactic in
 private meta def polytimeBool : TacticM Unit := withMainContext do
   let target := (← Core.betaReduce (← instantiateMVars (← getMainTarget))).consumeMData
   unless target.isAppOf ``IsPolyTime do throwError "expected a polynomial-time goal"
-  let op ← lambdaTelescope target.getAppArgs.back! fun inputs body => do
+  let (rule, op) ← lambdaTelescope target.getAppArgs.back! fun inputs body => do
     unless body.isAppOf ``List.cons && body.getAppArgs.back!.isAppOf ``List.nil do
       throwError "expected a Boolean result"
-    let bit := body.getAppArgs[1]!
+    let bit := body.getAppArgs[1]!.consumeMData
     let args := bit.getAppArgs
-    unless args.size ≥ 2 do throwError "expected a binary Boolean operation"
-    let op := mkAppN bit.getAppFn (args.extract 0 (args.size - 2))
-    if inputs.any (fun input => op.containsFVar input.fvarId!) then
-      throwError "the operation depends on the input"
     let bool := mkConst ``Bool
-    unless ← isDefEq (← inferType op) (← mkArrow bool (← mkArrow bool bool)) do
-      throwError "expected a binary Boolean operation"
-    return op
-  applyWithArguments ``bool₂_rule #[(`op, op)]
+    for (arity, rule) in [(1, ``bool₁_rule), (2, ``bool₂_rule)] do
+      if args.size < arity then continue
+      let op := mkAppN bit.getAppFn (args.extract 0 (args.size - arity))
+      if op.hasExprMVar then continue
+      if inputs.any (fun input => op.containsFVar input.fvarId!) then continue
+      let opType ← if arity == 1 then mkArrow bool bool
+        else mkArrow bool (← mkArrow bool bool)
+      if ← isDefEq (← inferType op) opType then return (rule, op)
+    throwError "expected a fixed unary or binary Boolean operation"
+  applyWithArguments rule #[(`op, op)]
 
 -- Rules invoked by name must be exported for clients using `module` and `public import`.
 /-- Rule for running a certified function on the first input field. -/
@@ -275,7 +282,7 @@ open Lean Meta Elab Tactic Cslib.Probability in
 private meta def polytimeEncoding : TacticM Unit := withMainContext do
   let target ← instantiateMVars (← getMainTarget)
   unless target.isAppOf ``IsPolyTime do throwError "expected a polynomial-time goal"
-  evalTactic (← `(tactic| simp only [boolEncoding, wordEncoding]))
+  evalTactic (← `(tactic| simp only [boolEncoding, wordEncoding, Function.Embedding.coeFn_mk]))
 
 -- Certify fully specified constant outputs before simplification expands large unary words.
 -- Normalization must not instantiate metavariables shared with other proof-search goals.
@@ -382,8 +389,12 @@ open Lean Meta Elab Tactic in
 private meta def polytimeIte : TacticM Unit := withMainContext do
   let target := (← Core.betaReduce (← instantiateMVars (← getMainTarget))).consumeMData
   unless target.isAppOf ``IsPolyTime do throwError "expected a polynomial-time goal"
-  let isIte ← lambdaTelescope target.getAppArgs.back! fun _ body => pure (body.isAppOf ``ite)
-  unless isIte do throwError "expected a conditional"
+  let (isIte, isBitIte) ← lambdaTelescope target.getAppArgs.back! fun _ body => pure
+    (body.isAppOf ``ite, body.isAppOf ``List.cons &&
+      body.getAppArgs.back!.isAppOf ``List.nil && body.getAppArgs[1]!.consumeMData.isAppOf ``ite)
+  unless isIte || isBitIte do throwError "expected a conditional"
+  if isBitIte then
+    evalTactic (← `(tactic| simp only [apply_ite (fun bit : Bool => [bit])]))
   evalTactic (← `(tactic| first | apply IsPolyTime.cond | apply IsPolyTime.ite))
 
 -- Resolve the collection's encoding before searching the callback. Otherwise Aesop may search
