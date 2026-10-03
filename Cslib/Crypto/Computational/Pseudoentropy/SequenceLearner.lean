@@ -35,7 +35,33 @@ interprets the learner's orientation bit, and is also the evaluator used by subs
 
 namespace Cslib.Crypto.Pseudoentropy.SequenceLearner
 
-open Probability Boosting
+open Probability Probability.PMF Boosting
+
+/-- Configure the loop at the learner's required correlation. The density denominator and
+inverse distinguishing gap determine the rate; the supplied bound covers signed descriptions. -/
+def parameters (confidence numerator densityBound inverseGap codeBound : ℕ) : Parameters :=
+  ⟨confidence, numerator, densityBound, 2 * inverseGap * dyadicSize densityBound, codeBound⟩
+
+/-- A positive density numerator and the configured rate meet the learner's correlation budget. -/
+theorem parameters_gamma_le (confidence numerator densityBound inverseGap codeBound : ℕ)
+    (hvalid : (parameters confidence numerator densityBound inverseGap codeBound).Valid)
+    (hgap : 0 < inverseGap) :
+    (parameters confidence numerator densityBound inverseGap codeBound).gamma ≤
+      1 / (2 * inverseGap) := by
+  let params := parameters confidence numerator densityBound inverseGap codeBound
+  have hden : (0 : ℝ) < params.denominator := by exact_mod_cast params.denominator_pos
+  have hrate : (0 : ℝ) < params.inverseRate := by exact_mod_cast params.inverseRate_pos
+  have hnum : (1 : ℝ) ≤ numerator := by exact_mod_cast hvalid.1
+  have hgap' : (0 : ℝ) < inverseGap := by exact_mod_cast hgap
+  have hbudget : 2 * (inverseGap : ℝ) * params.denominator ≤ params.inverseRate := by
+    exact_mod_cast (lt_dyadicSize (2 * inverseGap * dyadicSize densityBound)).le
+  change params.gamma ≤ _
+  apply (div_le_iff₀ hvalid.delta_pos).mpr
+  change 1 / (params.inverseRate : ℝ) ≤ 1 / (2 * inverseGap) *
+    (numerator / (params.denominator : ℝ))
+  rw [one_div_mul_eq_div, div_div]
+  apply (div_le_div_iff₀ hrate (mul_pos hden (mul_pos (by norm_num) hgap'))).mpr
+  nlinarith
 
 /-- Sample the current soft weight on a fresh labeled observation. -/
 noncomputable def mask (evaluate : Word → Word → Bool) (params : Parameters) (state : State)
@@ -381,6 +407,55 @@ theorem predict_error (source : ProbComp α) (observe : α → Word) (truth : α
     ring
   rw [hbudget] at h
   simpa only [predict, ProbComp.eval_bind, ProbComp.eval_map, PMF.map_bind] using h
+
+/-- Extraction error is the only additional loss when the complete reduction starts from a
+test of hashed labels. The statistical premise is needed only at dense boosting states. -/
+theorem predict_extracted_error {Seed Output : Type}
+    (source : ProbComp α) (observe : α → Word) (truth : α → Bool)
+    (evaluate : Word → Word → Bool) (base : Word) (count c d width inverseGap : ℕ)
+    (params : Parameters) (seed : ProbComp Seed) (hash : Seed → Word → Output)
+    (test : List Word × Seed × Output → ProbComp Bool)
+    (ideal : PMF (List Word × Seed × Output)) {ε : ℝ}
+    (hparams : params.Valid) (hgap : 0 < inverseGap)
+    (hgamma : params.gamma ≤ 1 / (2 * inverseGap))
+    (hwidth : ∀ value ∈ (ProbComp.eval source).support, (observe value).length ≤ width)
+    (hbound : SavedPrediction.codeBound base.length count c d width + 1 ≤ params.codeBound)
+    (hrealize : ∀ state value, value ∈ (ProbComp.eval source).support →
+      ProbComp.eval ((fun code => evaluate code (observe value)) <$>
+        candidates (signedPredict evaluate) ((fun x => (observe x, truth x)) <$> source)
+          base count c d width params state) =
+        ProbComp.eval (maskedSequencePredictor source observe truth
+          (fun x => mask (signedPredict evaluate) params state (observe x, truth x))
+          count (fun samples => extractLabels seed hash samples >>= test) (observe value)))
+    (hclose : ∀ state : State,
+      params.delta ≤ density (ProbComp.eval source) params.rate
+        (fun x => state.margin (fun code x => signedPredict evaluate code (observe x)) truth x -
+          state.threshold) →
+      dist (ProbComp.eval (OracleComp.replicate count (maskedSample source observe truth
+        (fun x => mask (signedPredict evaluate) params state (observe x, truth x))) >>=
+          extractLabels seed hash)) ideal ≤ ε)
+    (hdistinguish : (dyadicSize count : ℝ) / inverseGap + ε ≤
+      Game.advantage (ProbComp.eval (OracleComp.replicate count
+        ((fun x => (observe x, truth x)) <$> source) >>=
+          fun samples => extractLabels seed hash samples >>= test))
+        (ideal.bind (fun output => ProbComp.eval (test output)))) :
+    (ProbComp.eval (do
+      let x ← source
+      (fun answer => answer == truth x) <$> predict evaluate
+        ((fun x => (observe x, truth x)) <$> source) base count c d width inverseGap params
+        (observe x)) false).toReal ≤
+      params.delta / 2 - 1 / params.predictionInverseTolerance +
+        failureBound params inverseGap := by
+  apply predict_error source observe truth evaluate base count c d width inverseGap params
+    (fun samples => extractLabels seed hash samples >>= test)
+    hparams hgap hgamma hwidth hbound hrealize
+  intro state hdense
+  have h := extractLabels_sequence_gap ((fun x => (observe x, truth x)) <$> source)
+    (maskedSample source observe truth
+      (fun x => mask (signedPredict evaluate) params state (observe x, truth x)))
+    count seed hash test ideal (hclose state hdense)
+  change _ ≤ advantage _ _
+  exact (le_sub_iff_add_le.mpr hdistinguish).trans h
 
 end Correctness
 

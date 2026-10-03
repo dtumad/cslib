@@ -40,6 +40,15 @@ def extractLabels {Observation Seed Output : Type} (seed : ProbComp Seed)
   let key ← seed
   return (samples.map Prod.fst, key, hash key (samples.map Prod.snd))
 
+/-- Preserve the sampled observations and public seed, replacing the extracted labels by an
+independent uniform output. The ambient observation and seed types need not be finite. -/
+noncomputable def extractLabelsIdeal {Observation Seed Output : Type}
+    [Fintype Output] [Nonempty Output] (source : ProbComp Observation) (count : ℕ)
+    (seed : ProbComp Seed) : PMF (List Observation × Seed × Output) :=
+  (ProbComp.eval (OracleComp.replicate count source)).bind (fun observed =>
+    ((ProbComp.eval seed).bind (fun s => (PMF.uniformOfFintype Output).map (s, ·))).map
+      (observed, ·))
+
 /-- Re-encoding the public observations commutes with extraction of the hidden labels. -/
 theorem extractLabels_map_observation {α β Seed Output : Type} (observe : α → β)
     (seed : ProbComp Seed) (hash : Seed → Word → Output) (samples : List (α × Bool)) :
@@ -208,6 +217,34 @@ theorem maskedSample_mass_ge {α β : Type} (source : ProbComp α)
   exact (mul_le_mul (hsource value hvalue) (hbitMass.trans hmap)
     (div_nonneg hmaskMass.1 (by norm_num)) ENNReal.toReal_nonneg).trans hbind
 
+/-- A dyadic lower bound on positive mask probabilities bounds the extra information carried
+by a masked label, independently of how the mask was obtained. -/
+theorem maskedSample_dyadic_mass_ge {α β : Type} (source : ProbComp α)
+    (observe : α → β) (truth : α → Bool) (mask : α → ProbComp Bool) (sourceBits bound : ℕ)
+    (hsource : ∀ value ∈ (ProbComp.eval source).support,
+      (2 : ℝ) ^ (-(sourceBits : ℝ)) ≤ (ProbComp.eval source value).toReal)
+    (hmask : ∀ value ∈ (ProbComp.eval source).support, 0 < winProbability (mask value) →
+      1 / (dyadicSize bound : ℝ) ≤ winProbability (mask value))
+    (pair : β × Bool) (hpair : pair ∈ (ProbComp.eval
+      (maskedSample source observe truth mask)).support) :
+    (2 : ℝ) ^ (-((sourceBits + Nat.log 2 bound + 2 : ℕ) : ℝ)) ≤
+      (ProbComp.eval (maskedSample source observe truth mask) pair).toReal := by
+  have hdenominator : (0 : ℝ) < dyadicSize bound := by exact_mod_cast dyadicSize_pos bound
+  have hdenominator_one : (1 : ℝ) ≤ dyadicSize bound := by
+    exact_mod_cast Nat.succ_le_of_lt (dyadicSize_pos bound)
+  have h := maskedSample_mass_ge source observe truth mask
+    (sourceMass := (2 : ℝ) ^ (-(sourceBits : ℝ)))
+    (maskMass := 1 / dyadicSize bound)
+    ⟨by positivity, (div_le_iff₀ hdenominator).mpr (by simpa using hdenominator_one)⟩
+    hsource hmask pair hpair
+  have hpower : (2 : ℝ) ^ (-((sourceBits + Nat.log 2 bound + 2 : ℕ) : ℝ)) =
+      (2 : ℝ) ^ (-(sourceBits : ℝ)) * ((1 / dyadicSize bound) / 2) := by
+    simp only [Real.rpow_neg (by norm_num : (0 : ℝ) ≤ 2), Real.rpow_natCast, dyadicSize, pow_add]
+    field_simp
+    push_cast
+    ring
+  simpa only [hpower] using h
+
 /-- A source with `sourceBits` bits of pointwise information gains at most `log₂ bound + 2`
 bits from its dyadic mask and fresh label coin. The votes and threshold do not enter this bound. -/
 theorem maskedSample_weight_mass_ge {α β : Type} (source : ProbComp α)
@@ -221,29 +258,41 @@ theorem maskedSample_weight_mass_ge {α β : Type} (source : ProbComp α)
     (2 : ℝ) ^ (-((sourceBits + Nat.log 2 bound + 2 : ℕ) : ℝ)) ≤
       (ProbComp.eval (maskedSample source observe truth
         (fun value => Boosting.sampleWeight bound numerator threshold (votes value)
-          (truth value))) pair).toReal := by
-  have hdenominator : (0 : ℝ) < dyadicSize bound := by exact_mod_cast dyadicSize_pos bound
-  have hdenominator_one : (1 : ℝ) ≤ dyadicSize bound := by
-    exact_mod_cast Nat.succ_le_of_lt (dyadicSize_pos bound)
-  have h := maskedSample_mass_ge source observe truth
-    (fun value => Boosting.sampleWeight bound numerator threshold (votes value) (truth value))
-    (sourceMass := (2 : ℝ) ^ (-(sourceBits : ℝ)))
-    (maskMass := 1 / dyadicSize bound)
-    ⟨by positivity, (div_le_iff₀ hdenominator).mpr (by simpa using hdenominator_one)⟩
-    hsource (fun value _ hpositive => inv_dyadicSize_le_eval_sampleDyadicCoin bound _ hpositive)
-    pair hpair
-  have hpower : (2 : ℝ) ^ (-((sourceBits + Nat.log 2 bound + 2 : ℕ) : ℝ)) =
-      (2 : ℝ) ^ (-(sourceBits : ℝ)) * ((1 / dyadicSize bound) / 2) := by
-    simp only [Real.rpow_neg (by norm_num : (0 : ℝ) ≤ 2), Real.rpow_natCast, dyadicSize, pow_add]
-    field_simp
-    push_cast
-    ring
-  simpa only [hpower] using h
+          (truth value))) pair).toReal :=
+  maskedSample_dyadic_mass_ge source observe truth _ sourceBits bound hsource
+    (fun _ _ => inv_dyadicSize_le_eval_sampleDyadicCoin bound _) pair hpair
 
 /-- For every polynomial mask precision, eventually the extra information is at most `n + 2`
-bits. This bound is independent of its polynomial's degree and works simultaneously for all
-vote collections, rate numerators, and thresholds. Only the starting index may depend on the
-precision family, so a generator's repetition exponent need not depend on its distinguisher. -/
+bits, simultaneously for every mask with the given pointwise bound. Only the starting index
+depends on the polynomial's degree, so the extraction schedule can be fixed in advance. -/
+theorem maskedSample_dyadic_mass_ge_eventually {α β : ℕ → Type}
+    (source : ∀ n, ProbComp (α n)) (observe : ∀ n, α n → β n) (truth : ∀ n, α n → Bool)
+    (sourceBits bound : ℕ → ℕ) (hbound : PolynomiallyBounded bound)
+    (hsource : ∀ n value, value ∈ (ProbComp.eval (source n)).support →
+      (2 : ℝ) ^ (-(sourceBits n : ℝ)) ≤ (ProbComp.eval (source n) value).toReal) :
+    ∀ᶠ n in Filter.atTop, ∀ mask : α n → ProbComp Bool,
+      (∀ value ∈ (ProbComp.eval (source n)).support, 0 < winProbability (mask value) →
+        1 / (dyadicSize (bound n) : ℝ) ≤ winProbability (mask value)) →
+      ∀ pair ∈ (ProbComp.eval (maskedSample (source n) (observe n) (truth n) mask)).support,
+      (2 : ℝ) ^ (-((sourceBits n + n + 2 : ℕ) : ℝ)) ≤
+        (ProbComp.eval (maskedSample (source n) (observe n) (truth n) mask) pair).toReal := by
+  have hvanishes := negligible_polynomial_mul
+    (negligible_geometric (ratio := (1 / 2 : ℝ)) (by norm_num)) (fun _ => by positivity) hbound 0
+  simp only [pow_zero, one_mul] at hvanishes
+  filter_upwards [hvanishes.eventually_le_const (by norm_num : (0 : ℝ) < 1)] with n hn
+  have hpow : bound n ≤ 2 ^ n := by
+    have hratio : (bound n : ℝ) / (2 : ℝ) ^ n ≤ 1 := by
+      simpa only [one_div, inv_pow, div_eq_mul_inv, one_mul] using hn
+    exact_mod_cast (div_le_one (by positivity : (0 : ℝ) < 2 ^ n)).mp hratio
+  have hlog : Nat.log 2 (bound n) ≤ n := by
+    simpa only [Nat.log_pow (by decide : 1 < 2)] using Nat.log_mono_right (b := 2) hpow
+  intro mask hmask pair hpair
+  refine le_trans ?_ (maskedSample_dyadic_mass_ge (source n) (observe n) (truth n) mask
+    (sourceBits n) (bound n) (hsource n) hmask pair hpair)
+  apply Real.rpow_le_rpow_of_exponent_le (by norm_num)
+  exact neg_le_neg (by exact_mod_cast Nat.add_le_add_right (Nat.add_le_add_left hlog _) 2)
+
+/-- The same eventual information bound holds uniformly over all executable vote masks. -/
 theorem maskedSample_weight_mass_ge_eventually {α β : ℕ → Type}
     (source : ∀ n, ProbComp (α n)) (observe : ∀ n, α n → β n) (truth : ∀ n, α n → Bool)
     (sourceBits bound : ℕ → ℕ) (hbound : PolynomiallyBounded bound)
@@ -257,21 +306,46 @@ theorem maskedSample_weight_mass_ge_eventually {α β : ℕ → Type}
         (ProbComp.eval (maskedSample (source n) (observe n) (truth n) (fun value =>
           Boosting.sampleWeight (bound n) numerator threshold (votes value) (truth n value)))
             pair).toReal := by
-  have hvanishes := negligible_polynomial_mul
-    (negligible_geometric (ratio := (1 / 2 : ℝ)) (by norm_num)) (fun _ => by positivity) hbound 0
-  simp only [pow_zero, one_mul] at hvanishes
-  filter_upwards [hvanishes.eventually_le_const (by norm_num : (0 : ℝ) < 1)] with n hn
-  have hpow : bound n ≤ 2 ^ n := by
-    have hratio : (bound n : ℝ) / (2 : ℝ) ^ n ≤ 1 := by
-      simpa only [one_div, inv_pow, div_eq_mul_inv, one_mul] using hn
-    exact_mod_cast (div_le_one (by positivity : (0 : ℝ) < 2 ^ n)).mp hratio
-  have hlog : Nat.log 2 (bound n) ≤ n := by
-    simpa only [Nat.log_pow (by decide : 1 < 2)] using Nat.log_mono_right (b := 2) hpow
-  intro votes numerator threshold pair hpair
-  refine le_trans ?_ (maskedSample_weight_mass_ge (source n) (observe n) (truth n) votes
-    (sourceBits n) (bound n) numerator threshold (hsource n) pair hpair)
-  apply Real.rpow_le_rpow_of_exponent_le (by norm_num)
-  exact neg_le_neg (by exact_mod_cast Nat.add_le_add_right (Nat.add_le_add_left hlog _) 2)
+  filter_upwards [maskedSample_dyadic_mass_ge_eventually source observe truth sourceBits bound
+    hbound hsource] with n hn
+  intro votes numerator threshold
+  exact hn _ (fun _ _ => inv_dyadicSize_le_eval_sampleDyadicCoin (bound n) _)
+
+/-- Any sufficiently dense mask can supply the repeated-label extractor. The source-information
+premise concerns the finite latent draw; the public observation type may be infinite. -/
+theorem maskedSample_extract {α β Seed Output : Type} [Finite α]
+    [Fintype Seed] [Fintype Output] [Nonempty Output]
+    (source : ProbComp α) (observe : α → β) (truth : α → Bool) (mask : α → ProbComp Bool)
+    (count informationBits : ℕ)
+    (hmass : ∀ pair ∈ (ProbComp.eval (maskedSample source id truth mask)).support,
+      (2 : ℝ) ^ (-(informationBits : ℝ)) ≤
+        (ProbComp.eval (maskedSample source id truth mask) pair).toReal)
+    (seed : ProbComp Seed) (hash : Seed → Word → Output)
+    (hhash : IsTwoUniversal (ProbComp.eval seed)
+      (fun s (bits : Fin count → Bool) => hash s (List.ofFn bits))) {δ slack : ℝ}
+    (hdensity : δ ≤ winProbability (source >>= mask)) (hslack : 0 ≤ slack) :
+    dist (ProbComp.eval (OracleComp.replicate count (maskedSample source observe truth mask) >>=
+        extractLabels seed hash))
+      ((ProbComp.eval (OracleComp.replicate count (observe <$> source))).bind (fun observed =>
+        ((ProbComp.eval seed).bind (fun s =>
+          (PMF.uniformOfFintype Output).map (s, ·))).map (observed, ·))) ≤
+      2 * Real.exp (-2 * slack ^ 2 / (count * (informationBits : ℝ) ^ 2)) +
+        Real.sqrt (Fintype.card Output * (2 * (2 : ℝ) ^ (-(count * δ - slack)))) / 2 := by
+  let := Fintype.ofFinite α
+  have hentropy := maskedSample_entropy_ge source id truth mask
+  rw [winProbability_bind] at hdensity
+  have hfull := extractLabels_distance_le (maskedSample source id truth mask) count informationBits
+    hmass seed hash hhash (hdensity.trans hentropy) hslack
+  have hmap := (dist_map_le _ _
+    (fun result : List α × Seed × Output => (result.1.map observe, result.2))).trans hfull
+  rw [← eval_replicate_extractLabels_map observe] at hmap
+  have hmasked : maskedSample source observe truth mask =
+      (fun sample => (observe sample.1, sample.2)) <$> maskedSample source id truth mask := by
+    simp only [maskedSample, map_bind, Functor.map_map, id_eq]
+  rw [← hmasked] at hmap
+  rw [OracleComp.replicate_map count source observe]
+  simpa only [ProbComp.eval_replicate, ProbComp.eval_map, maskedSample_map_fst, PMF.map_id,
+    PMF.bind_map, PMF.map_bind, PMF.map_comp, Function.comp_def, List.map_ofFn] using hmap
 
 /-- Independent masked labels contain at least the soft density per sample for extraction.
 All observations and the hash seed remain public, and the masked and original public marginals
@@ -298,25 +372,11 @@ theorem maskedSample_weight_extract {α β Seed Output : Type} [Fintype α]
           (PMF.uniformOfFintype Output).map (s, ·))).map (observed, ·))) ≤
       2 * Real.exp (-2 * slack ^ 2 / (count * (sourceBits + Nat.log 2 bound + 2 : ℕ) ^ 2)) +
         Real.sqrt (Fintype.card Output * (2 * (2 : ℝ) ^ (-(count * δ - slack)))) / 2 := by
-  have hfull := extractLabels_distance_le (maskedSample source id truth (fun value =>
-      Boosting.sampleWeight bound numerator threshold (votes value) (truth value))) count
-      (sourceBits + Nat.log 2 bound + 2)
-      (maskedSample_weight_mass_ge source id truth votes sourceBits bound numerator
-        threshold hsource) seed hash hhash
-      (hdensity.trans (maskedSample_weight_entropy_ge source id truth votes bound
-        numerator threshold)) hslack
-  have hmap := (dist_map_le _ _
-    (fun result : List α × Seed × Output => (result.1.map observe, result.2))).trans hfull
-  rw [← eval_replicate_extractLabels_map observe] at hmap
-  have hmasked : maskedSample source observe truth (fun value =>
-      Boosting.sampleWeight bound numerator threshold (votes value) (truth value)) =
-      (fun sample => (observe sample.1, sample.2)) <$>
-        maskedSample source id truth (fun value =>
-          Boosting.sampleWeight bound numerator threshold (votes value) (truth value)) := by
-    simp only [maskedSample, map_bind, Functor.map_map, id_eq]
-  rw [← hmasked] at hmap
-  rw [OracleComp.replicate_map count source observe]
-  simpa only [ProbComp.eval_replicate, ProbComp.eval_map, maskedSample_map_fst, PMF.map_id,
-    PMF.bind_map, PMF.map_bind, PMF.map_comp, Function.comp_def, List.map_ofFn] using hmap
+  apply maskedSample_extract source observe truth _ count (sourceBits + Nat.log 2 bound + 2)
+    (maskedSample_weight_mass_ge source id truth votes sourceBits bound numerator threshold hsource)
+    seed hash hhash _ hslack
+  simpa only [winProbability, Game.winProbability, ProbComp.eval_bind,
+    Boosting.sampleWeight_density]
+    using hdensity
 
 end Cslib.Crypto.Pseudoentropy

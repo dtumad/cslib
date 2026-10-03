@@ -44,6 +44,22 @@ theorem ofFn_wordBits {n : ℕ} {word : Word} (hlen : word.length = n) :
   intro i hi hi'
   simp [wordBits, List.getElem?_eq_getElem hi']
 
+/-- The fixed-width representation reads a bounded range of indices, padding missing bits. -/
+theorem ofFn_wordBits_eq_range (n : ℕ) (word : Word) :
+    List.ofFn (wordBits n word) = (List.range n).map (fun i => word[i]?.getD false) := by
+  apply List.ext_getElem (by simp)
+  intro i hi hi'
+  simp [wordBits]
+
+/-- Truncating or padding a word to a supplied unary width is uniformly polynomial time. -/
+theorem wordBits_isPolyTime {α : Type} {input : α ↪ Word} {n : α → ℕ} {word : α → Word}
+    (hn : IsPolyTime input (fun a => unaryEncoding (n a))) (hword : IsPolyTime input word) :
+    IsPolyTime input (fun a => List.ofFn (wordBits (n a) (word a))) := by
+  simp_rw [ofFn_wordBits_eq_range]
+  polytime
+
+attribute [aesop safe apply (rule_sets := [PolyTime])] wordBits_isPolyTime
+
 /-- The row-major bijection between a flat bitstring and a matrix of masks. -/
 def maskEquiv (k n : ℕ) : BitString (k * n) ≃ (Fin k → BitString n) :=
   (Equiv.arrowCongr finProdFinEquiv.symm (Equiv.refl Bool)).trans

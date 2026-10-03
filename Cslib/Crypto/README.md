@@ -454,13 +454,17 @@ from a certified sequence test and proves an eventual prediction advantage. The
 [masked-source extraction bound](Computational/Pseudoentropy/MaskedExtraction.lean) now gives
 the statistical error for every sufficiently dense vote collection, preserving all observations
 and the public hash seed, including observations represented as arbitrary words. Its information
-bound eventually charges only `n + 2` extra bits for
-any polynomial mask precision, independently of its degree. Explicit uniform asymptotic parameter
-choices and the application to a pseudoentropy pair remain to be proved.
-Following the write-up's set-oracle formulation would additionally require a cached membership
-simulation.
-The three-source game argument and conversion of this pair into an expanding generator also remain
-to be proved.
+bound eventually charges only `n + 2` extra bits for any polynomial mask precision, independently
+of its degree. The [dense-mask theorem](Computational/Pseudoentropy/DenseMask.lean) now applies
+the uniform learner to a pseudoentropy pair. An
+[explicit polynomial schedule](Computational/Pseudoentropy/ExtractionSchedule.lean) and the
+[word extraction theorem](Computational/Pseudoentropy/WordExtraction.lean) give negligible
+distinguishing advantage while retaining every observation and the complete matrix seed.
+The client supplies efficient density and output schedules satisfying the entropy budget; all
+sampling and hashing have strict PPT certificates. The three-source game argument, uniform
+removal of unknown entropy parameters, and conversion into an expanding generator remain to
+be proved. The construction uses fresh soft masks; following the write-up's set-oracle
+formulation would additionally require a cached membership simulation.
 The [computational guide](Computational/README.md#toward-general-one-way-functions) records the
 remaining obligations and cites
 [Holenstein's write-up](https://crypto.ethz.ch/publications/files/Holens06.pdf) and the

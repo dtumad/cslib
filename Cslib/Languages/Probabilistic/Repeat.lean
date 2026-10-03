@@ -95,6 +95,14 @@ namespace ProbComp
 
 variable {α Seed : Type*} [Fintype Seed] [Nonempty Seed]
 
+/-- Repetition preserves equality of closed-program distributions, including infinite outputs. -/
+theorem eval_replicate_congr {first second : ProbComp α} (h : eval first = eval second)
+    (count : ℕ) : eval (OracleComp.replicate count first) =
+      eval (OracleComp.replicate count second) := by
+  induction count with
+  | zero => rfl
+  | succ count ih => simp only [OracleComp.replicate_succ, eval_bind, eval_map, h, ih]
+
 /-- Every supported repeated output has the prescribed length and supported elements. -/
 theorem mem_support_replicate_iff (count : ℕ) (program : ProbComp α)
     (values : List α) :

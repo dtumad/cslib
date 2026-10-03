@@ -75,6 +75,18 @@ def HasGap (pair : SamplablePair) (gap : ℕ → ℝ) : Prop :=
     ∀ᶠ n in atTop, 2 * winProbability (predictionGame pair.sample adversary n) - 1 ≤
       1 - PMF.conditionalEntropy (pair.joint n) - gap n
 
+/-- The pseudoentropy threshold equivalently lower-bounds each efficient predictor's error. -/
+theorem HasGap.eventually_error_ge {pair : SamplablePair} {gap : ℕ → ℝ}
+    (hgap : pair.HasGap gap) (adversary : Distinguisher)
+    (hefficient : IsPPT boolEncoding adversary) :
+    ∀ᶠ n in atTop, (PMF.conditionalEntropy (pair.joint n) + gap n) / 2 ≤
+      (ProbComp.eval (predictionGame pair.sample adversary n) false).toReal := by
+  filter_upwards [hgap adversary hefficient] with n hn
+  have hsum := PMF.sum_toReal (ProbComp.eval (predictionGame pair.sample adversary n))
+  simp only [Fintype.sum_bool] at hsum
+  simp only [winProbability, Game.winProbability] at hn
+  linarith
+
 /-- A smaller requested gap follows from any larger proved gap. -/
 theorem HasGap.mono {pair : SamplablePair} {gap smaller : ℕ → ℝ} (h : pair.HasGap gap)
     (hle : ∀ n, smaller n ≤ gap n) : pair.HasGap smaller := by

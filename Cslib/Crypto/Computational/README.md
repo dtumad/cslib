@@ -107,6 +107,9 @@ The first extraction ingredients are checked:
 | [Boosting/Learner](Pseudoentropy/Boosting/Learner.lean) and [Learning](Pseudoentropy/Learning.lean) | Uniform sampling, sign selection, and weighted validation turn a noticeable sequence gap into the boosting learner's correlation contract, with strict PPT certificates and explicit failure bounds. |
 | [SequenceLearner](Pseudoentropy/SequenceLearner.lean) | One certified sequence test supplies the concrete adaptive learner and final strict PPT predictor. The complete sampling-failure bound is negligible for polynomial parameters and at least `n` confidence bits. |
 | [MaskedExtraction](Pseudoentropy/MaskedExtraction.lean) | Extracting repeated soft-masked labels preserves all observations and the public hash seed. Its explicit statistical error bounds the loss in the sequence reduction; polynomial mask precision eventually adds at most `n + 2` information bits, independently of its degree. |
+| [DenseMask](Pseudoentropy/DenseMask.lean) | A pseudoentropy pair's prediction bound gives every uniform sequence test a dense mask with any prescribed inverse-polynomial distinguishing bound and a lower bound on its positive probabilities. |
+| [ExtractionSchedule](Pseudoentropy/ExtractionSchedule.lean) and [LabelExtraction](Pseudoentropy/LabelExtraction.lean) | An explicit polynomial repetition schedule makes label extraction computationally uniform under an admissible entropy budget, independently of the test's running-time degree. |
+| [WordExtraction](Pseudoentropy/WordExtraction.lean) | Executable matrix hashing, exact agreement with the finite extraction laws, and a security theorem for ordinary strict PPT tests on observations, seed, and output. |
 | [LinearHash](../../Computability/Probabilistic/LinearHash.lean) | Boolean-matrix hashing, its word implementation, its PPT sampler, and exact agreement with the finite extraction experiment. |
 | [Extraction](Extraction.lean) | A source indistinguishable from a sufficiently diffuse comparison source yields computationally uniform extraction. |
 
@@ -260,7 +263,7 @@ may live in an infinite type: extraction first reveals the finite source draw, t
 through the observation map.
 `extractedSequence_learn_error_pow` then pays this extraction error before applying the learner:
 advantage at least `epsilon + dyadicSize count / r` yields the stated correlation guarantee.
-The final construction still needs explicit uniform repetition and precision choices.
+The asymptotic application below supplies uniform repetition and precision choices.
 
 The [sampled decisions](Pseudoentropy/Boosting/Decision.lean) implement the overlapping density
 and majority guards from Figure 2 and Claim 2.6 of the uniform hard-core write-up. With weight
@@ -327,18 +330,34 @@ The [sequence learner example](../../../CslibTests/ComputationalCryptoSequenceLe
 starts from a certified test on visible labels and constructs the entire strict PPT predictor.
 It proves eventual error at most `1/4 - 1/32768`, including the actual sampled learner's failures.
 
-The uniform asymptotic parameter choices and the application to a pseudoentropy pair remain
-to be proved.
-Following the write-up's set-oracle route would additionally require a cached membership simulation.
-The clock replaces the write-up's worst-dense-set stopping test; the current program does not
-implement that test. The complete sequence reduction does not yet prove the uniform hard-core lemma.
+[`HasGap.eventually_exists_mask`](Pseudoentropy/DenseMask.lean) applies the learner to a
+pseudoentropy pair. Every certified sequence test eventually admits a mask of the requested
+density with distinguishing advantage below `dyadicSize count / inverseGap`. Its density and
+precision schedules are polynomial-time computations, and every positive mask probability has
+an explicit inverse-polynomial lower bound. This is the dense-mask consequence needed for the
+sequence reduction. The proof uses fresh soft masks and a clocked learner; it does not implement
+the write-up's worst-dense-set stopping test or a cached set-membership oracle.
+
+[`HasGap.extract_word_labels`](Pseudoentropy/WordExtraction.lean) now combines this consequence
+with statistical extraction. If `L` is the sampler's seed length, set
+`count = 32 * (n + 1) * (L + n + 2)^2 * (inverseSlack + 1)^2` and
+`slack = 8 * (n + 1) * (L + n + 2)^2 * (inverseSlack + 1)`.
+For an efficiently computed dyadic density `delta <= H(label | observation) + gap`, the budget
+`outputBits + 2 * slack <= count * delta` suffices for negligible distinguishing advantage.
+Eventually the statistical error is at most `2 * exp(-4 * (n + 1)) + 2^(-n)`, and the repetition count
+does not depend on the test's running-time degree. Both experiments reveal every observation
+and the full matrix seed. Sampling, hashing, and padding are charged to strict PPT through the
+ordinary word interface. The [extraction examples](../../../CslibTests/ComputationalCryptoExtraction.lean)
+instantiate the numerical budget at a known half-bit threshold.
 
 `ComputationallyIndistinguishable.extract_uniform` still assumes its comparison source and
 negligible collision bound. Negligible collisions of the OWF output alone do not give the entropy
-surplus required for expansion. The remaining route needs the uniform hard-core lemma, the
-three-source game argument, removal of unknown entropy parameters, and a final uniform generator
-with stretch at every seed length. The Goldreich–Levin
-reduction now applies directly to arbitrary output words, with no length-preservation hypothesis.
+surplus required for expansion. The remaining route needs the three-source game argument,
+removal of unknown entropy parameters by a uniform reduction, and a final generator with stretch
+at every seed length. In the write-up's entropy grid, each candidate must first be amplified
+enough to pay for all candidates' independent seeds before their outputs are combined by XOR.
+The extraction theorem above requires efficient schedules; it does not permit entropy-dependent
+advice chosen separately at each input length.
 
 ## Definitions and conventions
 

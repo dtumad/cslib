@@ -35,6 +35,12 @@ def unaryEncoding : ℕ ↪ Word where
 
 @[simp] theorem unaryEncoding_apply (n : ℕ) : unaryEncoding n = List.replicate n true := rfl
 
+/-- A polynomial-time function on unary natural numbers has polynomially bounded values. -/
+theorem IsPolyTime.polynomiallyBounded {f : ℕ → ℕ}
+    (h : IsPolyTime unaryEncoding (fun n => unaryEncoding (f n))) : PolynomiallyBounded f := by
+  obtain ⟨c, d, hbound⟩ := h.length_le
+  exact ⟨c, d, fun n => by simpa only [unaryEncoding_apply, List.length_replicate] using hbound n⟩
+
 /-- Encode a pair using tagged bits for its first component and a delimiter before the second. -/
 def pairEncoding (left : α ↪ Word) (right : β ↪ Word) : (α × β) ↪ Word where
   toFun pair := List.BitPair.encode (left pair.1) (right pair.2)

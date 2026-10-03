@@ -7,8 +7,7 @@ Authors: Samuel Schlesinger
 module
 
 public import Cslib.Crypto.Computational.Extraction
-public import Cslib.Crypto.Computational.Pseudoentropy.Seed
-public import Cslib.Crypto.Computational.Pseudoentropy.MaskedExtraction
+public import Cslib.Crypto.Computational.Pseudoentropy.WordExtraction
 
 /-!
 # Extraction and entropy examples
@@ -140,6 +139,49 @@ theorem extractTraining_isPPT {source : ℕ → ProbComp (Word × Bool)}
       (pairEncoding wordEncoding wordEncoding)) (extractTraining source) := by
   unfold extractTraining
   ppt
+
+/-- The security theorem's repetition schedule composes with an arbitrary certified sampler.
+Both the source-seed bound and the output dimension may depend on the security parameter. -/
+example {source : ℕ → ProbComp (Word × Bool)} {sourceBits : ℕ → ℕ}
+    (hsource : IsPPTOn unaryEncoding (pairEncoding wordEncoding boolEncoding) source)
+    (hbits : IsPolyTime unaryEncoding (fun n => unaryEncoding (sourceBits n))) :
+    IsPPTOn unaryEncoding (pairEncoding (listEncoding wordEncoding)
+      (pairEncoding wordEncoding wordEncoding)) (fun n => do
+        let count := Pseudoentropy.ExtractionSchedule.count n (sourceBits n) 3
+        let samples ← OracleComp.replicate count (source n)
+        Pseudoentropy.extractWordLabels count n samples) := by
+  have hcount : IsPolyTime unaryEncoding
+      (fun n => unaryEncoding (Pseudoentropy.ExtractionSchedule.count n (sourceBits n) 3)) := by
+    apply Pseudoentropy.ExtractionSchedule.count_isPolyTime <;> polytime
+  ppt
+
+open Filter Pseudoentropy in
+/-- A known half-bit pseudoentropy threshold suffices to extract `n` computationally uniform
+labels. The test sees every observation and every matrix-seed bit. The proof discharges the
+repetition and slack budget using the stated half-bit threshold. -/
+theorem label_extraction_half {pair : SamplablePair} {gap : ℕ → ℝ}
+    (hpair : pair.HasGap gap) (saved : pair.SeedRealization)
+    (hentropy : ∀ᶠ n in atTop, (1 / 2 : ℝ) ≤ conditionalEntropy (pair.joint n) + gap n)
+    (test : ℕ → List Word × Word × Word → ProbComp Bool)
+    (htest : IsPPTOn (pairEncoding unaryEncoding (pairEncoding (listEncoding wordEncoding)
+      (pairEncoding wordEncoding wordEncoding))) boolEncoding (fun input => test input.1 input.2)) :
+    let count := fun n => ExtractionSchedule.count n (saved.length n) 3
+    Negligible (fun n => advantage
+      (OracleComp.replicate (count n) (pair.sample n) >>=
+        fun samples => extractWordLabels (count n) n samples >>= test n)
+      (extractWordLabelsIdeal (Prod.fst <$> pair.sample n) (count n) n >>= test n)) := by
+  apply hpair.extract_word_labels saved (outputBits := id) (inverseSlack := fun _ => 3)
+    (numerator := fun _ => 1) (densityBound := fun _ => 1)
+    (by polytime) (by polytime) (by polytime) (by polytime) ?_ ?_ test htest
+  · filter_upwards [hentropy] with n hn
+    norm_num [dyadicSize, hn]
+  · apply Filter.Eventually.of_forall
+    intro n
+    have hinformation : (1 : ℝ) ≤ ((saved.length n : ℝ) + n + 2) ^ 2 := by
+      have h : 1 ≤ (saved.length n + n + 2) ^ 2 := Nat.succ_le_of_lt (by positivity)
+      exact_mod_cast h
+    norm_num [ExtractionSchedule.count, ExtractionSchedule.slack, dyadicSize]
+    nlinarith [mul_nonneg (Nat.cast_nonneg n : (0 : ℝ) ≤ n) (sub_nonneg.mpr hinformation)]
 
 /-- A hidden-label-dependent mask still supplies half a bit per sample for extraction. The
 public observation is an empty word; one original label is masked and the other is retained.
