@@ -16,9 +16,10 @@ public import Mathlib.Data.Matrix.Mul
 /-!
 # Bitstrings and word programs
 
-Shared word representations, Boolean dot products, and row-major matrix parsing for cryptographic
-algorithms. A flat uniform bit tape gives exactly independent uniform rows. Efficiency certificates
-use the ordinary word and collection combinators, including on malformed or short input tapes.
+Shared word representations, XOR, Boolean dot products, and row-major matrix parsing for
+cryptographic algorithms. A flat uniform bit tape gives exactly independent uniform rows.
+Efficiency certificates use ordinary word and collection combinators, including on malformed
+or short input tapes.
 
 These operations were factored out of the Goldreich–Levin decoder so that decoding and universal
 hashing share their representations, sampling laws, and polynomial-time proofs.
@@ -148,6 +149,13 @@ def masksFromWord (k n : ℕ) (word : Word) : Fin k → BitString n :=
 def maskRow (dimension row : ℕ) (word : Word) : Word :=
   (List.range dimension).map (fun column => word[row * dimension + column]?.getD false)
 
+/-- Parsing a row agrees with the finite matrix representation, even on short tapes. -/
+theorem maskRow_eq_ofFn {count : ℕ} (dimension : ℕ) (row : Fin count) (word : Word) :
+    maskRow dimension row.val word = List.ofFn (masksFromWord count dimension word row) := by
+  apply List.ext_getElem (by simp [maskRow])
+  intro column hleft hright
+  simp [maskRow, masksFromWord, maskEquiv, wordBits, Nat.mul_comm, Nat.add_comm]
+
 /-- Read the mask tape as an ordinary list of rows, padding missing bits with false. -/
 def maskRows (count dimension : ℕ) (word : Word) : List Word :=
   (List.range count).map (fun row => maskRow dimension row word)
@@ -182,9 +190,8 @@ theorem maskRows_eq_ofFn (count dimension : ℕ) (word : Word) :
       List.ofFn (fun row => List.ofFn (masksFromWord count dimension word row)) := by
   apply List.ext_getElem (by simp [maskRows])
   intro row hleft hright
-  apply List.ext_getElem (by simp [maskRows, maskRow])
-  intro column hleft' hright'
-  simp [maskRows, maskRow, masksFromWord, maskEquiv, wordBits, Nat.mul_comm, Nat.add_comm]
+  simpa only [maskRows, List.getElem_map, List.getElem_range, List.getElem_ofFn] using
+    maskRow_eq_ofFn dimension ⟨row, by simpa using hright⟩ word
 
 /-- Reading fewer rows takes a prefix of the same matrix, including on short tapes. -/
 theorem masksFromWord_prefix {count rows dimension : ℕ} (h : rows ≤ count) (word : Word) :
@@ -207,6 +214,37 @@ theorem addMasks_isPolyTime {α : Type} {encode : α → Word} {n : α → ℕ}
     (hright : IsPolyTime encode (fun a => List.ofFn (right a))) :
     IsPolyTime encode (fun a => List.ofFn (left a + right a)) := by
   simpa only [ofFn_add] using hleft.zipWith hright Bool.xor
+
+/-- XOR a collection at the supplied width, treating missing bits as false. -/
+def xorWords (width : ℕ) (words : List Word) : Word :=
+  (List.range width).map fun bit =>
+    (words.map (fun word => word[bit]?.getD false)).foldl Bool.xor false
+
+/-- XOR returns exactly the declared width, even for an empty collection or short words. -/
+@[simp] theorem length_xorWords (width : ℕ) (words : List Word) :
+    (xorWords width words).length = width := by simp [xorWords]
+
+/-- Variable-width XOR uses only ordinary mapping, runtime indexing, and Boolean folds. -/
+theorem xorWords_isPolyTime {α : Type} {input : α ↪ Word}
+    {width : α → ℕ} {words : α → List Word}
+    (hwidth : IsPolyTime input (fun a => unaryEncoding (width a)))
+    (hwords : IsPolyTime input (fun a => listEncoding wordEncoding (words a))) :
+    IsPolyTime input (fun a => xorWords (width a) (words a)) := by
+  unfold xorWords
+  polytime
+
+@[aesop safe -10 tactic (rule_sets := [PolyTime])]
+private meta def polytimeXorWords : Lean.Elab.Tactic.TacticM Unit :=
+  Cslib.Tactic.PolyTime.applyHead #[(``xorWords, ``xorWords_isPolyTime)]
+
+/-- The word program agrees exactly with the sum of the finite bitstring representations. -/
+theorem xorWords_ofFn {count : ℕ} (width : ℕ) (words : Fin count → Word) :
+    xorWords width (List.ofFn words) = List.ofFn (∑ i, wordBits width (words i)) := by
+  have hparity (word : Word) : word.foldl Bool.xor false = word.sum := by
+    simp [List.sum_eq_foldl, Bool.add_eq_xor, Bool.zero_eq_false]
+  apply List.ext_getElem (by simp)
+  intro i hi hi'
+  simp [xorWords, hparity, wordBits, List.map_ofFn, List.sum_ofFn, Finset.sum_apply]
 
 /-- A Boolean dot product is a pointwise AND followed by a parity fold on words. -/
 theorem dotProduct_eq_foldl {n : ℕ} (left right : BitString n) :

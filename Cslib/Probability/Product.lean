@@ -17,6 +17,7 @@ public import Mathlib.Data.Fintype.Pi
 A product of finite distributions assigns each tuple the product of its coordinate masses.
 Its induced measure is Mathlib's product measure, so its coordinates satisfy the existing
 independence and concentration theorems. Mapping coordinates commutes with this product.
+Replacing one coordinate of a uniform tuple by a fresh uniform sample preserves its law.
 -/
 
 @[expose] public section
@@ -79,6 +80,21 @@ theorem pi_uniformOfFintype [∀ i, Fintype (α i)] [∀ i, Nonempty (α i)] :
   simp only [pi_apply, PMF.uniformOfFintype_apply, Fintype.card_pi, Nat.cast_prod]
   symm
   exact ENNReal.prod_inv_distrib (by intro i hi j hj hij; right; simp)
+
+/-- Replacing one coordinate of a uniform tuple by a fresh uniform draw preserves its law.
+The other coordinates stay independent of the replacement. -/
+theorem uniformOfFintype_update [DecidableEq ι] {γ : Type*} [Fintype γ] [Nonempty γ] (i : ι) :
+    (PMF.uniformOfFintype γ).bind (fun value =>
+      (PMF.uniformOfFintype (ι → γ)).map (fun values => Function.update values i value)) =
+        PMF.uniformOfFintype (ι → γ) := by
+  let swap (pair : γ × (ι → γ)) := (pair.2 i, Function.update pair.2 i pair.1)
+  have hswap : Function.Involutive swap := by
+    rintro ⟨value, values⟩
+    simp [swap]
+  have h := congrArg (PMF.map Prod.snd)
+    (uniformOfFintype_map_equiv hswap.toPerm)
+  simpa [PMF.map_comp, uniformOfFintype_prod, PMF.map_bind, Function.comp_def, swap,
+    PMF.map, PMF.bind_const] using h
 
 /-- Applying a separate function to each coordinate preserves the product structure. -/
 theorem pi_map [∀ i, Finite (β i)] (p : ∀ i, PMF (α i)) (f : ∀ i, α i → β i) :

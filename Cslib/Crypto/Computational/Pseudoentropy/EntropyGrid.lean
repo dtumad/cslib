@@ -39,6 +39,10 @@ open Probability
 def size (sourceBits bound : ℕ) : ℕ :=
   (dyadicSize bound * sourceBits + 1) * dyadicSize bound
 
+/-- The grid is nonempty, including when the source has no seed bits. -/
+@[simp] theorem size_pos (sourceBits bound : ℕ) : 0 < size sourceBits bound :=
+  Nat.mul_pos (by lia) (dyadicSize_pos bound)
+
 /-- One unit is the two-slack reserve in the extraction schedule. -/
 def scale (n sourceBits bound : ℕ) : ℕ :=
   2 * ExtractionSchedule.slack n sourceBits (dyadicSize bound - 1)

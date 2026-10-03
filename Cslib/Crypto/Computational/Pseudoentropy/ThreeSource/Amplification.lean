@@ -58,9 +58,7 @@ theorem amplifiedGenerate_isPolyTime {pair : SamplablePair} (saved : pair.SeedRe
 private theorem length_add_count (sourceBits densityBound commonBits : ℕ) :
     commonBits + (size sourceBits densityBound * commonBits + 1 - commonBits) =
       size sourceBits densityBound * commonBits + 1 := by
-  have hsize : 0 < size sourceBits densityBound :=
-    Nat.mul_pos (by lia) (dyadicSize_pos densityBound)
-  have := Nat.le_mul_of_pos_left commonBits hsize
+  have := Nat.le_mul_of_pos_left commonBits (size_pos sourceBits densityBound)
   lia
 
 /-- Every enumerated candidate outputs one more bit than the total seed cost of the grid. -/

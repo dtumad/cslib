@@ -489,9 +489,11 @@ The [padding theorem](Computational/Pseudoentropy/ThreeSource/Padding.lean) give
 one common polynomial seed length and exactly one bit of stretch, preserving its secure choice.
 The [amplification theorem](Computational/Pseudoentropy/ThreeSource/Amplification.lean) stretches
 each candidate to one bit beyond the total seed cost of the grid and preserves the secure choice.
-An end-to-end example derives this amplified family from a general word OWF.
-XOR combination and expansion at every seed length remain to be proved. The construction uses
-fresh soft masks;
+The [combined construction](Computational/Pseudoentropy/ThreeSource/Combined.lean) runs the whole
+grid on independent seed blocks and XORs the outputs. Its reduction preserves the exact advantage.
+An end-to-end example now derives a uniformly efficient, secure expanding family from a general
+word OWF. Converting its polynomial seed-length schedule to a generator at every input length
+remains to be proved. The construction uses fresh soft masks;
 following the write-up's set-oracle
 formulation would additionally require a cached membership simulation.
 The [computational guide](Computational/README.md#toward-general-one-way-functions) records the

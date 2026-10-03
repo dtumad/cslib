@@ -119,6 +119,7 @@ The first extraction ingredients are checked:
 | [EntropyGrid](Pseudoentropy/EntropyGrid.lean) and [ThreeSource/Candidates](Pseudoentropy/ThreeSource/Candidates.lean) | Every entry in an efficient entropy grid expands. Rounding the true entropies gives one choice secure against all uniform indexed tests; the program never computes that choice. |
 | [GeneratorPadding](GeneratorPadding.lean) and [ThreeSource/Padding](Pseudoentropy/ThreeSource/Padding.lean) | Padding gives the candidates one common polynomial seed length and exactly one bit of stretch. An efficient reduction preserves the secure choice with exact distinguishing advantage. |
 | [ThreeSource/Amplification](Pseudoentropy/ThreeSource/Amplification.lean) | Each candidate is stretched to one bit beyond the total seed cost of the grid. The random-hop reduction preserves the secure choice with polynomial loss. |
+| [GeneratorXor](GeneratorXor.lean) and [ThreeSource/Combined](Pseudoentropy/ThreeSource/Combined.lean) | Independently seeded candidates are combined by XOR. One secure choice makes the entire output pseudorandom, with no additional loss; the program evaluates the complete grid. |
 | [LinearHash](../../Computability/Probabilistic/LinearHash.lean) | Boolean-matrix hashing, its word implementation, its PPT sampler, and exact agreement with the finite extraction experiment. |
 | [Extraction](Extraction.lean) | A source indistinguishable from a sufficiently diffuse comparison source yields computationally uniform extraction. |
 
@@ -426,12 +427,20 @@ retains the unused input bits, and truncates the result to one bit more than the
 Its reduction samples an independent suffix and preserves the distinguishing advantage exactly.
 [`ThreeSource.Amplification`](Pseudoentropy/ThreeSource/Amplification.lean) then stretches each
 candidate to `gridSize * commonLength + 1` bits. Its uniform random-hop reduction has polynomial
-loss and retains the secure choice. The checked `owf_amplified_candidates` example starts from a
-general word OWF and derives this uniformly efficient family, including the exact output lengths
-needed to pay for every candidate's independent seed.
+loss and retains the secure choice.
+[`GeneratorXor`](GeneratorXor.lean) evaluates every candidate on an independent seed block and
+combines the outputs using ordinary word maps and parity folds. Its reduction simulates the
+other candidates and inserts one challenge; both the real and ideal distribution identities are
+exact, so this step loses no distinguishing advantage.
+[`ThreeSource.Combined`](Pseudoentropy/ThreeSource/Combined.lean) applies it to the entire grid.
 
-The remaining route needs XOR combination and a final generator with stretch at every seed
-length. The final generator must compute and combine the whole family.
+The checked `owf_expanding_family` example now starts from a general word OWF and produces a
+polynomial seed-length schedule `L(n) >= n + 1` and a uniformly efficient generator family.
+Each generator maps `L(n)` uniform seed bits to `L(n) + 1` computationally pseudorandom bits.
+The program never computes the entropy-valid choice.
+The remaining mathematical step is a single generator with stretch at every input length.
+Its reindexing reduction must preserve uniform security while translating between the actual
+seed length and the original security parameter.
 `ComputationallyIndistinguishable.extract_uniform` separately assumes its comparison source and
 negligible collision bound; collisions of the OWF output alone do not provide the entropy surplus.
 
@@ -687,9 +696,9 @@ Our guide for the general construction is Thomas Holenstein,
 TCC 2006, [write-up](https://crypto.ethz.ch/publications/files/Holens06.pdf).
 Section 3.3 supplies the collision-probability proof of the leftover hash lemma; Sections 4–5
 give the pseudo-entropy-pair construction and its conversion to a PRG. The general implication
-is not yet formalized here: XOR combination and expansion at every seed length remain. The
-entropy grid has a proved secure choice; its deterministic candidates have uniform polynomial-time
-certificates and a common seed length, and are amplified beyond the total seed cost of the grid.
+is not yet formalized here: expansion at every seed length remains. The complete entropy grid is
+padded, amplified, and combined by XOR, giving a uniformly efficient secure expanding family
+at a polynomial seed-length schedule.
 We cite individual results in the
 modules that formalize them and distinguish these proved ingredients from the full theorem.
 For the constructive uniform hard-core argument we also follow Thomas Holenstein,

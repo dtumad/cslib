@@ -8,6 +8,7 @@ module
 
 public import Cslib.Probability.PMF
 public import Mathlib.Algebra.BigOperators.Group.Finset.Piecewise
+public import Mathlib.Algebra.Group.Units.Equiv
 public import Mathlib.Data.Fintype.Pi
 
 /-!
@@ -16,6 +17,7 @@ public import Mathlib.Data.Fintype.Pi
 A surjective additive homomorphism between finite groups preserves the uniform distribution.
 Consequently, the sum over any nonempty subset of independently uniform group elements is
 uniform, and two distinct nonempty subsets give independent uniform sums.
+Replacing any one summand by a fresh uniform value also makes the complete sum uniform.
 
 For bitstrings, addition is pointwise XOR. These subset sums are the pairwise independent
 masks used by the Goldreich–Levin decoder. The joint-distribution theorem does not assert
@@ -25,6 +27,14 @@ mutual independence of three or more subset sums.
 @[expose] public section
 
 namespace Cslib.Probability.PMF
+
+/-- A finite sum is uniform if any one summand is fresh uniform, regardless of the others. -/
+theorem uniformOfFintype_map_sum_update {ι G : Type*}
+    [Fintype ι] [DecidableEq ι] [Fintype G] [AddCommGroup G] (values : ι → G) (i : ι) :
+    (PMF.uniformOfFintype G).map (fun value => ∑ j, Function.update values i value j) =
+      PMF.uniformOfFintype G := by
+  simp only [Finset.sum_update_of_mem (Finset.mem_univ i)]
+  exact uniformOfFintype_map_equiv (Equiv.addRight _)
 
 /-- A surjective additive homomorphism of finite groups sends uniform inputs to uniform outputs. -/
 theorem uniformOfFintype_map_addHom {G H : Type*} [AddCommGroup G] [AddCommGroup H]

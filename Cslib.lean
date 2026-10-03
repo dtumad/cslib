@@ -170,6 +170,7 @@ public import Cslib.Crypto.Computational.Basic
 public import Cslib.Crypto.Computational.Ensemble
 public import Cslib.Crypto.Computational.Extraction
 public import Cslib.Crypto.Computational.GeneratorPadding
+public import Cslib.Crypto.Computational.GeneratorXor
 public import Cslib.Crypto.Computational.GoldreichLevin.Decoding
 public import Cslib.Crypto.Computational.GoldreichLevin.HardCore
 public import Cslib.Crypto.Computational.GoldreichLevin.Parameters
@@ -216,6 +217,7 @@ public import Cslib.Crypto.Computational.Pseudoentropy.SequenceLearner
 public import Cslib.Crypto.Computational.Pseudoentropy.ThreeSource
 public import Cslib.Crypto.Computational.Pseudoentropy.ThreeSource.Amplification
 public import Cslib.Crypto.Computational.Pseudoentropy.ThreeSource.Candidates
+public import Cslib.Crypto.Computational.Pseudoentropy.ThreeSource.Combined
 public import Cslib.Crypto.Computational.Pseudoentropy.ThreeSource.Padding
 public import Cslib.Crypto.Computational.Pseudoentropy.ThreeSource.Seeded
 public import Cslib.Crypto.Computational.Pseudoentropy.WordExtraction
