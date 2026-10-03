@@ -6,7 +6,7 @@ Authors: Samuel Schlesinger
 
 module
 
-public import Cslib.Crypto.Computational.Pseudoentropy.Masking
+public import Cslib.Crypto.Computational.Pseudoentropy.MaskedExtraction
 public import Cslib.Crypto.Computational.Pseudoentropy.Boosting.Learner
 
 /-!
@@ -17,8 +17,10 @@ weighted validation trial. The explicit learner then samples descriptions, choos
 and estimates their validation rates. Its output has positive weighted correlation with high
 probability. All target predictions receive only the public observation.
 
-The replay hypothesis is supplied by `SavedPrediction.exists_evaluator`; the masked-source
-extraction argument must still supply the distinguishing gap for each dense boosting measure.
+The replay hypothesis is supplied by `SavedPrediction.exists_evaluator`. The extraction bridge
+then pays the masked source's statistical error before applying the sequence reduction.
+`maskedSample_weight_extract` bounds that error in terms of density, source mass, and mask
+precision; choosing the uniform asymptotic parameters remains part of the final construction.
 
 ## References
 
@@ -32,7 +34,7 @@ extraction argument must still supply the distinguishing gap for each dense boos
 
 namespace Cslib.Crypto.Pseudoentropy
 
-open Cslib.Probability Boosting
+open Cslib.Probability Cslib.Probability.PMF Boosting
 
 variable {α β : Type}
 
@@ -104,5 +106,41 @@ theorem maskedSequence_learn_error_pow [Fintype α]
       dyadicSize count * (1 / inverseGap : ℝ) := by ring
   rw [hfactor] at hdistinguish
   nlinarith
+
+/-- A distinguisher of extracted labels supplies a weak learner once its advantage exceeds
+the masked-source extraction error. `maskedSample_weight_extract` supplies the statistical
+premise uniformly over vote collections with the required soft density. -/
+theorem extractedSequence_learn_error_pow {Seed Output : Type} [Fintype α]
+    (source : ProbComp α) (observe : α → β) (truth : α → Bool)
+    (mask : α → ProbComp Bool) (count : ℕ) (seed : ProbComp Seed)
+    (hash : Seed → Word → Output) (test : List β × Seed × Output → ProbComp Bool)
+    (ideal : PMF (List β × Seed × Output)) {ε : ℝ}
+    (hclose : dist (ProbComp.eval (OracleComp.replicate count
+      (maskedSample source observe truth mask) >>= extractLabels seed hash)) ideal ≤ ε)
+    (candidates : ProbComp Word) (predict : Word → β → Bool)
+    (hrealize : ∀ value,
+      ProbComp.eval ((fun code => predict code (observe value)) <$> candidates) =
+        ProbComp.eval (maskedSequencePredictor source observe truth mask count
+          (fun samples => extractLabels seed hash samples >>= test) (observe value)))
+    (confidence inverseGap : ℕ) (hgap : 0 < inverseGap)
+    (hdistinguish : (dyadicSize count : ℝ) / inverseGap + ε ≤
+      Game.advantage (ProbComp.eval (OracleComp.replicate count
+        ((fun value => (observe value, truth value)) <$> source) >>=
+          fun samples => extractLabels seed hash samples >>= test))
+        (ideal.bind (fun output => ProbComp.eval (test output)))) :
+    ((ProbComp.eval (learn candidates (fun code => weightedTrial source mask
+      (fun value => pure (predict code (observe value) == truth value)))
+        confidence inverseGap)).toOuterMeasure
+      {code | ¬ 1 / (2 * inverseGap) ≤ ∑ value, (ProbComp.eval source value).toReal *
+        (winProbability (mask value) * signedVote (signedPredict predict code (observe value))
+          (truth value))}).toReal ≤
+      (((confidence + 1) * (4 * inverseGap) ^ 2 : ℕ) + 1) * (1 / 2 : ℝ) ^ confidence := by
+  apply maskedSequence_learn_error_pow source observe truth mask count
+    (fun samples => extractLabels seed hash samples >>= test) candidates predict hrealize
+    confidence inverseGap hgap
+  have h := extractLabels_sequence_gap ((fun value => (observe value, truth value)) <$> source)
+    (maskedSample source observe truth mask) count seed hash test ideal hclose
+  change _ ≤ advantage _ _
+  exact (le_sub_iff_add_le.mpr hdistinguish).trans h
 
 end Cslib.Crypto.Pseudoentropy

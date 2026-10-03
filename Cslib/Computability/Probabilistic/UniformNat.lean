@@ -121,6 +121,18 @@ theorem eval_sampleDyadicCoin_true_toReal (bound numerator : ℕ) :
   rw [eval_sampleDyadicCoin_true, ENNReal.toReal_div]
   simp
 
+/-- Every positive dyadic acceptance probability is at least one over its sampling range. -/
+theorem inv_dyadicSize_le_eval_sampleDyadicCoin (bound numerator : ℕ)
+    (hpositive : 0 < (ProbComp.eval (sampleDyadicCoin bound numerator) true).toReal) :
+    (1 : ℝ) / dyadicSize bound ≤
+      (ProbComp.eval (sampleDyadicCoin bound numerator) true).toReal := by
+  rw [eval_sampleDyadicCoin_true_toReal] at hpositive ⊢
+  have hdenominator : (0 : ℝ) < dyadicSize bound := by exact_mod_cast dyadicSize_pos bound
+  have hnum : 0 < min (dyadicSize bound) numerator := by
+    exact_mod_cast (div_pos_iff_of_pos_right hdenominator).mp hpositive
+  apply div_le_div_of_nonneg_right _ hdenominator.le
+  exact_mod_cast Nat.succ_le_of_lt hnum
+
 /-- Efficiently supplied unary parameters give a strict PPT dyadic coin. -/
 theorem IsPolyTime.sampleDyadicCoin {α : Type} {input : α ↪ Word} {bound numerator : α → ℕ}
     (hbound : IsPolyTime input (fun a => unaryEncoding (bound a)))

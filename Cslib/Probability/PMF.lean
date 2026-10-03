@@ -74,6 +74,12 @@ theorem le_map_apply (p : PMF α) (f : α → β) (a : α) : p a ≤ (p.map f) (
   rw [PMF.map_apply]
   simpa using ENNReal.le_tsum (f := fun x => if f a = f x then p x else 0) a
 
+/-- A randomized continuation preserves at least the joint mass of any one execution path. -/
+theorem mul_le_bind_apply (p : PMF α) (f : α → PMF β) (a : α) (b : β) :
+    p a * f a b ≤ p.bind f b := by
+  rw [PMF.bind_apply]
+  exact ENNReal.le_tsum (f := fun x => p x * f x b) a
+
 /-- The real-valued probabilities of a finite distribution sum to one. -/
 theorem sum_toReal [Fintype α] (p : PMF α) :
     ∑ a, (p a).toReal = 1 := by simpa only [tsum_fintype] using tsum_toReal p

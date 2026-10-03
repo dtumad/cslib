@@ -8,7 +8,7 @@ module
 
 public import Cslib.Crypto.Computational.Extraction
 public import Cslib.Crypto.Computational.Pseudoentropy.Seed
-public import Cslib.Probability.EntropyExtraction
+public import Cslib.Crypto.Computational.Pseudoentropy.MaskedExtraction
 
 /-!
 # Extraction and entropy examples
@@ -124,6 +124,62 @@ theorem repeated_pair_extraction (pair : Pseudoentropy.SamplablePair)
       (LinearHash.isTwoUniversal repetitions outputBits).leftover_hash_pi_conditional
         (fun _ : Fin repetitions => pair.joint n) (Nat.cast_nonneg (saved.length n))
           (fun _ => saved.mass_ge n) hε
+
+/-- Repeated labeled samples can be hashed while retaining their observations and the complete
+matrix seed. The source and output dimensions may depend on the security parameter. -/
+noncomputable def extractTraining (source : ℕ → ProbComp (Word × Bool)) (n : ℕ) :
+    ProbComp (List Word × Word × Word) := do
+  let samples ← OracleComp.replicate ((n + 1) ^ 3) (source n)
+  Pseudoentropy.extractLabels (OracleComp.sampleBits ((n + 1) * samples.length))
+    (LinearHash.wordHash (n + 1)) samples
+
+/-- The complete sampling and extraction pipeline has a synthesized strict PPT certificate. -/
+theorem extractTraining_isPPT {source : ℕ → ProbComp (Word × Bool)}
+    (hsource : IsPPTOn unaryEncoding (pairEncoding wordEncoding boolEncoding) source) :
+    IsPPTOn unaryEncoding (pairEncoding (listEncoding wordEncoding)
+      (pairEncoding wordEncoding wordEncoding)) (extractTraining source) := by
+  unfold extractTraining
+  ppt
+
+/-- A hidden-label-dependent mask still supplies half a bit per sample for extraction. The
+public observation is constant; one original label is masked and the other is retained. -/
+theorem extraction_with_hidden_label_mask (count outputBits : ℕ) {slack : ℝ}
+    (hslack : 0 ≤ slack) :
+    let seed := OracleComp.uniform (Fin outputBits → BitString count)
+    let source := Pseudoentropy.maskedSample (OracleComp.uniform Bool) (fun _ => ()) id
+      (fun bit => Pseudoentropy.Boosting.sampleWeight 0 2 0 [true] bit)
+    dist (ProbComp.eval (OracleComp.replicate count source >>=
+        Pseudoentropy.extractLabels seed
+          (fun rows bits => LinearHash.hash rows (wordBits count bits))))
+      ((ProbComp.eval seed).bind (fun rows => (PMF.uniformOfFintype (BitString outputBits)).map
+        (fun bits => (List.replicate count (), rows, bits)))) ≤
+      2 * Real.exp (-2 * slack ^ 2 / (count * 9)) +
+        Real.sqrt ((2 : ℝ) ^ outputBits * (2 * (2 : ℝ) ^ (-(count / 2 - slack)))) / 2 := by
+  dsimp only
+  have h := Pseudoentropy.maskedSample_weight_extract (OracleComp.uniform Bool)
+    (fun _ => ()) id (fun _ => [true]) count 1 0 2 0
+    (by intro bit _; norm_num [OracleComp.uniform, PMF.uniformOfFintype_apply])
+    (OracleComp.uniform (Fin outputBits → BitString count))
+    (fun rows bits => LinearHash.hash rows (wordBits count bits))
+    (by simpa [OracleComp.uniform] using LinearHash.isTwoUniversal count outputBits)
+    (δ := 1 / 2)
+    (by norm_num [Pseudoentropy.Boosting.density, OracleComp.uniform,
+        PMF.uniformOfFintype_apply, Fintype.sum_bool, Pseudoentropy.Boosting.voteMargin,
+        Pseudoentropy.Boosting.weight, dyadicSize]) hslack
+  have hpublic : ProbComp.eval (OracleComp.replicate count
+      ((fun _ : Bool => ()) <$> OracleComp.uniform Bool)) = PMF.pure (List.replicate count ()) := by
+    rw [ProbComp.eval_replicate]
+    have hconstant : (List.ofFn : (Fin count → Unit) → List Unit) =
+        Function.const _ (List.replicate count ()) := by
+      funext values
+      rw [show values = fun _ => () from Subsingleton.elim _ _, List.ofFn_const]
+      rfl
+    rw [hconstant, PMF.map_const]
+  rw [hpublic, PMF.pure_bind] at h
+  norm_num only [Nat.log_zero_right, Nat.cast_add, Nat.cast_one, Nat.cast_zero, Nat.cast_ofNat] at h
+  simpa only [PMF.map_bind, PMF.map_comp, Function.comp_def, id_eq, BitString,
+    Fintype.card_fun, Fintype.card_bool, Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat,
+    mul_one_div] using h
 
 /-- A complete client reduction: extract `n` bits from a source indistinguishable from `2n`
 uniform bits. The `2n²`-bit seed is retained, so the ideal output has length `2n² + n`. -/

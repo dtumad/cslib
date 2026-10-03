@@ -442,10 +442,14 @@ truncation before storage. The [concrete learner](Computational/Pseudoentropy/Bo
 samples orientations and selects descriptions by fresh weighted validation. A noticeable average
 bias gives the loop's truncated-predictor contract with an explicit discovery-and-selection error;
 the full learner is strict PPT. The [sequence reduction](Computational/Pseudoentropy/Learning.lean)
-supplies that bias from a distinguishing gap of either sign. The extraction estimate providing a
-gap on every dense boosting state and the combined loop-and-final-selection failure accounting
-remain to be proved. Following the write-up's set-oracle formulation would additionally require
-a cached membership simulation.
+supplies that bias from a distinguishing gap of either sign. The
+[masked-source extraction bound](Computational/Pseudoentropy/MaskedExtraction.lean) now gives
+the statistical error for every sufficiently dense vote collection, preserving all observations
+and the public hash seed. Its information bound eventually charges only `n + 2` extra bits for
+any polynomial mask precision, independently of its degree. Explicit uniform asymptotic parameter
+choices and the combined loop and final-selection failure accounting remain to be proved.
+Following the write-up's set-oracle formulation would additionally require a cached membership
+simulation.
 The three-source game argument and conversion of this pair into an expanding generator also remain
 to be proved.
 The [computational guide](Computational/README.md#toward-general-one-way-functions) records the

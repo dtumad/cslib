@@ -104,6 +104,7 @@ The first extraction ingredients are checked:
 | [Prediction](Prediction.lean) and [Hybrid/Sequence](Hybrid/Sequence.lean) | Shared trial-bit prediction and independent-sequence hybrid combinators, with strict PPT certificates and an exact signed reduction loss. |
 | [Hybrid/SavedPrediction](Hybrid/SavedPrediction.lean) | Strict PPT sampling of bounded predictor descriptions, total efficient evaluation, and exact agreement with the coordinate predictor on every bounded observation. |
 | [Boosting/Learner](Pseudoentropy/Boosting/Learner.lean) and [Learning](Pseudoentropy/Learning.lean) | Uniform sampling, sign selection, and weighted validation turn a noticeable sequence gap into the boosting learner's correlation contract, with strict PPT certificates and explicit failure bounds. |
+| [MaskedExtraction](Pseudoentropy/MaskedExtraction.lean) | Extracting repeated soft-masked labels preserves all observations and the public hash seed. Its explicit statistical error bounds the loss in the sequence reduction; polynomial mask precision eventually adds at most `n + 2` information bits, independently of its degree. |
 | [LinearHash](../../Computability/Probabilistic/LinearHash.lean) | Boolean-matrix hashing, its word implementation, its PPT sampler, and exact agreement with the finite extraction experiment. |
 | [Extraction](Extraction.lean) | A source indistinguishable from a sufficiently diffuse comparison source yields computationally uniform extraction. |
 
@@ -235,8 +236,27 @@ code bound covers the descriptions and `gamma ≤ 1 / (2 * r)`. The shared `samp
 handles discovery and empirical selection on arbitrary encoded candidate types, while preserving
 description bounds on every execution. The complete learner's client certificate composes with
 `ppt`. The [sequence bridge](Pseudoentropy/Learning.lean) supplies its average bias from a
-distinguishing gap of either sign and the saved evaluator's replay law. The extraction estimate
-providing that gap for every dense boosting state remains to be proved.
+distinguishing gap of either sign and the saved evaluator's replay law.
+
+[`MaskedExtraction`](Pseudoentropy/MaskedExtraction.lean) now supplies the statistical estimate
+for the fresh-mask route. If every supported source outcome has probability at least `2^(-L)`,
+the dyadic mask adds at most `log₂(bound) + 2` information bits. This depends on its sampling
+precision, independently of the time spent computing votes. For every polynomial precision
+family, `maskedSample_weight_mass_ge_eventually` improves the bound to `L(n) + n + 2` for all
+sufficiently large `n`, simultaneously for every vote collection and threshold. The starting
+index may depend on the precision family; the added information bound does not depend on its
+degree. Thus the concentration estimate does not force the generator's repetition exponent to
+depend on the distinguisher.
+
+`extractLabels` hashes ordinary lists of labels and retains every observation and the complete
+hash seed. `extractLabels_distance_le` transfers the conditional-entropy estimate to this program;
+`maskedSample_weight_extract` instantiates it with the soft density. The client proof for repeated
+sampling and matrix hashing is `unfold extractTraining; ppt`. The tests also instantiate the bound
+with a mask that depends on the hidden label and a constant public observation.
+`extractedSequence_learn_error_pow` then pays this extraction error before applying the learner:
+advantage at least `epsilon + dyadicSize count / r` yields the stated correlation guarantee.
+The final construction still needs explicit uniform repetition and precision choices and the
+combined loop and final-selection failure bound.
 
 The [sampled decisions](Pseudoentropy/Boosting/Decision.lean) implement the overlapping density
 and majority guards from Figure 2 and Claim 2.6 of the uniform hard-core write-up. With weight
@@ -283,7 +303,7 @@ bound. `State.Successful.selectSlope_advantage` proves this inverse-polynomial a
 client example certifies the configured search with `unfold ...; ppt`. The remaining reduction
 must pay for selection failure together with the loop's guard and learner failures.
 
-The masked-source extraction premise and combined failure accounting remain to be proved.
+The uniform asymptotic parameter choices and combined failure accounting remain to be proved.
 Following the write-up's set-oracle route would additionally require a cached membership simulation.
 The clock replaces the write-up's worst-dense-set stopping test; the current program does not
 implement that test. The conditional loop theorem and final predictor do not yet prove the uniform

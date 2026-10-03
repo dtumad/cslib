@@ -37,9 +37,9 @@ and masks are computed only on fresh surrounding samples.
 * Thomas Holenstein, *Key Agreement from Weak Bit Agreement*, STOC 2005, Section 2.1.1,
   observes that hard-core statements can be formulated using measures.
   [Write-up](https://crypto.ethz.ch/publications/files/Holens05.pdf).
-  The entropy and prediction facts here are ingredients for that route; completing the weak
-  learner still requires the extraction bound and a bounded description selected with high
-  probability, including both signs of distinguishing advantage.
+  The entropy and prediction facts here are ingredients for that route. `MaskedExtraction`
+  supplies the extraction estimate, and `Learning` connects saved descriptions and empirical
+  selection to the weak learner's correlation guarantee.
 -/
 
 @[expose] public section
