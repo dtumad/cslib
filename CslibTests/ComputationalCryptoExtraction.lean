@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 
 public import Cslib.Crypto.Computational.Extraction
-public import Cslib.Crypto.Computational.Pseudoentropy.ThreeSource
+public import Cslib.Crypto.Computational.Pseudoentropy.ThreeSource.Seeded
 
 /-!
 # Extraction and entropy examples
@@ -33,6 +33,17 @@ example : LinearHash.wordHash 2 [true] [true, false] = [true, false] := by
 
 /-- An empty source has no dot-product entropy, regardless of the supplied seed. -/
 example : LinearHash.wordHash 3 [true, true] [] = [false, false, false] := by
+  decide +kernel
+
+/-- Parsing respects the sampler/last/middle/first seed order and retains both nonempty keys. -/
+example : Pseudoentropy.ThreeSource.generate 2 1 1 0 1 1
+    (fun seed => (seed, seed.headD false)) [true, false, true, true, true, false] =
+      [true, false, true, true, true, true] := by
+  decide +kernel
+
+/-- Repeated empty sampler seeds still leave separate label and remaining-seed digests. -/
+example : Pseudoentropy.ThreeSource.generate 2 0 0 0 1 1
+    (fun _ => ([], false)) [true, true] = [true, true, false, false] := by
   decide +kernel
 
 /-- Runtime matrix dimensions, captured words, and sampling compose without machine internals. -/
@@ -244,9 +255,31 @@ theorem threeExtractedComponents_isPPT {pair : Pseudoentropy.SamplablePair}
   unfold threeExtractedComponents
   ppt
 
+open Pseudoentropy in
+/-- The same three-component client evaluates deterministically from one exact seed. -/
+def threeSeededComponents {pair : SamplablePair} (saved : pair.SeedRealization)
+    (bound : ℕ → ℕ) (n : ℕ) (seed : Word) : Word :=
+  ThreeSource.generate (ExtractionSchedule.count n (saved.length n) 3) (saved.length n)
+    (bound n) n n n (saved.evaluate n) seed
+
+/-- The deterministic client's proof composes its evaluator and size certificates. -/
+theorem threeSeededComponents_isPolyTime {pair : Pseudoentropy.SamplablePair}
+    (saved : pair.SeedRealization) {bound : ℕ → ℕ}
+    (hbound : IsPolyTime unaryEncoding (fun n => unaryEncoding (bound n))) :
+    IsPolyTime parameterEncoding (fun input =>
+      threeSeededComponents saved bound input.1 input.2) := by
+  have hevaluate := saved.efficient
+  have hlength := saved.length_isPolyTime
+  have hcount : IsPolyTime unaryEncoding (fun n =>
+      unaryEncoding (Pseudoentropy.ExtractionSchedule.count n (saved.length n) 3)) := by
+    apply Pseudoentropy.ExtractionSchedule.count_isPolyTime <;> polytime
+  unfold threeSeededComponents
+  polytime
+
 open Filter Pseudoentropy in
-/-- One ordinary PPT program extracts all three components. Its complete security proof needs
-only the three numerical entropy thresholds; the library supplies the padding bound and games. -/
+/-- The sampled and exactly seeded clients have their respective efficiency certificates.
+The deterministic output is computationally uniform under three numerical entropy thresholds;
+the library supplies the padding bound, exact seeded law, and complete game argument. -/
 theorem three_source_extraction_half {pair : SamplablePair} {gap : ℕ → ℝ}
     (hpair : pair.HasGap gap) (saved : pair.SeedRealization)
     (hfirst : ∀ᶠ n in atTop, (1 / 2 : ℝ) ≤ entropy ((pair.joint n).map Prod.fst))
@@ -255,12 +288,19 @@ theorem three_source_extraction_half {pair : SamplablePair} {gap : ℕ → ℝ}
       entropy ((pair.joint n).map Prod.fst) - conditionalEntropy (pair.joint n)) :
     ∃ bound : ℕ → ℕ,
       IsPPTOn unaryEncoding wordEncoding (threeExtractedComponents saved bound) ∧
+      IsPolyTime parameterEncoding (fun input =>
+        threeSeededComponents saved bound input.1 input.2) ∧
       ComputationallyIndistinguishable
-        (fun n => ProbComp.eval (threeExtractedComponents saved bound n))
+        (fun n => (uniformBits (ThreeSource.seedLength
+          (ExtractionSchedule.count n (saved.length n) 3) (saved.length n) (bound n) n n n)).map
+            (threeSeededComponents saved bound n))
         (fun n => uniformBits (ThreeSource.outputLength
           (ExtractionSchedule.count n (saved.length n) 3) (saved.length n) (bound n) n n n)) := by
   obtain ⟨bound, hefficient, hfits⟩ := pair.exists_observationBound
-  refine ⟨bound, threeExtractedComponents_isPPT saved hefficient, ?_⟩
+  refine ⟨bound, threeExtractedComponents_isPPT saved hefficient,
+    threeSeededComponents_isPolyTime saved hefficient, ?_⟩
+  unfold threeSeededComponents
+  simp_rw [ThreeSource.eval_generate_of_realization saved _ _ _ _ _ _ (hfits _)]
   apply hpair.extract_three saved (bound := bound) (inverseSlack := fun _ => 3)
     (observationBits := id) (labelBits := id) (remainingBits := id)
     (numerator := fun _ => 1) (densityBound := fun _ => 1)

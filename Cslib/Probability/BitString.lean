@@ -69,6 +69,18 @@ theorem mem_support_uniformBits_iff {n : ℕ} {word : List Bool} :
   exact (PMF.mem_support_map_iff _ _ _).mpr
     ⟨word.get, PMF.mem_support_uniformOfFintype _, List.ofFn_get _⟩
 
+/-- Splitting a uniform tape gives two independent tapes, also when either length is zero. -/
+theorem uniformBits_bind_split {α : Type*} (first second : ℕ)
+    (next : List Bool → List Bool → PMF α) :
+    (uniformBits (first + second)).bind (fun tape => next (tape.take first) (tape.drop first)) =
+      (uniformBits first).bind (fun front => (uniformBits second).bind (next front)) := by
+  rw [uniformBits_add, PMF.bind_bind]
+  apply PMF.bind_congr_on_support
+  intro front hfront
+  rw [PMF.bind_map]
+  simp only [Function.comp_def, ← length_of_mem_support_uniformBits hfront,
+    List.take_left, List.drop_left]
+
 /-- A prefix of a uniform word is uniform, with no condition on the discarded suffix. -/
 theorem uniformBits_take {n k : ℕ} (hkn : k ≤ n) :
     (uniformBits n).map (List.take k) = uniformBits k := by

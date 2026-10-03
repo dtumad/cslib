@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 
 public import Cslib.Foundations.Data.BitString
+public import Cslib.Languages.Probabilistic.Repeat
 public import Cslib.Probability.BitString
 public import Cslib.Tactic.PolyTime
 public import Mathlib.Algebra.Ring.BooleanRing
@@ -44,6 +45,18 @@ theorem length_padWord {bound : ℕ} {word : Word} (h : word.length ≤ bound) :
   simp only [padWord, length_pairEncoding, wordEncoding, Function.Embedding.refl_apply,
     List.length_replicate]
   lia
+
+/-- Concatenating bounded, padded words has a length determined solely by their count. -/
+theorem length_flatten_padWord (bound : ℕ) (words : List Word)
+    (hbound : ∀ word ∈ words, word.length ≤ bound) :
+    ((words.map (padWord bound)).flatten).length = words.length * (2 * bound + 1) := by
+  induction words with
+  | nil => simp
+  | cons word rest ih =>
+    simp only [List.mem_cons, forall_eq_or_imp] at hbound
+    simp only [List.map_cons, List.flatten_cons, List.length_append,
+      length_padWord hbound.1, ih hbound.2, List.length_cons]
+    lia
 
 /-- Self-delimiting padding uses the shared word encoder and unary arithmetic. -/
 theorem padWord_isPolyTime {α : Type} {encode : α ↪ Word}
@@ -139,6 +152,17 @@ def maskRow (dimension row : ℕ) (word : Word) : Word :=
 def maskRows (count dimension : ℕ) (word : Word) : List Word :=
   (List.range count).map (fun row => maskRow dimension row word)
 
+/-- Row parsing always returns the requested number of fixed-width words. -/
+@[simp] theorem length_maskRows (count dimension : ℕ) (word : Word) :
+    (maskRows count dimension word).length = count := by
+  simp only [maskRows, List.length_map, List.length_range]
+
+/-- Every parsed row has its declared width, including rows padded from short tapes. -/
+theorem length_of_mem_maskRows {count dimension : ℕ} {word row : Word}
+    (hrow : row ∈ maskRows count dimension word) : row.length = dimension := by
+  obtain ⟨index, _, rfl⟩ := List.mem_map.mp hrow
+  simp only [maskRow, List.length_map, List.length_range]
+
 /-- Matrix parsing charges for the dimension, every runtime index, and the complete output. -/
 theorem maskRows_isPolyTime {α : Type} {encode : α ↪ Word}
     {count dimension : α → ℕ} {word : α → Word}
@@ -219,3 +243,24 @@ theorem uniformBits_masksFromWord (k n : ℕ) :
   exact PMF.uniformOfFintype_map_equiv (maskEquiv k n)
 
 end Cslib.Probability
+
+namespace Cslib.ProbComp
+
+open Probability
+
+/-- A repeated seeded program can read all its independent seeds from one flat uniform tape.
+The ordinary matrix row parser handles zero repetitions and zero-width seeds as well. -/
+theorem eval_replicate_of_uniformBits {α : Type*} (count seedBits : ℕ) (program : ProbComp α)
+    (evaluate : Word → α) (hlaw : eval program = (uniformBits seedBits).map evaluate) :
+    eval (OracleComp.replicate count program) =
+      (uniformBits (count * seedBits)).map
+        (fun tape => (maskRows count seedBits tape).map evaluate) := by
+  have h := eval_replicate_of_uniform count program
+    (fun bits : BitString seedBits => evaluate (List.ofFn bits))
+    (by simpa only [uniformBits, PMF.map_comp, Function.comp_def] using hlaw)
+  rw [h]
+  simp_rw [maskRows_eq_ofFn, List.map_ofFn]
+  rw [← uniformBits_masksFromWord count seedBits, PMF.map_comp]
+  rfl
+
+end Cslib.ProbComp

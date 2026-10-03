@@ -33,6 +33,11 @@ namespace Cslib.Tactic.PolyTime
 
 open Cslib.Probability
 
+open Lean Elab Tactic in
+/-- Apply a deterministic certificate by its program head, without unfolding unrelated programs. -/
+meta def applyHead (rules : Array (Name × Name)) : TacticM Unit :=
+  Cslib.Tactic.applyProgramHead ``IsPolyTime rules
+
 open Lean Meta Elab Tactic in
 /-- Apply a rule with selected named arguments, keeping proof obligations in the metavariable
 context so that subsequent tactics must discharge them. -/
@@ -94,7 +99,8 @@ private meta def polytimeConstruct : TacticM Unit := withMainContext do
   let target := (← Core.betaReduce (← instantiateMVars (← getMainTarget))).consumeMData
   unless target.isAppOf ``IsPolyTime do throwError "expected a polynomial-time goal"
   let rule ← lambdaTelescope target.getAppArgs.back! fun _ body => do
-    if body.isAppOf ``DFunLike.coe && body.getAppArgs[4]!.isAppOf ``pairEncoding then
+    if body.isAppOf ``DFunLike.coe && body.getAppArgs[4]!.isAppOf ``pairEncoding &&
+        body.getAppArgs.back!.isAppOf ``Prod.mk then
       return ``IsPolyTime.pair
     if body.isAppOf ``HAppend.hAppend || body.isAppOf ``List.append then
       return ``IsPolyTime.append
@@ -139,6 +145,16 @@ theorem on_snd_rule {α β : Type} {left : α ↪ Word} {right : β ↪ Word}
     IsPolyTime (pairEncoding left right) (fun pair => f pair.2) :=
   hf.comp_encoded (isPolyTime_snd left right)
 
+/-- A certified function of the security parameter may ignore the auxiliary input. -/
+theorem on_security_rule {f : ℕ → Word} (hf : IsPolyTime unaryEncoding f) :
+    IsPolyTime parameterEncoding (fun input => f input.1) :=
+  hf.comp_encoded isPolyTime_security
+
+/-- A certified function of the auxiliary input may ignore the security parameter. -/
+theorem on_auxiliaryInput_rule {f : Word → Word} (hf : IsPolyTime wordEncoding f) :
+    IsPolyTime parameterEncoding (fun input => f input.2) :=
+  hf.comp_encoded isPolyTime_auxiliaryInput
+
 -- Abstract the selected field explicitly: higher-order unification does not infer an arbitrary
 -- chain of projections, and guessing a fresh pair would introduce an unknown encoding.
 open Lean Meta Elab Tactic in
@@ -147,7 +163,8 @@ private meta def polytimeProjection : TacticM Unit := withMainContext do
   let target := (← Core.betaReduce (← instantiateMVars (← getMainTarget))).consumeMData
   unless target.isAppOf ``IsPolyTime do throwError "expected a polynomial-time goal"
   for (index, projection, rule) in
-      [(0, ``Prod.fst, ``on_fst_rule), (1, ``Prod.snd, ``on_snd_rule)] do
+      [(0, ``Prod.fst, ``on_security_rule), (1, ``Prod.snd, ``on_auxiliaryInput_rule),
+        (0, ``Prod.fst, ``on_fst_rule), (1, ``Prod.snd, ``on_snd_rule)] do
     let saved ← saveState
     try
       let program ← Core.betaReduce (← etaExpand target.getAppArgs.back!)
@@ -241,6 +258,20 @@ meta partial def prepareArgument (domain type : Expr) : MetaM Expr := do
   else
     mkFreshExprMVar (← mkArrow domain type)
 
+open Lean Meta in
+/-- Reuse a certified tuple-valued algorithm when a client reads one of its fields. Only
+explicit pair encodings are projected, so proof search never guesses an output encoding. -/
+meta partial def withProjections (certificate : Expr) : MetaM (Array Expr) := do
+  let type ← inferType certificate
+  let program ← Core.betaReduce (← etaExpand type.getAppArgs.back!)
+  let isPair ← lambdaTelescope program fun _ body => pure
+    (body.isAppOf ``DFunLike.coe && body.getAppArgs[4]!.isAppOf ``pairEncoding)
+  let mut certificates := #[certificate]
+  if isPair then
+    for projection in [``IsPolyTime.fst, ``IsPolyTime.snd] do
+      certificates := certificates ++ (← withProjections (← mkAppM projection #[certificate]))
+  return certificates
+
 -- Instantiate the called algorithm from a known certificate before searching its arguments.
 -- Unrestricted composition rules leave both the algorithm and its encoding undetermined.
 open Lean Meta Elab Tactic in
@@ -253,25 +284,26 @@ private meta def polytimeCall : TacticM Unit := do
       throwError "expected a polynomial-time goal"
     for decl in ← getLCtx do
       if decl.isImplementationDetail || !decl.type.isAppOf ``IsPolyTime then continue
-      for tuple in [true, false] do
-        let saved ← saveState
-        try
-          if tuple then
-            let argument ← prepareArgument target.getAppArgs[0]! decl.type.getAppArgs[0]!
-            -- Reduce the constructed tuple before matching through an abstract output encoding.
-            -- Otherwise projections inside the encoded callback can block higher-order unification.
-            let composed ← withLocalDeclD `input target.getAppArgs[0]! fun input =>
-              mkLambdaFVars #[input] (mkApp decl.type.getAppArgs.back! (mkApp argument input))
-            unless ← isDefEq (← withReducible (reduce composed)) target.getAppArgs.back! do
-              throwError "the certified algorithm does not match this call"
-            applyWithArguments ``IsPolyTime.comp_encoded #[(`f, argument), (`hg, decl.toExpr)]
-          else
-            applyWithArguments ``IsPolyTime.comp_pair #[(`hf, decl.toExpr)]
-          let goals ← getGoals
-          if ← goals.anyM (fun subgoal => do isDefEq (← subgoal.getType) target) then
-            throwError "composition made no progress"
-          return
-        catch _ => saved.restore
+      for certificate in ← withProjections decl.toExpr do
+        let type ← inferType certificate
+        for tuple in [true, false] do
+          let saved ← saveState
+          try
+            if tuple then
+              let argument ← prepareArgument target.getAppArgs[0]! type.getAppArgs[0]!
+              -- Reduce constructed arguments before matching through an abstract output encoding.
+              let composed ← withLocalDeclD `input target.getAppArgs[0]! fun input =>
+                mkLambdaFVars #[input] (mkApp type.getAppArgs.back! (mkApp argument input))
+              unless ← isDefEq (← withReducible (reduce composed)) target.getAppArgs.back! do
+                throwError "the certified algorithm does not match this call"
+              applyWithArguments ``IsPolyTime.comp_encoded #[(`f, argument), (`hg, certificate)]
+            else
+              applyWithArguments ``IsPolyTime.comp_pair #[(`hf, certificate)]
+            let goals ← getGoals
+            if ← goals.anyM (fun subgoal => do isDefEq (← subgoal.getType) target) then
+              throwError "composition made no progress"
+            return
+          catch _ => saved.restore
     throwError "no applicable local algorithm certificate"
 
 attribute [aesop norm simp (rule_sets := [PolyTime])]
@@ -320,7 +352,6 @@ attribute [aesop safe apply (index := [unindexed]) (rule_sets := [PolyTime])]
   Cslib.Probability.isPolyTime_snd
   Cslib.Probability.IsPolyTime.reverse
   Cslib.Probability.IsPolyTime.zipWith
-  Cslib.Probability.IsPolyTime.pair
   Cslib.Probability.IsPolyTime.list_flatten
   Cslib.Probability.IsPolyTime.flatten
 

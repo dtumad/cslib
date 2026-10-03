@@ -472,10 +472,12 @@ hash-family premises through the shared matrix implementation. Observation paddi
 derived from the sampler's PPT certificate, and the retained-seed extractor reveals every pair
 output. The [combined construction](Computational/Pseudoentropy/ThreeSource.lean) has a strict
 PPT certificate, an exact output-length theorem, and a complete three-transition security proof
-under efficient schedules meeting the entropy budgets. A client example derives this security
-theorem from three half-bit entropy thresholds. Uniform removal of unknown entropy parameters,
-the deterministic implementation with its exact seed budget, and expansion at every seed length
-remain to be proved. The construction uses fresh soft masks; following the write-up's set-oracle
+under efficient schedules meeting the entropy budgets. Its
+[deterministic implementation](Computational/Pseudoentropy/ThreeSource/Seeded.lean) has the same
+uniform-input distribution and uses exactly the original sampler coins and the three matrix
+seeds. A client example derives deterministic security from three half-bit entropy thresholds.
+Uniform removal of unknown entropy parameters and expansion at every seed length remain to be
+proved. The construction uses fresh soft masks; following the write-up's set-oracle
 formulation would additionally require a cached membership simulation.
 The [computational guide](Computational/README.md#toward-general-one-way-functions) records the
 remaining obligations and cites

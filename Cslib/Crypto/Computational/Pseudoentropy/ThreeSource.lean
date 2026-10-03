@@ -47,9 +47,6 @@ theorem finish_isPPT {α : Type} {input : α ↪ Word} {bound observationBits : 
       pairEncoding (listEncoding wordEncoding) (pairEncoding wordEncoding wordEncoding)
         (middle a))) :
     IsPPTOn input wordEncoding (fun a => finish (bound a) (observationBits a) (middle a)) := by
-  have hobservations := hmiddle.fst
-  have hkey := hmiddle.snd.fst
-  have hbits := hmiddle.snd.snd
   unfold finish
   ppt
 
@@ -138,14 +135,13 @@ theorem length_extract (count seedBits bound observationBits labelBits remaining
   simp only [List.length_append, hfirst, hcount, hmiddle.2.1, hmiddle.2.2,
     hthird.2.1, hthird.2.2, outputLength, Nat.add_assoc]
 
-/-- Original sampler coins plus the three complete matrix seeds. This is the input length for
-a direct deterministic implementation; a generic PPT replay clock can use more padding coins. -/
+/-- Original sampler coins followed by the three matrix seeds in execution order. -/
 def seedLength (count seedBits bound observationBits labelBits remainingBits : ℕ) : ℕ :=
-  count * seedBits + observationBits * (count * (2 * bound + 1)) + labelBits * count +
-    remainingBits * (count * seedBits)
+  count * seedBits + (remainingBits * (count * seedBits) +
+    (labelBits * count + observationBits * (count * (2 * bound + 1))))
 
 /-- Retained matrix seeds cancel in the expansion budget: only the digest bits must exceed
-the original sampler coins. Realizing this ledger requires the direct seeded implementation. -/
+the original sampler coins. `ThreeSource.Seeded` realizes this exact input length. -/
 theorem seedLength_lt_outputLength_iff
     (count seedBits bound observationBits labelBits remainingBits : ℕ) :
     seedLength count seedBits bound observationBits labelBits remainingBits <
@@ -313,9 +309,9 @@ namespace Cslib.Crypto.Pseudoentropy
 open Probability Probability.PMF Filter
 
 /-- The three-source construction is computationally uniform under its three entropy budgets.
-The schedules must be computed by uniform polynomial-time algorithms. This theorem supplies
-the complete game argument; seed-efficient deterministic generation and length expansion are
-separate obligations. -/
+The schedules must be computed by uniform polynomial-time algorithms. `ThreeSource.Seeded`
+implements this ensemble deterministically with an exact seed budget. Uniform selection of
+admissible schedules and length expansion are separate obligations. -/
 theorem SamplablePair.HasGap.extract_three {pair : SamplablePair} {gap : ℕ → ℝ}
     (hpair : pair.HasGap gap) (saved : pair.SeedRealization)
     {bound inverseSlack observationBits labelBits remainingBits numerator densityBound : ℕ → ℕ}

@@ -28,15 +28,7 @@ open Lean Meta Elab Tactic Cslib.Probability in
 /-- Apply the certificate associated with a program's syntactic head before unification.
 This keeps similarly implemented samplers and tests from unfolding into each other's rules. -/
 meta def Cslib.Tactic.PPT.applyHead (rules : Array (Name × Name)) : TacticM Unit :=
-  withMainContext do
-    let target := (← instantiateMVars (← getMainTarget)).consumeMData
-    unless target.isAppOf ``IsPPTOn do throwError "expected an encoded-input PPT goal"
-    let program ← Core.betaReduce (← etaExpand target.getAppArgs.back!)
-    let rule ← lambdaTelescope program fun _ body => do
-      let some (_, rule) := rules.find? (fun (head, _) => body.isAppOf head)
-        | throwError "no certificate registered for this program head"
-      pure rule
-    liftMetaTactic fun goal => goal.applyConst rule
+  Cslib.Tactic.applyProgramHead ``IsPPTOn rules
 
 attribute [aesop safe apply (index := [unindexed]) (rule_sets := [PPT])]
   Cslib.Probability.isPPT_sampleBits

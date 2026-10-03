@@ -97,17 +97,33 @@ namespace SeedRealization
 
 variable {pair : SamplablePair} (seed : SeedRealization pair)
 
+/-- Every well-formed seed produces an outcome in the support of the original finite law. -/
+theorem exists_supported_output (n : ℕ) {word : Word} (hlength : word.length = seed.length n) :
+    ∃ output ∈ (pair.joint n).support,
+      (pair.encode n output.1, output.2) = seed.evaluate n word := by
+  have hs : seed.evaluate n word ∈
+      ((uniformBits (seed.length n)).map (seed.evaluate n)).support :=
+    (PMF.mem_support_map_iff _ _ _).mpr
+      ⟨word, mem_support_uniformBits_iff.mpr hlength, rfl⟩
+  rw [seed.distribution] at hs
+  exact (PMF.mem_support_map_iff _ _ _).mp hs
+
 /-- Every well-formed seed produces an encoded observation and bit in the original finite law. -/
 theorem exists_output (n : ℕ) (bits : BitString (seed.length n)) :
     ∃ output : pair.Observation n × Bool,
       (pair.encode n output.1, output.2) = seed.evaluate n (List.ofFn bits) := by
-  have hs : seed.evaluate n (List.ofFn bits) ∈
-      ((uniformBits (seed.length n)).map (seed.evaluate n)).support :=
-    (PMF.mem_support_map_iff _ _ _).mpr
-      ⟨List.ofFn bits, mem_support_uniformBits_iff.mpr List.length_ofFn, rfl⟩
-  rw [seed.distribution] at hs
-  obtain ⟨output, _, houtput⟩ := (PMF.mem_support_map_iff _ _ _).mp hs
+  obtain ⟨output, _, houtput⟩ := seed.exists_supported_output n List.length_ofFn
   exact ⟨output, houtput⟩
+
+/-- A bound on supported observations also bounds the evaluator on every correctly sized seed. -/
+theorem observation_length_le (n bound : ℕ)
+    (hbound : ∀ observation ∈ ((pair.joint n).map Prod.fst).support,
+      (pair.encode n observation).length ≤ bound)
+    {word : Word} (hlength : word.length = seed.length n) :
+    (seed.evaluate n word).1.length ≤ bound := by
+  obtain ⟨output, houtput, heq⟩ := seed.exists_supported_output n hlength
+  rw [← heq]
+  exact hbound output.1 ((PMF.mem_support_map_iff _ _ _).mpr ⟨output, houtput, rfl⟩)
 
 /-- The evaluator's finite mathematical output on a well-formed seed. No search over observations
 is run: its word representation is exactly the efficient evaluator's output. -/

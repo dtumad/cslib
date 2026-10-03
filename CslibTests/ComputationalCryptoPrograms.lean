@@ -80,6 +80,19 @@ example {α β : Type} {input : α ↪ Word} {output : β ↪ Word}
   fail_if_success (clear hevaluate; polytime)
   polytime
 
+/-- A callback may read a captured parameter and return a nested tuple. Its field certificates
+are derived automatically, while the supplied evaluator certificate remains necessary. -/
+example (bound : ℕ → ℕ) (evaluate : ℕ → Word → Word × Word × Bool)
+    (hbound : IsPolyTime unaryEncoding (fun n => unaryEncoding (bound n)))
+    (hevaluate : IsPolyTime parameterEncoding (fun input =>
+      pairEncoding wordEncoding (pairEncoding wordEncoding boolEncoding)
+        (evaluate input.1 input.2))) :
+    IsPolyTime (pairEncoding parameterEncoding wordEncoding) (fun input =>
+      let result := evaluate input.1.1 (input.2.take (bound input.1.1))
+      result.1 ++ result.2.1 ++ [result.2.2]) := by
+  fail_if_success (clear hevaluate; polytime)
+  polytime
+
 /-- Large fixed unary outputs are certified without expanding a million list constructors. -/
 example : IsPolyTime unaryEncoding (fun _ : ℕ => unaryEncoding 1000000) := by
   polytime

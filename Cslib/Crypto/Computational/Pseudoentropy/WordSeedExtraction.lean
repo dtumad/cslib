@@ -42,17 +42,8 @@ theorem length_extractWordObservations (bound outputBits : ℕ) (observations : 
     (houtput : output ∈ (ProbComp.eval
       (extractWordObservations bound outputBits observations)).support) :
     output.length = outputBits * (observations.length * (2 * bound + 1)) + outputBits := by
-  have hlength : ((observations.map (padWord bound)).flatten).length =
-      observations.length * (2 * bound + 1) := by
-    clear houtput
-    induction observations with
-    | nil => simp
-    | cons observation rest ih =>
-      simp only [List.mem_cons, forall_eq_or_imp] at hbound
-      simp only [List.map_cons, List.flatten_cons, List.length_append,
-        length_padWord hbound.1, ih hbound.2, List.length_cons]
-      lia
-  simpa only [hlength] using LinearHash.length_extract outputBits
+  simpa only [length_flatten_padWord bound observations hbound] using
+    LinearHash.length_extract outputBits
     ((observations.map (padWord bound)).flatten) houtput
 
 /-- Observation padding and concatenation compose with the existing matrix extractor. -/

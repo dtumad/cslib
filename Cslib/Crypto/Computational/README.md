@@ -114,6 +114,7 @@ The first extraction ingredients are checked:
 | [SeedExtraction](Pseudoentropy/SeedExtraction.lean) | Statistical extraction of public observations and remaining seed randomness, with every observation and label revealed in the latter experiment. Both use the label extractor's repetition schedule. |
 | [MatrixExtraction](Pseudoentropy/MatrixExtraction.lean) and [WordSeedExtraction](Pseudoentropy/WordSeedExtraction.lean) | Concrete matrix extractors for all three components, with strict PPT certificates and exact finite laws. The observation and retained-seed security theorems discharge two-universality internally. |
 | [ThreeSource](Pseudoentropy/ThreeSource.lean) | One strict PPT program combines the three extractors. Three game transitions prove computational indistinguishability from uniform under efficient schedules meeting the entropy budgets; every retained seed is counted in the exact output length. |
+| [ThreeSource/Seeded](Pseudoentropy/ThreeSource/Seeded.lean) | A deterministic polynomial-time implementation uses exactly the original sampler coins and three matrix seeds. Its uniform-input distribution equals the sampled extractor's law, and every correctly sized input has the advertised output length. |
 | [LinearHash](../../Computability/Probabilistic/LinearHash.lean) | Boolean-matrix hashing, its word implementation, its PPT sampler, and exact agreement with the finite extraction experiment. |
 | [Extraction](Extraction.lean) | A source indistinguishable from a sufficiently diffuse comparison source yields computationally uniform extraction. |
 
@@ -371,19 +372,24 @@ bound directly from the PPT sampler, with no bound required on impossible observ
 replacing the retained-seed component, then the labels, then the observations with uniform bits.
 The first and last transitions are statistical. The middle reduction is an ordinary PPT program
 that computes the observation hash and supplies the independent third component before calling
-the distinguisher. The extraction examples obtain both its PPT certificate and its complete
-security theorem from three half-bit entropy thresholds; no machine internals appear in the client.
+the distinguisher. The extraction examples obtain efficiency certificates for both the sampled
+and deterministic clients, then transfer the complete security theorem to the deterministic
+output using the exact seeded law. They assume three half-bit entropy thresholds and do not yet
+establish expansion; no machine internals appear in the client.
 
 `ThreeSource.length_extract` proves the exact output length on every supported execution.
 The seed ledger also proves that retaining the three matrix seeds cancels their contribution to
 the expansion inequality: the three digest lengths must sum to more than `count * L`.
-Realizing that ledger as a deterministic generator with exactly that many input bits remains
-separate work. A generic replay of the PPT certificate can pad the random tape too much to expand.
+[`ThreeSource.Seeded`](Pseudoentropy/ThreeSource/Seeded.lean) realizes that ledger directly.
+`eval_generate_of_realization` identifies its uniform-input distribution with the sampled
+extractor, and `length_generate` gives the exact output length for every correctly sized seed.
+Parsing reuses the shared matrix row reader; `polytime` certifies the supplied evaluator calls,
+word slicing, and hashing. No additional replay-clock padding is charged to this implementation.
 
 `ComputationallyIndistinguishable.extract_uniform` still assumes its comparison source and
 negligible collision bound. Negligible collisions of the OWF output alone do not give the entropy
-surplus required for expansion. The remaining route needs the exact seeded implementation,
-removal of unknown entropy parameters by a uniform reduction, and a final generator with stretch
+surplus required for expansion. The remaining route needs removal of unknown entropy parameters
+by a uniform reduction and a final generator with stretch
 at every seed length. In the write-up's entropy grid, each candidate must first be amplified
 enough to pay for all candidates' independent seeds before their outputs are combined by XOR.
 The extraction theorem above requires efficient schedules; it does not permit entropy-dependent
@@ -547,7 +553,8 @@ The first exercises led to these shared interfaces:
 | Truncation and fresh random padding repeated the same reduction argument. | `ComputationallyIndistinguishable.map` and `.bind` preserve security under certified postprocessing, without sampling assumptions on the original ensembles. |
 | Inferring a transformation from its certificate left ambiguous function arguments. | Postprocessing maps and truncation targets are explicit arguments. |
 | A certified callback with an abstract output encoding failed under nested captured inputs. | `polytime` reduces the constructed argument tuple before matching the callback; the supplied certificate remains necessary. |
-| Similar implementations caused proof search to select unrelated sampler or test certificates. | `PPT.applyHead` shares dispatch by the program's syntactic head before unification. |
+| Similar implementations caused proof search to select unrelated program certificates. | `PolyTime.applyHead` and `PPT.applyHead` share dispatch by the program's syntactic head before unification. |
+| Reading fields of a certified tuple-valued callback required separate field certificates. | `polytime` derives projections of explicit tuple encodings automatically and composes functions of the security parameter through its input encoding. |
 | Simplifying large fixed unary parameters exhausted recursion depth. | `polytime` certifies fully specified constant outputs before expanding their representation. |
 | A prediction callback returned a conditional Boolean with a captured negated bit. | Boolean postprocessing handles fixed unary operations, conditional singleton results, and constructed output encodings. |
 | Repeated-sample hybrids required coordinate bookkeeping. | `sequenceTest` simulates the surrounding lists and preserves the exact signed gap; `bitPredictor` shares the prediction step with the existing hard-core proof. |
@@ -632,9 +639,9 @@ Our guide for the general construction is Thomas Holenstein,
 TCC 2006, [write-up](https://crypto.ethz.ch/publications/files/Holens06.pdf).
 Section 3.3 supplies the collision-probability proof of the leftover hash lemma; Sections 4–5
 give the pseudo-entropy-pair construction and its conversion to a PRG. The general implication
-is not yet formalized here: uniform removal of unknown entropy parameters, the exact seeded
-implementation, and expansion at every seed length remain. The three-source game argument is
-checked for efficient schedules meeting the entropy budgets. We cite individual results in the
+is not yet formalized here: uniform removal of unknown entropy parameters and expansion at every
+seed length remain. The three-source game argument and its exact deterministic implementation
+are checked for efficient schedules meeting the entropy budgets. We cite individual results in the
 modules that formalize them and distinguish these proved ingredients from the full theorem.
 For the constructive uniform hard-core argument we also follow Thomas Holenstein,
 *Key Agreement from Weak Bit Agreement*, STOC 2005, Section 2.2,
