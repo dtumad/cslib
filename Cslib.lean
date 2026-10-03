@@ -158,6 +158,7 @@ public import Cslib.Computability.Probabilistic.Realization.PolynomialTime
 public import Cslib.Computability.Probabilistic.Realization.Transducer
 public import Cslib.Computability.Probabilistic.Repeat
 public import Cslib.Computability.Probabilistic.Sampling
+public import Cslib.Computability.Probabilistic.Selection
 public import Cslib.Computability.Probabilistic.UniformNat
 public import Cslib.Computability.URM.Basic
 public import Cslib.Computability.URM.Computable
@@ -180,15 +181,18 @@ public import Cslib.Crypto.Computational.OneWay
 public import Cslib.Crypto.Computational.OneWay.Collision
 public import Cslib.Crypto.Computational.OneWay.Normalize
 public import Cslib.Crypto.Computational.Pseudoentropy.Basic
+public import Cslib.Crypto.Computational.Pseudoentropy.Boosting.Clipped
 public import Cslib.Crypto.Computational.Pseudoentropy.Boosting.Decision
 public import Cslib.Crypto.Computational.Pseudoentropy.Boosting.Loop
 public import Cslib.Crypto.Computational.Pseudoentropy.Boosting.Potential
 public import Cslib.Crypto.Computational.Pseudoentropy.Boosting.Program
 public import Cslib.Crypto.Computational.Pseudoentropy.Boosting.Progress
 public import Cslib.Crypto.Computational.Pseudoentropy.Boosting.Sampling
+public import Cslib.Crypto.Computational.Pseudoentropy.Boosting.Selection
 public import Cslib.Crypto.Computational.Pseudoentropy.Boosting.Vote
 public import Cslib.Crypto.Computational.Pseudoentropy.HashPair
 public import Cslib.Crypto.Computational.Pseudoentropy.HashReduction
+public import Cslib.Crypto.Computational.Pseudoentropy.Masking
 public import Cslib.Crypto.Computational.Pseudoentropy.OneWay
 public import Cslib.Crypto.Computational.Pseudoentropy.Reduction
 public import Cslib.Crypto.Computational.Pseudoentropy.Seed
@@ -335,6 +339,7 @@ public import Cslib.Languages.Probabilistic.BitString
 public import Cslib.Languages.Probabilistic.Concentration
 public import Cslib.Languages.Probabilistic.Iteration
 public import Cslib.Languages.Probabilistic.Repeat
+public import Cslib.Languages.Probabilistic.Selection
 public import Cslib.Languages.StatefulProcesses.Basic
 public import Cslib.Languages.StatefulProcesses.Network
 public import Cslib.Logics.HML.Basic

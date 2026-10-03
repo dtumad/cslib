@@ -108,6 +108,15 @@ theorem eval_countTrue (count : ℕ) (program : ProbComp Bool) :
   funext bits
   exact count_true_ofFn bits
 
+/-- Every execution returns a success count between zero and the number of trials. -/
+theorem countTrue_le (count : ℕ) (program : ProbComp Bool) {successes : ℕ}
+    (h : successes ∈ (eval (OracleComp.countTrue count program)).support) : successes ≤ count := by
+  rw [eval_countTrue, PMF.mem_support_map_iff] at h
+  obtain ⟨bits, _, rfl⟩ := h
+  calc
+    _ ≤ ∑ _ : Fin count, 1 := Finset.sum_le_sum (fun i _ => by cases bits i <;> decide)
+    _ = count := by simp
+
 /-- Repeated runs of a seeded closed program use independent seeds, including at count zero. -/
 theorem eval_replicate_of_uniform (count : ℕ) (program : ProbComp α) (evaluate : Seed → α)
     (hlaw : eval program = (PMF.uniformOfFintype Seed).map evaluate) :

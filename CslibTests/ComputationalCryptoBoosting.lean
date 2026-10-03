@@ -6,8 +6,7 @@ Authors: Samuel Schlesinger
 
 module
 
-public import Cslib.Crypto.Computational.Pseudoentropy.Boosting.Loop
-public import Cslib.Computability.Probabilistic.Repeat
+public import Cslib.Crypto.Computational.Pseudoentropy.Boosting.Selection
 
 /-!
 # Hard-core boosting regressions
@@ -20,6 +19,8 @@ exercise rational guards and the error bound for the executable majority predict
 uniform hard-core reduction remains a separate obligation.
 The clocked-loop example instantiates a perfect learner on visible labels and checks both its
 strict PPT certificate and its exponentially small total failure bound.
+The final predictor examples check label symmetry, clipping, and uniform selection of a dyadic
+slope using the shared empirical-selection combinator.
 -/
 
 public section
@@ -237,5 +238,67 @@ theorem clocked_state_bound (evaluate : Word → Word → Bool) (source : ProbCo
     state hstate).length_encoding_le
   simpa [Parameters.clock, Parameters.inverseRate, Parameters.denominator, perfectParameters,
     dyadicSize_zero] using h
+
+/-- Clipped prediction is label-symmetric and becomes deterministic at both clipping endpoints. -/
+theorem clipped_prediction_endpoints :
+    (ProbComp.eval (clippedPredict 0 2 [true]) true).toReal = 1 ∧
+    (ProbComp.eval (clippedPredict 0 2 [false]) false).toReal = 1 ∧
+    (ProbComp.eval (clippedPredict 0 2 []) true).toReal = 1 / 2 ∧
+    (ProbComp.eval (clippedPredict 0 1 [false]) false).toReal = 3 / 4 := by
+  norm_num [eval_clippedPredict_correct, clippedProbability, voteMargin, dyadicSize_zero,
+    List.count_cons]
+
+/-- Empirical selection keeps an interior perfect candidate when the later candidates fail. -/
+theorem selection_finds_perfect_candidate :
+    ProbComp.eval (OracleComp.selectBest 3 2 (fun i => pure (decide (i = 1)))) = PMF.pure 1 := by
+  simp [OracleComp.selectBest, OracleComp.selectStep, OracleComp.selectUpdate,
+    OracleComp.iterate, OracleComp.countTrue, OracleComp.replicate, ProbComp.eval]
+
+/-- A complete training procedure is ordinary code: its precision and trial budgets depend on
+the input parameter, and it can use any certified source of labeled vote words. -/
+noncomputable def learnedSlope (source : ℕ → ProbComp (Word × Bool)) (n : ℕ) : ProbComp ℕ :=
+  selectSlope (n + 8) ((n + 1) ^ 2) ((n + 1) ^ 3) (source n)
+
+theorem learnedSlope_isPPT {source : ℕ → ProbComp (Word × Bool)}
+    (hsource : IsPPTOn unaryEncoding (pairEncoding wordEncoding boolEncoding) source) :
+    IsPPTOn unaryEncoding unaryEncoding (learnedSlope source) := by
+  unfold learnedSlope
+  ppt
+
+/-- The explicit precisions derived from boosting parameters compose without machine details. -/
+theorem configured_slope_isPPT {α : Type} {input : α ↪ Word} {params : α → Parameters}
+    {source : α → ProbComp (Word × Bool)}
+    (hconfidence : IsPolyTime input (fun a => unaryEncoding (params a).confidence))
+    (hdensity : IsPolyTime input (fun a => unaryEncoding (params a).densityBound))
+    (hrate : IsPolyTime input (fun a => unaryEncoding (params a).rateBound))
+    (hsource : IsPPTOn input (pairEncoding wordEncoding boolEncoding) source) :
+    IsPPTOn input unaryEncoding (fun a => selectSlope (params a).confidence
+      (params a).predictionInverseTolerance (params a).predictionGridBound (source a)) := by
+  unfold Parameters.predictionInverseTolerance Parameters.predictionGridBound Parameters.clock
+    Parameters.inverseRate Parameters.denominator
+  ppt
+
+/-- Fresh visible labels give a perfect candidate on this three-point slope grid. Uniform
+selection therefore has error at most `1/8`, except with probability `3 * 2⁻ⁿ`. -/
+theorem selected_visible_label_error (n : ℕ) :
+    ((ProbComp.eval (selectSlope n 16 0
+      ((fun bit : Bool => ([bit], bit)) <$> OracleComp.uniform Bool))).toOuterMeasure {chosen |
+        ¬ clippedError (PMF.uniformOfFintype Bool) (fun _ => 1) (chosen / 2) ≤ 1 / 8}).toReal ≤
+      3 * (1 / 2 : ℝ) ^ n := by
+  have h := selectSlope_sound n 16 0 (by decide) (OracleComp.uniform Bool)
+    (fun bit => [bit]) id
+  have hmargin (bit : Bool) : voteMargin [bit] bit = 1 := by norm_num [voteMargin]
+  have hlaw : ProbComp.eval (OracleComp.uniform Bool) = PMF.uniformOfFintype Bool := by
+    simp [OracleComp.uniform]
+  simp only [dyadicSize_zero, hlaw, hmargin, id_eq] at h
+  norm_num at h
+  refine le_trans ?_ h
+  apply ENNReal.toReal_mono (toOuterMeasure_ne_top _ _)
+  apply MeasureTheory.measure_mono
+  intro chosen hbad _
+  refine ⟨2, le_rfl, ?_⟩
+  have hperfect : clippedError (PMF.uniformOfFintype Bool) (fun _ => 1) (2 / 2) = 0 := by
+    norm_num [clippedError, clippedProbability]
+  simpa only [Nat.cast_ofNat, hperfect, zero_add] using (lt_of_not_ge hbad)
 
 end CslibTests.ComputationalCryptoBoosting

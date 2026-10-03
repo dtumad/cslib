@@ -425,9 +425,17 @@ including a bound on the error of the executable majority predictor. The
 and state-size bounds on every execution. Its [correctness theorem](Computational/Pseudoentropy/Boosting/Loop.lean)
 connects the stored votes to the potential proof and bounds total error by the clock times the
 sum of the two test errors and the learner error. It assumes a learner contract for the truncated
-predictor descriptions. The cached membership simulation, weak learner, and final clipped-vote
-predictor remain to be combined into the uniform hard-core lemma. The three-source game argument and conversion of
-this pair into an expanding generator also remain to be proved.
+predictor descriptions. The [final clipped-vote predictor](Computational/Pseudoentropy/Boosting/Selection.lean)
+now has an exact fair-bit implementation and a uniform empirical slope search. Its error bound
+combines the dense-margin guarantee with explicit rounding, estimation, and selection-failure
+losses. Explicit polynomial precisions preserve an inverse-polynomial prediction advantage.
+Shared candidate selection has a strict PPT certificate and a reusable accuracy rule.
+The [fresh-mask sampler](Computational/Pseudoentropy/Masking.lean) also has a strict PPT certificate
+and conditional label entropy at least the soft-mask density, including weights that depend on
+the hidden label. A weak learner and combined failure accounting remain to be proved; following
+the write-up's set-oracle formulation would additionally require a cached membership simulation.
+The three-source game argument and conversion of this pair into an expanding generator also remain
+to be proved.
 The [computational guide](Computational/README.md#toward-general-one-way-functions) records the
 remaining obligations and cites
 [Holenstein's write-up](https://crypto.ethz.ch/publications/files/Holens06.pdf) and the

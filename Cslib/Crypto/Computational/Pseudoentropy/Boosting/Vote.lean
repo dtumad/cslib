@@ -67,6 +67,22 @@ private theorem count_false_add_true (votes : Word) :
   | nil => rfl
   | cons bit votes ih => cases bit <;> simp_all <;> lia
 
+/-- Reversing the label negates the signed margin of the same observable vote word. -/
+@[simp] theorem voteMargin_not (votes : Word) (truth : Bool) :
+    voteMargin votes (!truth) = -voteMargin votes truth := by
+  have htotal : (votes.count false : ℝ) + votes.count true = votes.length := by
+    exact_mod_cast count_false_add_true votes
+  cases truth <;> simp only [Bool.not_true, Bool.not_false, voteMargin] <;> linarith
+
+/-- The magnitude of the signed margin is at most the number of votes. -/
+theorem abs_voteMargin_le (votes : Word) (truth : Bool) :
+    |voteMargin votes truth| ≤ votes.length := by
+  have hcount : (votes.count truth : ℝ) ≤ votes.length := by
+    exact_mod_cast (show votes.count truth ≤ votes.length from List.count_le_length)
+  have hnonneg : (0 : ℝ) ≤ votes.count truth := by positivity
+  rw [abs_le]
+  constructor <;> dsimp only [voteMargin] <;> linarith
+
 /-- A positive signed margin guarantees that the executable majority predicts the label. -/
 theorem majority_eq_of_pos {votes : Word} {truth : Bool} (hmargin : 0 < voteMargin votes truth) :
     majority votes = truth := by

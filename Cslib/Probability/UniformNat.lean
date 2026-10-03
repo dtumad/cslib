@@ -73,6 +73,13 @@ theorem dyadicSize_pos (bound : ℕ) : 0 < dyadicSize bound := by
   unfold dyadicSize
   positivity
 
+/-- Even at zero, the sampler draws at least one fair bit. -/
+theorem two_le_dyadicSize (bound : ℕ) : 2 ≤ dyadicSize bound := by
+  unfold dyadicSize
+  rw [pow_succ]
+  have h : 0 < 2 ^ Nat.log 2 bound := by positivity
+  lia
+
 instance (bound : ℕ) : NeZero (dyadicSize bound) := ⟨(dyadicSize_pos bound).ne'⟩
 
 /-- Every index at most the original bound lies in the dyadic range. -/
@@ -87,6 +94,12 @@ theorem dyadicSize_le (bound : ℕ) : dyadicSize bound ≤ 2 * (bound + 1) := by
     unfold dyadicSize
     rw [pow_succ]
     lia
+
+/-- Applying the rounding operation to a power-of-two range doubles it. -/
+@[simp] theorem dyadicSize_dyadicSize (bound : ℕ) :
+    dyadicSize (dyadicSize bound) = 2 * dyadicSize bound := by
+  simp only [dyadicSize]
+  rw [Nat.log_pow (by decide : 1 < 2), pow_succ, Nat.mul_comm]
 
 /-- The sampling range grows only linearly with its bound. -/
 @[fun_prop] theorem dyadicSize_polynomiallyBounded : PolynomiallyBounded dyadicSize :=

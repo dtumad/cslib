@@ -10,6 +10,7 @@ public import Cslib.Probability.HashIsolation
 public import Cslib.Probability.LinearHash
 public import Cslib.Crypto.Computational.GoldreichLevin.WordDecoder
 public import Cslib.Crypto.Computational.Pseudoentropy.HashReduction
+public import Cslib.Crypto.Computational.Pseudoentropy.Masking
 public import Cslib.Crypto.Computational.Pseudoentropy.Seed
 public import Cslib.Tactic.PPT
 
@@ -18,6 +19,8 @@ public import Cslib.Tactic.PPT
 
 These checks exercise the units and orientation of conditional entropy, null observations, and
 the distinction between an arbitrary image length and the dimension of recovered preimages.
+Fresh-mask examples allow the mask to depend on the hidden label, check independence across
+repeated inputs, and compose an arbitrary certified training source with executable soft weights.
 -/
 
 public section
@@ -152,6 +155,43 @@ theorem unused_seed_bit_retains_entropy (n : ℕ) :
   change 0 + 1 + conditionalEntropy ((PMF.uniformOfFintype (BitString 2)).map
     (fun bits => (paddedIndependentBitSeed.output n bits, bits))) = (2 : ℝ) at h
   linarith
+
+/-- Masking only the hidden true label still contributes at least half a bit of entropy.
+The public observation is constant, so the mask is not determined by that observation. -/
+theorem hidden_label_mask_entropy :
+    (1 : ℝ) / 2 ≤ conditionalEntropy (ProbComp.eval
+      (Crypto.Pseudoentropy.maskedSample (OracleComp.uniform Bool)
+        (fun _ => ()) id (fun bit => pure bit))) := by
+  have h := Crypto.Pseudoentropy.maskedSample_entropy_ge (OracleComp.uniform Bool)
+    (fun _ => ()) id (fun bit => pure bit)
+  simpa [OracleComp.uniform, Fintype.sum_bool, PMF.uniformOfFintype_apply, PMF.pure_apply] using h
+
+/-- The same false label is independently replaced twice; both outputs are true with probability
+`1/16`. Reusing a cached randomized label would instead give probability `1/4`. -/
+theorem repeated_masks_are_fresh :
+    (ProbComp.eval (OracleComp.replicate 2
+      (Crypto.Pseudoentropy.maskBit (OracleComp.uniform Bool) false)) [true, true]).toReal =
+        1 / 16 := by
+  have h := ProbComp.eval_replicate_apply_ofFn
+    (Crypto.Pseudoentropy.maskBit (OracleComp.uniform Bool) false) (fun _ : Fin 2 => true)
+  norm_num [List.ofFn_succ] at h
+  rw [h]
+  norm_num [ENNReal.toReal_mul, Crypto.Pseudoentropy.eval_maskBit_apply, OracleComp.uniform,
+    PMF.uniformOfFintype_apply]
+
+/-- A fresh weighted mask may capture the input parameter while sampling labeled vote words. -/
+noncomputable def maskedTraining (n : ℕ) (source : ProbComp (Word × Bool)) :
+    ProbComp (Word × Bool) :=
+  Crypto.Pseudoentropy.maskedSample source Prod.fst Prod.snd
+    (fun pair => Crypto.Pseudoentropy.Boosting.sampleWeight n 1 0 pair.1 pair.2)
+
+/-- The entire masked sampler has a synthesized strict PPT certificate. -/
+theorem maskedTraining_isPPT {source : ℕ → ProbComp (Word × Bool)}
+    (hsource : IsPPTOn unaryEncoding (pairEncoding wordEncoding boolEncoding) source) :
+    IsPPTOn unaryEncoding (pairEncoding wordEncoding boolEncoding)
+      (fun n => maskedTraining n (source n)) := by
+  unfold maskedTraining
+  ppt
 
 /-- Unpredictability alone does not give a pseudoentropy pair: the hidden bit's true entropy
 must also leave room for the promised gap. -/

@@ -99,6 +99,8 @@ The first extraction ingredients are checked:
 | [Boosting/Sampling](Pseudoentropy/Boosting/Sampling.lean) | Exact fair-bit sampling of dyadic soft weights, a strict PPT certificate, and agreement with the density used in the potential proof. |
 | [Boosting/Vote](Pseudoentropy/Boosting/Vote.lean) and [Boosting/Decision](Pseudoentropy/Boosting/Decision.lean) | Executable majority prediction, rational density and stopping tests, and their guard guarantees with exponentially small sampling error. |
 | [Boosting/Program](Pseudoentropy/Boosting/Program.lean) and [Boosting/Loop](Pseudoentropy/Boosting/Loop.lean) | A strict PPT clocked loop, state bounds on every execution, and its majority-or-dense-margin guarantee with an explicit learner hypothesis and total error bound. |
+| [Boosting/Clipped](Pseudoentropy/Boosting/Clipped.lean) and [Boosting/Selection](Pseudoentropy/Boosting/Selection.lean) | Exact dyadic randomized prediction, the lower-tail error bound, and uniform empirical selection of a slope with strict PPT certificates and explicit losses. |
+| [Masking](Pseudoentropy/Masking.lean) | Fresh randomized labels with conditional entropy at least the soft-mask density, exact sampling laws, and compositional strict PPT certificates. |
 | [LinearHash](../../Computability/Probabilistic/LinearHash.lean) | Boolean-matrix hashing, its word implementation, its PPT sampler, and exact agreement with the finite extraction experiment. |
 | [Extraction](Extraction.lean) | A source indistinguishable from a sufficiently diffuse comparison source yields computationally uniform extraction. |
 
@@ -181,14 +183,23 @@ soft sets avoid rounding cardinalities.
 The [weight sampler](Pseudoentropy/Boosting/Sampling.lean) implements this curve exactly at
 dyadic rates, using vote counts, saturating natural subtraction, and a bounded fair-bit draw.
 Its acceptance probability agrees with the weight in the potential proof, and averaging over
-source examples gives exactly the soft density. Each call uses fresh randomness; a random-set
-membership oracle will additionally need to cache repeated answers.
+source examples gives exactly the soft density. Each call uses fresh randomness; modeling a
+fixed random set would additionally require caching repeated membership answers.
 The [boosting examples](../../../CslibTests/ComputationalCryptoBoosting.lean) check clipping,
 weighted prediction, an exact clock boundary, and independence of repeated draws. The example
 `weightTrials` counts polynomially many sampled weights; its strict PPT proof is
 `unfold weightTrials; ppt`. Its cubic budget estimates the weight to tolerance `1 / (n + 1)`
 with failure at most `2^(-n)`. `sampleWeight_density_deviation` supplies the analogous concentration
 bound when every trial samples a fresh source example before drawing its weight coin.
+
+The [fresh-mask sampler](Pseudoentropy/Masking.lean) instead uses each sampled weight to decide
+whether to replace the label by a fresh fair bit. Its conditional label entropy is at least the
+soft density, even when the weight depends on the hidden label. This follows from general
+entropy concavity and the fact that revealing less information cannot reduce conditional entropy.
+The [entropy examples](../../../CslibTests/ComputationalCryptoEntropy.lean) check hidden-label
+masks, fresh randomness on repeated inputs, and a complete sampler whose efficiency proof is
+`unfold maskedTraining; ppt`. These are ingredients for a direct reduction using soft weights;
+the extraction, coordinate hybrid, and weak learner for that reduction remain to be proved.
 
 The [sampled decisions](Pseudoentropy/Boosting/Decision.lean) implement the overlapping density
 and majority guards from Figure 2 and Claim 2.6 of the uniform hard-core write-up. With weight
@@ -220,10 +231,25 @@ at most `7 * delta / 16` or a collection with the required margin on every dense
 The learner's contract concerns its **truncated** description. A checked visible-label example
 instantiates that contract with a perfect learner and gives total error at most `2^(-n)`.
 
-The cached membership simulation, weak learner, and final clipped-vote predictor with its sampled
-threshold remain to be constructed. The clock replaces the write-up's worst-dense-set stopping
-test; the current program does not implement that test. The conditional loop theorem alone does
-not prove the uniform hard-core lemma.
+The [clipped predictor](Pseudoentropy/Boosting/Clipped.lean) samples exactly the clipped affine
+probability determined by an observable vote word. A fractional lower tail proves the ideal
+error bound for arbitrary finite source distributions. The cutoff occurs only in the proof;
+the [uniform selection program](Pseudoentropy/Boosting/Selection.lean) tries a finite dyadic
+slope grid and selects by empirical correctness on fresh labeled examples.
+`State.Successful.selectSlope_error` connects this program to the loop's dense-margin branch.
+With grid denominator `D = dyadicSize precision` and inverse tolerance `t > 0`, it gives error
+at most `delta / 2 - gamma * delta^3 / 16 + clock / (2 * D) + 2 / t`, except with probability
+`(D + 1) * 2^(-confidence)`. Both the predictor and the complete grid search have strict PPT
+certificates. The explicit choice `t = 128 * inverseRate * denominator^2` and grid bound
+`clock * t` leaves error at most `delta / 2 - 1 / t`; the majority branch satisfies the same
+bound. `State.Successful.selectSlope_advantage` proves this inverse-polynomial advantage, and a
+client example certifies the configured search with `unfold ...; ppt`. The remaining reduction
+must pay for selection failure together with the loop's guard and learner failures.
+
+The weak learner and combined failure accounting remain to be constructed. Following the
+write-up's set-oracle route would additionally require a cached membership simulation. The clock
+replaces the write-up's worst-dense-set stopping test; the current program does not implement that
+test. The conditional loop theorem and final predictor do not yet prove the uniform hard-core lemma.
 
 `ComputationallyIndistinguishable.extract_uniform` still assumes its comparison source and
 negligible collision bound. Negligible collisions of the OWF output alone do not give the entropy
@@ -357,6 +383,14 @@ real arithmetic belongs to its correctness statement.
 to a rational threshold using natural cross-products. Its correctness contract gives overlapping
 upper and lower guards with the same error bound, so reduction proofs can use the guards without
 exposing their sampling implementation.
+
+`OracleComp.selectBest count trials test` compares empirical acceptance probabilities and returns
+the best candidate index. Its [strict PPT certificate](../../Computability/Probabilistic/Selection.lean)
+composes an indexed trial program and efficient unary counts; `ppt` applies it automatically.
+The [correctness rule](../../Languages/Probabilistic/Selection.lean) loses twice the estimation
+tolerance relative to every candidate and charges one failure term per candidate. Both the indices
+and success counts are bounded on every execution. The boosting slope search uses this rule;
+its entire client efficiency proof is `unfold selectSlope; ppt`.
 
 ## Writing reductions and improving the interfaces
 

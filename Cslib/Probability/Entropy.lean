@@ -161,6 +161,22 @@ theorem entropy_map_of_injective [Finite α] [Finite β] (p : PMF α) {f : α �
   rw [entropy_map_eq_sum, entropy_eq_sum_surprisal]
   simp [surprisal, hf.eq_iff]
 
+/-- Mixing finite distributions cannot lower their average entropy. -/
+theorem sum_mul_entropy_le_entropy_bind [Fintype α] [Finite β]
+    (p : PMF α) (kernel : α → PMF β) :
+    (∑ a, (p a).toReal * entropy (kernel a)) ≤ entropy (p.bind kernel) := by
+  let := Fintype.ofFinite β
+  simp only [entropy_eq_sum, ← mul_div_assoc, ← Finset.sum_div]
+  apply div_le_div_of_nonneg_right _ (Real.log_nonneg (by norm_num))
+  simp only [Finset.mul_sum]
+  rw [Finset.sum_comm]
+  apply Finset.sum_le_sum
+  intro b _
+  have h := Real.concaveOn_negMulLog.le_map_sum (t := Finset.univ)
+    (w := fun a => (p a).toReal) (p := fun a => (kernel a b).toReal)
+    (fun _ _ => ENNReal.toReal_nonneg) (sum_toReal p) (fun _ _ => ENNReal.toReal_nonneg)
+  simpa only [smul_eq_mul, bind_apply_toReal] using h
+
 /-- The joint entropy is the marginal entropy plus the average conditional entropy. -/
 theorem entropy_bind_pair [Fintype α] [Finite β] (p : PMF α) (kernel : α → PMF β) :
     entropy (p.bind (fun a => (kernel a).map (a, ·))) =
@@ -231,6 +247,43 @@ theorem conditionalEntropy_eq_sum [Fintype α] [Finite β] (joint : PMF (α × �
       ∑ a, ((joint.map Prod.fst) a).toReal * entropy (conditionalSnd joint a) := by
   simpa only [bind_conditionalSnd] using
     conditionalEntropy_bind_pair (joint.map Prod.fst) (conditionalSnd joint)
+
+/-- Observing a function of the input leaves at least the average entropy of the output kernel.
+The observation may merge inputs, including inputs whose conditional laws differ. -/
+theorem conditionalEntropy_observe_ge [Fintype α] [Finite β] [Finite γ]
+    (p : PMF α) (kernel : α → PMF β) (observe : α → γ) :
+    (∑ a, (p a).toReal * entropy (kernel a)) ≤
+      conditionalEntropy (p.bind (fun a => (kernel a).map (observe a, ·))) := by
+  let := Fintype.ofFinite γ
+  let conditional := conditionalSnd (p.map (fun a => (observe a, a)))
+  have hreplay : (p.map observe).bind (fun c => ((conditional c).bind kernel).map (c, ·)) =
+      p.bind (fun a => (kernel a).map (observe a, ·)) := by
+    have h := congrArg (fun joint : PMF (γ × α) =>
+      joint.bind (fun pair => (kernel pair.2).map (pair.1, ·)))
+        (bind_conditionalSnd (p.map (fun a => (observe a, a))))
+    simpa only [PMF.map_comp, Function.comp_def, PMF.map_bind, PMF.bind_bind, PMF.bind_map]
+      using h
+  calc
+    _ = ∑ c, ((p.map observe) c).toReal *
+        ∑ a, (conditional c a).toReal * entropy (kernel a) := by
+      rw [sum_map_mul]
+      exact (sum_conditionalSnd_map p observe (fun _ a => entropy (kernel a))).symm
+    _ ≤ ∑ c, ((p.map observe) c).toReal * entropy ((conditional c).bind kernel) :=
+      Finset.sum_le_sum (fun c _ => mul_le_mul_of_nonneg_left
+        (sum_mul_entropy_le_entropy_bind (conditional c) kernel) ENNReal.toReal_nonneg)
+    _ = _ := by rw [← hreplay, conditionalEntropy_bind_pair]
+
+/-- Replacing the observation by a function of it can only increase conditional entropy. -/
+theorem conditionalEntropy_map_fst_ge [Finite α] [Finite β] [Finite γ]
+    (joint : PMF (α × β)) (observe : α → γ) :
+    conditionalEntropy joint ≤
+      conditionalEntropy (joint.map (fun pair => (observe pair.1, pair.2))) := by
+  let := Fintype.ofFinite α
+  have h := conditionalEntropy_observe_ge (joint.map Prod.fst) (conditionalSnd joint) observe
+  have hlaw := congrArg (PMF.map (fun pair : α × β => (observe pair.1, pair.2)))
+    (bind_conditionalSnd joint)
+  simp only [PMF.map_bind, PMF.map_comp, Function.comp_def] at hlaw
+  simpa only [hlaw, ← conditionalEntropy_eq_sum] using h
 
 /-- Conditional entropy is the expected information content of the hidden value after its
 observation. Null observations are automatically weighted by zero. -/
