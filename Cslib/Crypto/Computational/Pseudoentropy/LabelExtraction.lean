@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 
 public import Cslib.Crypto.Computational.Pseudoentropy.DenseMask
+public import Cslib.Crypto.Computational.Pseudoentropy.MaskedExtraction
 public import Cslib.Crypto.Computational.Pseudoentropy.Seed
 public import Cslib.Crypto.Computational.Pseudoentropy.ExtractionSchedule
 

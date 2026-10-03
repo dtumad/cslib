@@ -463,7 +463,12 @@ distinguishing advantage while retaining every observation and the complete matr
 The client supplies efficient density and output schedules satisfying the entropy budget; all
 sampling and hashing have strict PPT certificates. The three-source game argument, uniform
 removal of unknown entropy parameters, and conversion into an expanding generator remain to
-be proved. The construction uses fresh soft masks; following the write-up's set-oracle
+be proved. The [shared repeated extractor](Computational/Pseudoentropy/RepeatedExtraction.lean)
+now handles arbitrary finite labels, including word seeds. The
+[first and third statistical transitions](Computational/Pseudoentropy/SeedExtraction.lean)
+use the same repetition schedule, preserve their public hash seeds, and permit empty outputs
+when a component has no entropy. Their concrete hash families and the complete game assembly
+remain to be connected. The construction uses fresh soft masks; following the write-up's set-oracle
 formulation would additionally require a cached membership simulation.
 The [computational guide](Computational/README.md#toward-general-one-way-functions) records the
 remaining obligations and cites

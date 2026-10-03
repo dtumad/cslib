@@ -239,6 +239,13 @@ theorem IsPolyTime.list_flatMap {Output : Type} {element : Item ↪ Word} {outpu
       simp only [listEncoding_append, List.length_append]
       exact Nat.add_le_add_left (hsize value) _)
 
+/-- Flatten nested encoded collections using the shared list-producing map. -/
+theorem IsPolyTime.list_flatten {element : Item ↪ Word} {values : α → List (List Item)}
+    (hvalues : IsPolyTime encode (fun a => listEncoding (listEncoding element) (values a))) :
+    IsPolyTime encode (fun a => listEncoding element (values a).flatten) := by
+  simpa only [List.flatMap_id'] using
+    hvalues.list_flatMap (isPolyTime_input (listEncoding element))
+
 /-- Map a certified function over an efficiently computed collection. -/
 theorem IsPolyTime.list_map {Output : Type} {element : Item ↪ Word} {output : Output ↪ Word}
     {values : α → List Item} {f : Item → Output}
@@ -259,6 +266,13 @@ theorem IsPolyTime.decode_list_bool {word : α → Word}
     ((isPolyTime_fst wordEncoding boolEncoding).append
       (isPolyTime_snd wordEncoding boolEncoding))
     (growth := fun _ => 1) (by fun_prop) (by simp [wordEncoding])
+
+/-- Concatenate an encoded collection of words into an ordinary word. -/
+theorem IsPolyTime.flatten {values : α → List Word}
+    (hvalues : IsPolyTime encode (fun a => listEncoding wordEncoding (values a))) :
+    IsPolyTime encode (fun a => (values a).flatten) := by
+  simpa only [wordEncoding, Function.Embedding.coe_refl, List.flatMap_id] using
+    (hvalues.list_flatMap (isPolyTime_input wordEncoding).encode_list_bool).decode_list_bool
 
 /-- Capture a runtime environment for every element of a collection. The complete environment
 and every copy are charged to the polynomial bound. -/

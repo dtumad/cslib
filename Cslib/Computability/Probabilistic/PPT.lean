@@ -88,6 +88,9 @@ def parameterEncoding : (ℕ × Word) ↪ Word where
     obtain ⟨rfl, rfl⟩ := parameterInput_inj.mp h
     rfl
 
+@[simp] theorem parameterEncoding_apply (input : ℕ × Word) :
+    parameterEncoding input = parameterInput input.1 input.2 := rfl
+
 /-- A Boolean is represented by its single bit. -/
 def boolEncoding : Bool ↪ Word := ⟨fun b => [b], by intro a b h; simpa using h⟩
 

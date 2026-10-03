@@ -6,7 +6,8 @@ Authors: Samuel Schlesinger
 
 module
 
-public import Cslib.Crypto.Computational.Pseudoentropy.MaskedExtraction
+public import Cslib.Crypto.Computational.Pseudoentropy.Masking
+public import Cslib.Crypto.Computational.Pseudoentropy.RepeatedExtraction
 public import Cslib.Crypto.Computational.Pseudoentropy.Boosting.Learner
 
 /-!

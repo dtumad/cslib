@@ -10,6 +10,7 @@ public import Cslib.Crypto.Computational.Pseudoentropy.Basic
 public import Cslib.Computability.Probabilistic.CoinTape
 public import Cslib.Foundations.Data.BitString
 public import Cslib.Probability.EntropyConcentration
+public import Cslib.Tactic.PPT
 
 /-!
 # Uniform seeds for samplable pseudoentropy pairs
@@ -110,6 +111,48 @@ theorem output_distribution (n : ℕ) :
   simpa only [uniformBits, PMF.map_comp, Function.comp_def, seed.encode_output] using
     seed.distribution n
 
+/-- Retain the complete sampler seed together with its finite output. -/
+noncomputable def jointWithSeed (n : ℕ) :
+    PMF ((pair.Observation n × Bool) × BitString (seed.length n)) :=
+  (PMF.uniformOfFintype (BitString (seed.length n))).map (fun bits => (seed.output n bits, bits))
+
+/-- Forgetting the retained seed recovers the pair's original joint law. -/
+@[simp] theorem jointWithSeed_map_fst (n : ℕ) :
+    (seed.jointWithSeed n).map Prod.fst = pair.joint n := by
+  simpa only [jointWithSeed, PMF.map_comp, Function.comp_def] using seed.output_distribution n
+
+/-- Keeping the seed retains its full pointwise information bound. -/
+theorem jointWithSeed_mass_ge (n : ℕ) (result)
+    (hresult : result ∈ (seed.jointWithSeed n).support) :
+    (2 : ℝ) ^ (-(seed.length n : ℝ)) ≤ (seed.jointWithSeed n result).toReal := by
+  simpa [jointWithSeed, BitString, Real.logb_pow] using
+    PMF.uniform_map_mass_ge (fun bits => (seed.output n bits, bits)) result hresult
+
+/-- An ordinary program returns the observation, label, and complete seed, including unused
+coins. The evaluator is the same deterministic program supplied by the sampler's certificate. -/
+noncomputable def sampleWithSeed (n : ℕ) : ProbComp ((Word × Bool) × Word) := do
+  let bits ← OracleComp.sampleBits (seed.length n)
+  return (seed.evaluate n bits, bits)
+
+/-- Retaining the seed preserves strict PPT; no conditional sampling is performed. -/
+theorem sampleWithSeed_isPPT : IsPPTOn unaryEncoding
+    (pairEncoding (pairEncoding wordEncoding boolEncoding) wordEncoding) seed.sampleWithSeed := by
+  have hlength := seed.length_isPolyTime
+  have hevaluate : IsPolyTime (pairEncoding unaryEncoding wordEncoding) (fun input =>
+      pairEncoding wordEncoding boolEncoding (seed.evaluate input.1 input.2)) :=
+    seed.efficient.comp_encoded (by polytime)
+  unfold sampleWithSeed
+  ppt
+
+/-- The efficient program exactly realizes the finite joint experiment with its retained seed. -/
+theorem eval_sampleWithSeed (n : ℕ) : ProbComp.eval (seed.sampleWithSeed n) =
+    (seed.jointWithSeed n).map (fun result =>
+      ((pair.encode n result.1.1, result.1.2), List.ofFn result.2)) := by
+  simp only [sampleWithSeed, bind_pure_comp, ProbComp.eval_map, jointWithSeed, PMF.map_comp,
+    Function.comp_def, seed.encode_output]
+  simp only [ProbComp.eval, OracleComp.eval_sampleBits, uniformBits, PMF.map_comp,
+    Function.comp_def]
+
 /-- Every possible output has at least the probability of one complete seed. -/
 theorem mass_ge (n : ℕ) (result : pair.Observation n × Bool)
     (hresult : result ∈ (pair.joint n).support) :
@@ -132,8 +175,7 @@ theorem conditionalSurprisal_concentration (n repetitions : ℕ) {ε : ℝ} (hε
 This identity also counts coins that the sampler never inspected. -/
 theorem entropy_chain_rule (n : ℕ) :
     PMF.entropy ((pair.joint n).map Prod.fst) + PMF.conditionalEntropy (pair.joint n) +
-      PMF.conditionalEntropy ((PMF.uniformOfFintype (BitString (seed.length n))).map
-        (fun bits => (seed.output n bits, bits))) = seed.length n := by
+      PMF.conditionalEntropy (seed.jointWithSeed n) = seed.length n := by
   have h := PMF.entropy_chain_rule_deterministic
     (PMF.uniformOfFintype (BitString (seed.length n)))
     (fun bits => (seed.output n bits).1) (fun bits => (seed.output n bits).2)
@@ -141,7 +183,8 @@ theorem entropy_chain_rule (n : ℕ) :
       (fun bits => (seed.output n bits).1) = (pair.joint n).map Prod.fst := by
     rw [← seed.output_distribution, PMF.map_comp]
     rfl
-  simpa [hmarginal, seed.output_distribution, PMF.entropy_uniform, BitString, Real.logb_pow] using h
+  simpa [jointWithSeed, hmarginal, seed.output_distribution, PMF.entropy_uniform, BitString,
+    Real.logb_pow] using h
 
 end SeedRealization
 

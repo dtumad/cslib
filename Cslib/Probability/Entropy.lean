@@ -212,6 +212,16 @@ noncomputable def conditionalEntropy [Finite α] [Finite β] (joint : PMF (α ×
 theorem conditionalEntropy_nonneg [Finite α] [Finite β] (joint : PMF (α × β)) :
     0 ≤ conditionalEntropy joint := sub_nonneg.mpr (entropy_map_le joint Prod.fst)
 
+/-- A constant observation reveals nothing about the sampled value. -/
+@[simp] theorem conditionalEntropy_map_const [Finite α] [Finite β] (p : PMF β) (a : α) :
+    conditionalEntropy (p.map (a, ·)) = entropy p := by
+  rw [conditionalEntropy, entropy_map_of_injective p (by
+    intro x y h
+    exact congrArg Prod.snd h)]
+  rw [PMF.map_comp]
+  change entropy p - entropy (p.map (Function.const β a)) = entropy p
+  rw [PMF.map_const, entropy_pure, sub_zero]
+
 /-- The difference-of-entropies definition equals the usual average of conditional entropies. -/
 theorem conditionalEntropy_bind_pair [Fintype α] [Finite β]
     (p : PMF α) (kernel : α → PMF β) :

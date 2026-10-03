@@ -110,6 +110,8 @@ The first extraction ingredients are checked:
 | [DenseMask](Pseudoentropy/DenseMask.lean) | A pseudoentropy pair's prediction bound gives every uniform sequence test a dense mask with any prescribed inverse-polynomial distinguishing bound and a lower bound on its positive probabilities. |
 | [ExtractionSchedule](Pseudoentropy/ExtractionSchedule.lean) and [LabelExtraction](Pseudoentropy/LabelExtraction.lean) | An explicit polynomial repetition schedule makes label extraction computationally uniform under an admissible entropy budget, independently of the test's running-time degree. |
 | [WordExtraction](Pseudoentropy/WordExtraction.lean) | Executable matrix hashing, exact agreement with the finite extraction laws, and a security theorem for ordinary strict PPT tests on observations, seed, and output. |
+| [RepeatedExtraction](Pseudoentropy/RepeatedExtraction.lean) | One typed extractor and conditional-entropy bound for arbitrary finite labels, with public side information and a zero-bit case requiring no entropy. |
+| [SeedExtraction](Pseudoentropy/SeedExtraction.lean) | Statistical extraction of public observations and remaining seed randomness, with every observation and label revealed in the latter experiment. Both use the label extractor's repetition schedule. |
 | [LinearHash](../../Computability/Probabilistic/LinearHash.lean) | Boolean-matrix hashing, its word implementation, its PPT sampler, and exact agreement with the finite extraction experiment. |
 | [Extraction](Extraction.lean) | A source indistinguishable from a sufficiently diffuse comparison source yields computationally uniform extraction. |
 
@@ -255,7 +257,8 @@ degree. Thus the concentration estimate does not force the generator's repetitio
 depend on the distinguisher.
 
 `extractLabels` hashes ordinary lists of labels and retains every observation and the complete
-hash seed. `extractLabels_distance_le` transfers the conditional-entropy estimate to this program;
+hash seed. The shared [`RepeatedExtraction`](Pseudoentropy/RepeatedExtraction.lean) module's
+`extractLabels_distance_le` transfers the conditional-entropy estimate to this program;
 `maskedSample_weight_extract` instantiates it with the soft density. The client proof for repeated
 sampling and matrix hashing is `unfold extractTraining; ppt`. The tests also instantiate the bound
 with a mask that depends on the hidden label and a constant word observation. Public observations
@@ -350,9 +353,21 @@ and the full matrix seed. Sampling, hashing, and padding are charged to strict P
 ordinary word interface. The [extraction examples](../../../CslibTests/ComputationalCryptoExtraction.lean)
 instantiate the numerical budget at a known half-bit threshold.
 
+The [first and third statistical transitions](Pseudoentropy/SeedExtraction.lean) now use that
+same schedule. `observation_word_extraction` hashes the sampled public observations below their
+Shannon entropy. `remainingSeed_word_extraction` hashes the complete original seeds below
+`L - H(observation) - H(label | observation)`, retaining every observation and label. Both
+preserve their independent public hash seed and allow zero output bits without a positive entropy
+budget. The retained-seed sampler is strict PPT and exactly realizes the finite experiment,
+including unused coins. The generic `extractLabels` now accepts word labels as well as Boolean
+labels; the retained-seed hashing example's client certificate closes with `ppt` after providing
+the sampler and seed-length certificates. Two-universality is still an explicit premise for
+these two statistical transitions.
+
 `ComputationallyIndistinguishable.extract_uniform` still assumes its comparison source and
 negligible collision bound. Negligible collisions of the OWF output alone do not give the entropy
-surplus required for expansion. The remaining route needs the three-source game argument,
+surplus required for expansion. The remaining route needs concrete hashes for the first and
+third components and assembly of the three-source game argument,
 removal of unknown entropy parameters by a uniform reduction, and a final generator with stretch
 at every seed length. In the write-up's entropy grid, each candidate must first be amplified
 enough to pay for all candidates' independent seeds before their outputs are combined by XOR.

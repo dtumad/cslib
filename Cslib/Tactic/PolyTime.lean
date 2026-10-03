@@ -318,6 +318,8 @@ attribute [aesop safe apply (index := [unindexed]) (rule_sets := [PolyTime])]
   Cslib.Probability.IsPolyTime.reverse
   Cslib.Probability.IsPolyTime.zipWith
   Cslib.Probability.IsPolyTime.pair
+  Cslib.Probability.IsPolyTime.list_flatten
+  Cslib.Probability.IsPolyTime.flatten
 
 attribute [aesop safe apply (rule_sets := [PolyTime])]
   headD_rule

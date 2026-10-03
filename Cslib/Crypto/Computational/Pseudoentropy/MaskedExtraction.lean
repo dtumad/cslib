@@ -7,8 +7,7 @@ Authors: Samuel Schlesinger
 module
 
 public import Cslib.Crypto.Computational.Pseudoentropy.Masking
-public import Cslib.Probability.EntropyExtraction
-public import Cslib.Crypto.Game.Statistical
+public import Cslib.Crypto.Computational.Pseudoentropy.RepeatedExtraction
 
 /-!
 # Extracting fresh masked labels
@@ -32,130 +31,6 @@ revealing every observation and the complete hash seed.
 namespace Cslib.Crypto.Pseudoentropy
 
 open Cslib.Probability Cslib.Probability.PMF
-
-/-- Hash the sampled labels, retaining every public observation and the independent hash seed. -/
-def extractLabels {Observation Seed Output : Type} (seed : ProbComp Seed)
-    (hash : Seed → Word → Output) (samples : List (Observation × Bool)) :
-    ProbComp (List Observation × Seed × Output) := do
-  let key ← seed
-  return (samples.map Prod.fst, key, hash key (samples.map Prod.snd))
-
-/-- Preserve the sampled observations and public seed, replacing the extracted labels by an
-independent uniform output. The ambient observation and seed types need not be finite. -/
-noncomputable def extractLabelsIdeal {Observation Seed Output : Type}
-    [Fintype Output] [Nonempty Output] (source : ProbComp Observation) (count : ℕ)
-    (seed : ProbComp Seed) : PMF (List Observation × Seed × Output) :=
-  (ProbComp.eval (OracleComp.replicate count source)).bind (fun observed =>
-    ((ProbComp.eval seed).bind (fun s => (PMF.uniformOfFintype Output).map (s, ·))).map
-      (observed, ·))
-
-/-- Re-encoding the public observations commutes with extraction of the hidden labels. -/
-theorem extractLabels_map_observation {α β Seed Output : Type} (observe : α → β)
-    (seed : ProbComp Seed) (hash : Seed → Word → Output) (samples : List (α × Bool)) :
-    extractLabels seed hash (samples.map (fun sample => (observe sample.1, sample.2))) =
-      (fun result => (result.1.map observe, result.2)) <$> extractLabels seed hash samples := by
-  simp only [extractLabels, map_bind, map_pure, List.map_map, Function.comp_def]
-
-/-- The observation map also commutes with a complete repeated extraction experiment. -/
-theorem eval_replicate_extractLabels_map {α β Seed Output : Type} (observe : α → β)
-    (source : ProbComp (α × Bool)) (count : ℕ) (seed : ProbComp Seed)
-    (hash : Seed → Word → Output) :
-    ProbComp.eval (OracleComp.replicate count
-      ((fun sample => (observe sample.1, sample.2)) <$> source) >>= extractLabels seed hash) =
-      (ProbComp.eval (OracleComp.replicate count source >>= extractLabels seed hash)).map
-        (fun result => (result.1.map observe, result.2)) := by
-  rw [OracleComp.replicate_map]
-  simp only [bind_map_left, extractLabels_map_observation, ← map_bind, ProbComp.eval_map]
-
-/-- Label extraction composes ordinary sampling, list projections, and an efficient hash. -/
-theorem extractLabels_isPPT {Param Observation Seed Output : Type} {input : Param ↪ Word}
-    {observation : Observation ↪ Word} {key : Seed ↪ Word} {output : Output ↪ Word}
-    {seed : Param → ProbComp Seed} {hash : Param → Seed → Word → Output}
-    {samples : Param → List (Observation × Bool)}
-    (hseed : IsPPTOn input key seed)
-    (hhash : IsPolyTime (pairEncoding (pairEncoding input key) wordEncoding)
-      (fun pair => output (hash pair.1.1 pair.1.2 pair.2)))
-    (hsamples : IsPolyTime input
-      (fun a => listEncoding (pairEncoding observation boolEncoding) (samples a))) :
-    IsPPTOn input (pairEncoding (listEncoding observation) (pairEncoding key output))
-      (fun a => extractLabels (seed a) (hash a) (samples a)) := by
-  unfold extractLabels
-  ppt
-
-@[aesop safe -10 tactic (rule_sets := [PPT])]
-private meta def pptExtractLabels : Lean.Elab.Tactic.TacticM Unit := do
-  Cslib.Tactic.PPT.applyHead #[(``extractLabels, ``extractLabels_isPPT)]
-  Lean.Elab.Tactic.evalTactic (← `(tactic|
-    case hseed => solve | aesop (rule_sets := [PPT, PolyTime])))
-
-/-- Repeated program sampling and list-based extraction have the finite product experiment's
-exact law. Only the representation of the observation tuple changes. -/
-theorem eval_replicate_extractLabels {Observation Seed Output : Type} [Finite Observation]
-    (source : ProbComp (Observation × Bool)) (count : ℕ) (seed : ProbComp Seed)
-    (hash : Seed → Word → Output) :
-    ProbComp.eval (OracleComp.replicate count source >>= extractLabels seed hash) =
-      ((PMF.pi (fun _ : Fin count => ProbComp.eval source)).bind (fun outcome =>
-        (ProbComp.eval seed).map (fun s =>
-          (fun i => (outcome i).1, s, hash s (List.ofFn (fun i => (outcome i).2)))))).map
-        (fun result => (List.ofFn result.1, result.2)) := by
-  simp only [ProbComp.eval_bind, ProbComp.eval_replicate, PMF.bind_map, extractLabels,
-    bind_pure_comp, ProbComp.eval_map, PMF.map_bind, PMF.map_comp, Function.comp_def, List.map_ofFn]
-
-/-- Extraction error is the only loss when converting a distinguisher of extracted labels
-into a distinguisher of the original and comparison sample sequences. The hash seed is public. -/
-theorem extractLabels_sequence_gap {Observation Seed Output : Type}
-    (original comparison : ProbComp (Observation × Bool)) (count : ℕ)
-    (seed : ProbComp Seed) (hash : Seed → Word → Output)
-    (test : List Observation × Seed × Output → ProbComp Bool)
-    (ideal : PMF (List Observation × Seed × Output)) {ε : ℝ}
-    (hclose : dist (ProbComp.eval (OracleComp.replicate count comparison >>=
-      extractLabels seed hash)) ideal ≤ ε) :
-    let reduced := fun samples => extractLabels seed hash samples >>= test
-    Game.advantage (ProbComp.eval (OracleComp.replicate count original >>= reduced))
-        (ideal.bind (fun output => ProbComp.eval (test output))) - ε ≤
-      advantage (OracleComp.replicate count original >>= reduced)
-        (OracleComp.replicate count comparison >>= reduced) := by
-  dsimp only
-  have hstat := (Game.advantage_bind_le_dist
-    (ProbComp.eval (OracleComp.replicate count comparison >>= extractLabels seed hash)) ideal
-    (fun output => ProbComp.eval (test output))).trans hclose
-  have htriangle := Game.advantage_triangle
-    (ProbComp.eval (OracleComp.replicate count original >>=
-      fun samples => extractLabels seed hash samples >>= test))
-    ((ProbComp.eval (OracleComp.replicate count comparison >>= extractLabels seed hash)).bind
-      (fun output => ProbComp.eval (test output)))
-    (ideal.bind (fun output => ProbComp.eval (test output)))
-  have h := sub_le_iff_le_add.mpr (htriangle.trans (add_le_add le_rfl hstat))
-  simpa only [advantage, ProbComp.eval_bind, PMF.bind_bind] using h
-
-/-- The list-based extractor inherits the conditional Shannon-entropy bound for repeated
-samples. Every observation and the independent hash seed are retained in the ideal experiment. -/
-theorem extractLabels_distance_le {Observation Seed Output : Type} [Finite Observation]
-    [Fintype Seed] [Fintype Output] [Nonempty Output]
-    (source : ProbComp (Observation × Bool)) (count informationBits : ℕ)
-    (hsource : ∀ pair ∈ (ProbComp.eval source).support,
-      (2 : ℝ) ^ (-(informationBits : ℝ)) ≤ (ProbComp.eval source pair).toReal)
-    (seed : ProbComp Seed) (hash : Seed → Word → Output)
-    (hhash : IsTwoUniversal (ProbComp.eval seed)
-      (fun s (bits : Fin count → Bool) => hash s (List.ofFn bits))) {δ slack : ℝ}
-    (hentropy : δ ≤ conditionalEntropy (ProbComp.eval source)) (hslack : 0 ≤ slack) :
-    dist (ProbComp.eval (OracleComp.replicate count source >>= extractLabels seed hash))
-      ((ProbComp.eval (OracleComp.replicate count (Prod.fst <$> source))).bind (fun observed =>
-        ((ProbComp.eval seed).bind (fun s =>
-          (PMF.uniformOfFintype Output).map (s, ·))).map (observed, ·))) ≤
-      2 * Real.exp (-2 * slack ^ 2 / (count * (informationBits : ℝ) ^ 2)) +
-        Real.sqrt (Fintype.card Output * (2 * (2 : ℝ) ^ (-(count * δ - slack)))) / 2 := by
-  have h := hhash.leftover_hash_pi_conditional (fun _ : Fin count => ProbComp.eval source)
-    (bound := informationBits) (by positivity) (fun _ => hsource) hslack
-  simp only [Fintype.card_fin, Finset.sum_const, Finset.card_univ, nsmul_eq_mul] at h
-  have hmap := (dist_map_le _ _
-    (fun result : (Fin count → Observation) × Seed × Output =>
-      (List.ofFn result.1, result.2))).trans h
-  simp only [eval_replicate_extractLabels, ProbComp.eval_replicate, ProbComp.eval_map,
-    PMF.bind_map, PMF.map_bind, PMF.map_comp, Function.comp_def] at hmap ⊢
-  refine hmap.trans ?_
-  gcongr
-  norm_num
 
 /-- Fresh masking preserves the complete public marginal. -/
 theorem maskedSample_map_fst {α β : Type} (source : ProbComp α)

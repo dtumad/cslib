@@ -205,7 +205,9 @@ public import Cslib.Crypto.Computational.Pseudoentropy.MaskedExtraction
 public import Cslib.Crypto.Computational.Pseudoentropy.Masking
 public import Cslib.Crypto.Computational.Pseudoentropy.OneWay
 public import Cslib.Crypto.Computational.Pseudoentropy.Reduction
+public import Cslib.Crypto.Computational.Pseudoentropy.RepeatedExtraction
 public import Cslib.Crypto.Computational.Pseudoentropy.Seed
+public import Cslib.Crypto.Computational.Pseudoentropy.SeedExtraction
 public import Cslib.Crypto.Computational.Pseudoentropy.SequenceLearner
 public import Cslib.Crypto.Computational.Pseudoentropy.WordExtraction
 public import Cslib.Crypto.Computational.Pseudoentropy.WordReduction

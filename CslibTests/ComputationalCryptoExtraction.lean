@@ -8,6 +8,7 @@ module
 
 public import Cslib.Crypto.Computational.Extraction
 public import Cslib.Crypto.Computational.Pseudoentropy.WordExtraction
+public import Cslib.Crypto.Computational.Pseudoentropy.SeedExtraction
 
 /-!
 # Extraction and entropy examples
@@ -182,6 +183,40 @@ theorem label_extraction_half {pair : SamplablePair} {gap : ℕ → ℝ}
       exact_mod_cast h
     norm_num [ExtractionSchedule.count, ExtractionSchedule.slack, dyadicSize]
     nlinarith [mul_nonneg (Nat.cast_nonneg n : (0 : ℝ) ≤ n) (sub_nonneg.mpr hinformation)]
+
+/-- A client hashes retained word seeds while exposing every sampled observation and label. -/
+noncomputable def extractRetainedSeeds {pair : Pseudoentropy.SamplablePair}
+    (saved : pair.SeedRealization) (n : ℕ) : ProbComp (List (Word × Bool) × Word × Word) := do
+  let samples ← OracleComp.replicate (n + 1) (saved.sampleWithSeed n)
+  Pseudoentropy.extractLabels (OracleComp.sampleBits (n * ((n + 1) * saved.length n)))
+    (fun key seeds => LinearHash.wordHash n key seeds.flatten) samples
+
+/-- The same extractor tactic handles word labels, captured dimensions, and retained coins. -/
+theorem extractRetainedSeeds_isPPT {pair : Pseudoentropy.SamplablePair}
+    (saved : pair.SeedRealization) :
+    IsPPTOn unaryEncoding
+      (pairEncoding (listEncoding (pairEncoding wordEncoding boolEncoding))
+        (pairEncoding wordEncoding wordEncoding)) (extractRetainedSeeds saved) := by
+  have hsource := saved.sampleWithSeed_isPPT
+  have hlength := saved.length_isPolyTime
+  unfold extractRetainedSeeds
+  ppt
+
+open Pseudoentropy in
+/-- An empty third component is valid for every sampler, even if its remaining entropy is
+zero. The comparison experiment still retains all pair outputs and a public fair seed bit. -/
+theorem empty_remaining_component {pair : SamplablePair} (saved : pair.SeedRealization) :
+    let count := fun n => ExtractionSchedule.count n (saved.length n) 0
+    StatisticallyIndistinguishable
+      (fun n => ProbComp.eval (OracleComp.replicate (count n) (saved.sampleWithSeed n) >>=
+        extractLabels (OracleComp.uniform Bool) (fun _ _ => (Fin.elim0 : BitString 0))))
+      (fun n => extractLabelsIdeal (Output := BitString 0) (pair.sample n) (count n)
+        (OracleComp.uniform Bool)) := by
+  apply saved.remainingSeed_word_extraction (fun _ => 0) (fun _ => 0)
+    (fun _ => OracleComp.uniform Bool) (fun _ _ _ => Fin.elim0)
+  · intro n first second _
+    norm_num [BitString, OracleComp.uniform, PMF.uniformOfFintype_apply]
+  · exact Filter.Eventually.of_forall (fun _ => Or.inl rfl)
 
 /-- A hidden-label-dependent mask still supplies half a bit per sample for extraction. The
 public observation is an empty word; one original label is masked and the other is retained.
