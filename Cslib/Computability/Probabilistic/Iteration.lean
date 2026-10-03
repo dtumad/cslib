@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 
 public import Cslib.Computability.Probabilistic.Realization.Iteration
+public import Cslib.Computability.Probabilistic.Encoding
 
 /-!
 # Polynomial-time bounded iteration
@@ -19,7 +20,9 @@ Algorithm-level efficiency proofs use the closure theorems without unpacking the
 
 `IsPolyTime.iterate_spec` is the invariant rule: prove initialization, preservation, and an
 intermediate-size bound locally. It returns both the loop's efficiency certificate and its final
-invariant. `IsPolyTime.iterate_of_length_le` handles length-nonincreasing bodies automatically.
+invariant. `iterate_with_spec` allows the body to capture the original input, and
+`iterate_with_bounded_growth` derives the invariant from a polynomial per-step growth bound.
+`IsPolyTime.iterate_of_length_le` handles length-nonincreasing bodies automatically.
 -/
 
 @[expose] public section
@@ -70,6 +73,67 @@ theorem IsPolyTime.iterate_spec {α : Type} {encode : α → Word}
       ∀ a, invariant a (count a) (step^[count a] (initial a)) :=
   hinitial.iterate_encoded_spec (stateEncoding := wordEncoding)
     hcount hstep invariant hinit hpreserve hsize hbound
+
+/-- A deterministic loop may capture its input. The invariant and size bound describe only
+the changing state; the closure rule accounts for preserving the captured value. -/
+theorem IsPolyTime.iterate_with_spec {α State : Type}
+    {input : α ↪ Word} {stateEncoding : State ↪ Word}
+    {initial : α → State} {count : α → ℕ} {step : α → State → State}
+    (hinitial : IsPolyTime input (fun a => stateEncoding (initial a)))
+    (hcount : IsPolyTime input (fun a => unaryEncoding (count a)))
+    (hstep : IsPolyTime (pairEncoding input stateEncoding)
+      (fun pair => stateEncoding (step pair.1 pair.2)))
+    (invariant : α → ℕ → State → Prop) (hinit : ∀ a, invariant a 0 (initial a))
+    (hpreserve : ∀ a i state, i < count a → invariant a i state →
+      invariant a (i + 1) (step a state))
+    {size : ℕ → ℕ} (hsize : PolynomiallyBounded size)
+    (hbound : ∀ a i state, i ≤ count a → invariant a i state →
+      (stateEncoding state).length ≤ size (input a).length) :
+    IsPolyTime input (fun a => stateEncoding ((step a)^[count a] (initial a))) ∧
+      ∀ a, invariant a (count a) ((step a)^[count a] (initial a)) := by
+  let packed (pair : α × State) := (pair.1, step pair.1 pair.2)
+  have htrace (a : α) (i : ℕ) :
+      packed^[i] (a, initial a) = (a, (step a)^[i] (initial a)) := by
+    induction i with
+    | zero => rfl
+    | succ i ih => simp only [Function.iterate_succ_apply', ih, packed]
+  have h := ((isPolyTime_input input).pair hinitial).iterate_encoded_spec (step := packed) hcount
+    ((isPolyTime_fst input stateEncoding).pair hstep)
+    (fun a i pair => pair.1 = a ∧ invariant a i pair.2)
+    (fun a => ⟨rfl, hinit a⟩)
+    (by rintro a i ⟨captured, state⟩ hi ⟨rfl, hs⟩; exact ⟨rfl, hpreserve captured i state hi hs⟩)
+    (size := fun n => 2 * n + size n + 1) (by fun_prop)
+    (by
+      rintro a i ⟨captured, state⟩ hi ⟨rfl, hs⟩
+      simp only [length_pairEncoding]
+      have := hbound captured i state hi hs
+      lia)
+  exact ⟨by simpa only [htrace] using h.1.snd, fun a => by simpa only [htrace] using (h.2 a).2⟩
+
+/-- A captured loop with polynomially bounded per-step growth needs no explicit invariant.
+The growth bound may depend on the size of the captured input. -/
+theorem IsPolyTime.iterate_with_bounded_growth {α State : Type}
+    {input : α ↪ Word} {stateEncoding : State ↪ Word}
+    {initial : α → State} {count : α → ℕ} {step : α → State → State}
+    (hinitial : IsPolyTime input (fun a => stateEncoding (initial a)))
+    (hcount : IsPolyTime input (fun a => unaryEncoding (count a)))
+    (hstep : IsPolyTime (pairEncoding input stateEncoding)
+      (fun pair => stateEncoding (step pair.1 pair.2)))
+    {growth : ℕ → ℕ} (hgrowth : PolynomiallyBounded growth)
+    (hstepLength : ∀ a state, (stateEncoding (step a state)).length ≤
+      (stateEncoding state).length + growth (input a).length) :
+    IsPolyTime input (fun a => stateEncoding ((step a)^[count a] (initial a))) := by
+  obtain ⟨ci, di, hi⟩ := hinitial.length_le
+  obtain ⟨cc, dc, hc⟩ := hcount.length_le
+  simp only [unaryEncoding_apply, List.length_replicate] at hc
+  exact (hinitial.iterate_with_spec hcount hstep
+    (fun a i state => (stateEncoding state).length ≤
+      (stateEncoding (initial a)).length + i * growth (input a).length)
+    (fun _ => by simp)
+    (by intro a i state _ hs; have := hstepLength a state; nlinarith)
+    (size := fun n => ci * (n + 1) ^ di + cc * (n + 1) ^ dc * growth n) (by fun_prop)
+    (fun a i state hiCount hs => hs.trans
+      (Nat.add_le_add (hi a) (Nat.mul_le_mul_right _ (hiCount.trans (hc a)))))).1
 
 /-- A bounded loop may grow its encoded state by a fixed number of cells per iteration.
 The initializer and unary iteration count supply the overall polynomial size bound. -/

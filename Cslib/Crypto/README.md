@@ -487,9 +487,11 @@ polynomially many guesses, all expanding, with at least one valid choice. Its
 polynomial-time certificates, and one choice is secure against every uniform indexed test.
 The [padding theorem](Computational/Pseudoentropy/ThreeSource/Padding.lean) gives the whole grid
 one common polynomial seed length and exactly one bit of stretch, preserving its secure choice.
-An end-to-end example derives this equally sized family from a general word OWF.
-Candidate amplification and XOR combination, and expansion at every seed length remain to be
-proved. The construction uses fresh soft masks;
+The [amplification theorem](Computational/Pseudoentropy/ThreeSource/Amplification.lean) stretches
+each candidate to one bit beyond the total seed cost of the grid and preserves the secure choice.
+An end-to-end example derives this amplified family from a general word OWF.
+XOR combination and expansion at every seed length remain to be proved. The construction uses
+fresh soft masks;
 following the write-up's set-oracle
 formulation would additionally require a cached membership simulation.
 The [computational guide](Computational/README.md#toward-general-one-way-functions) records the

@@ -17,6 +17,9 @@ public import Cslib.Computability.Probabilistic.UniformNat
 Keep a seed of the original length at the front of a word. Each iteration expands that seed
 by one bit and retains the previously emitted suffix. The security proof replaces successive
 seed expansions by uniform bits, using one uniformly randomized reduction across all hops.
+The seed width may differ from the security parameter, and the generator may capture an index.
+`indexed_indistinguishable` preserves a secure choice in such a family. Efficiency only needs a
+bounded seed prefix; the one-bit length promise is used separately to prove output lengths.
 
 ## References
 
@@ -62,50 +65,68 @@ theorem length_iterate {generator : Word → Word}
     simp only [iterate] at ih
     lia
 
+/-- A generator need only expand seeds at the specified length. Longer input words carry a
+saved suffix, and every subsequent iteration again uses a correctly sized seed prefix. -/
+theorem length_iterate_of_le {generator : Word → Word} {seedBits : ℕ}
+    (hlen : ∀ seed, seed.length = seedBits → (generator seed).length = seedBits + 1)
+    (count : ℕ) (word : Word) (hword : seedBits ≤ word.length) :
+    (iterate generator seedBits count word).length = word.length + count := by
+  induction count with
+  | zero => simp [iterate]
+  | succ count ih =>
+    rw [iterate, Function.iterate_succ_apply']
+    change (step generator seedBits (iterate generator seedBits count word)).length = _
+    rw [step, List.length_append, hlen _ (by
+      rw [List.length_take, ih]
+      exact Nat.min_eq_left (by lia)), List.length_drop, ih]
+    lia
+
 /-- A valid seed prefix is expanded independently of the saved suffix. -/
 theorem step_append (generator : Word → Word) {n : ℕ} (seed suffix : Word)
     (hlen : seed.length = n) : step generator n (seed ++ suffix) = generator seed ++ suffix := by
   subst n
   simp [step]
 
-/-- Iteration with a saved seed length uses the public bounded-growth rule. -/
-theorem iterate_isPolyTime {generator : Word → Word}
-    (hgenerator : IsPolyTime wordEncoding generator)
-    (hlen : ∀ seed, (generator seed).length = seed.length + 1) :
-    IsPolyTime (pairEncoding unaryEncoding (pairEncoding unaryEncoding wordEncoding))
-      (fun input => iterate generator input.1 input.2.1 input.2.2) := by
-  let advance (state : ℕ × Word) := (state.1, step generator state.1 state.2)
-  have hstep : IsPolyTime (pairEncoding unaryEncoding wordEncoding)
-      (fun state => pairEncoding unaryEncoding wordEncoding (advance state)) := by
-    unfold advance step
+/-- Iteration may capture an arbitrary encoded input. Every call reads only a bounded seed
+prefix, so polynomial time follows without a length promise on the generator. -/
+theorem iterate_isPolyTime {α : Type} {input : α ↪ Word}
+    {generator : α → Word → Word} {seedBits count : α → ℕ} {word : α → Word}
+    (hgenerator : IsPolyTime (pairEncoding input wordEncoding)
+      (fun pair => generator pair.1 pair.2))
+    (hseedBits : IsPolyTime input (fun a => unaryEncoding (seedBits a)))
+    (hcount : IsPolyTime input (fun a => unaryEncoding (count a)))
+    (hword : IsPolyTime input word) :
+    IsPolyTime input (fun a => iterate (generator a) (seedBits a) (count a) (word a)) := by
+  obtain ⟨c, d, hlength⟩ := hgenerator.length_le
+  obtain ⟨cs, ds, hseed⟩ := hseedBits.length_le
+  simp only [unaryEncoding_apply, List.length_replicate] at hseed
+  have hstep : IsPolyTime (pairEncoding input wordEncoding)
+      (fun pair => step (generator pair.1) (seedBits pair.1) pair.2) := by
+    unfold step
     polytime
-  have htrace (n count : ℕ) (word : Word) :
-      advance^[count] (n, word) = (n, iterate generator n count word) := by
-    induction count with
-    | zero => rfl
-    | succ count ih => simp [Function.iterate_succ_apply', ih, advance, iterate]
-  have hinitial : IsPolyTime
-      (pairEncoding unaryEncoding (pairEncoding unaryEncoding wordEncoding))
-      (fun input => pairEncoding unaryEncoding wordEncoding (input.1, input.2.2)) := by
-    polytime
-  have hcount : IsPolyTime
-      (pairEncoding unaryEncoding (pairEncoding unaryEncoding wordEncoding))
-      (fun input => unaryEncoding input.2.1) := by polytime
-  have hloop := hinitial.iterate_encoded_of_bounded_growth hcount hstep
-    (growth := 1) (by
-      intro state
-      simp only [advance, length_pairEncoding, wordEncoding, Function.Embedding.refl_apply,
-        length_step hlen]
-      lia)
-  simpa only [htrace, wordEncoding, Function.Embedding.refl_apply] using hloop.snd
+  apply IsPolyTime.iterate_with_bounded_growth (stateEncoding := wordEncoding)
+    (step := fun a => step (generator a) (seedBits a)) hword hcount hstep
+    (growth := fun n => c * (2 * n + cs * (n + 1) ^ ds + 2) ^ d) (by fun_prop)
+  intro a state
+  have h := hlength (a, state.take (seedBits a))
+  simp only [length_pairEncoding, wordEncoding, Function.Embedding.refl_apply,
+    List.length_take] at h
+  have hbound : (generator a (state.take (seedBits a))).length ≤
+      c * (2 * (input a).length + cs * ((input a).length + 1) ^ ds + 2) ^ d :=
+    h.trans (Nat.mul_le_mul_left c (Nat.pow_le_pow_left (by have := hseed a; lia) d))
+  simp only [step, wordEncoding, Function.Embedding.refl_apply, List.length_append,
+    List.length_drop]
+  lia
+
+@[aesop safe -10 tactic (rule_sets := [PolyTime])]
+private meta def polytimeIterate : Lean.Elab.Tactic.TacticM Unit :=
+  Cslib.Tactic.PolyTime.applyHead #[(``iterate, ``iterate_isPolyTime)]
 
 /-- Any efficiently computed iteration count gives an efficient generator. -/
 theorem stretch_isPolyTime {generator : Word → Word} {count : ℕ → ℕ}
     (hgenerator : IsPolyTime wordEncoding generator)
-    (hlen : ∀ seed, (generator seed).length = seed.length + 1)
     (hcount : IsPolyTime unaryEncoding (fun n => unaryEncoding (count n))) :
     IsPolyTime wordEncoding (stretch generator count) := by
-  have hiterate := iterate_isPolyTime hgenerator hlen
   unfold stretch
   polytime
 
@@ -169,17 +190,35 @@ noncomputable def reduction (generator : Word → Word) (count : ℕ → ℕ)
   let i ← sampleBoundedIndex (count n)
   hop generator count adversary n i challenge
 
-set_option maxHeartbeats 800000 in
 -- The tactic composes a sampled index, a conditional sample, and the supplied distinguisher.
 /-- The reduction's complete efficiency proof uses the public programming interface. -/
 theorem reduction_isPPT {generator : Word → Word} {count : ℕ → ℕ}
     {adversary : Distinguisher} (hgenerator : IsPolyTime wordEncoding generator)
-    (hlen : ∀ seed, (generator seed).length = seed.length + 1)
     (hcount : IsPolyTime unaryEncoding (fun n => unaryEncoding (count n)))
     (hadversary : IsPPT boolEncoding adversary) :
     IsPPT boolEncoding (reduction generator count adversary) := by
-  have hiterate := iterate_isPolyTime hgenerator hlen
   unfold reduction hop
+  ppt
+
+/-- Apply the same random-hop reduction at an explicit seed length, with any captured test. -/
+noncomputable def test (generator : Word → Word) (seedBits count : ℕ)
+    (adversary : Word → ProbComp Bool) (challenge : Word) : ProbComp Bool :=
+  reduction generator (fun _ => count) (fun _ => adversary) seedBits challenge
+
+/-- Captured parameters, generator code, and the adversary compose through the public tactics. -/
+theorem test_isPPT {α : Type} {input : α ↪ Word}
+    {generator : α → Word → Word} {seedBits count : α → ℕ}
+    {adversary : α → Word → ProbComp Bool}
+    (hgenerator : IsPolyTime (pairEncoding input wordEncoding)
+      (fun pair => generator pair.1 pair.2))
+    (hseedBits : IsPolyTime input (fun a => unaryEncoding (seedBits a)))
+    (hcount : IsPolyTime input (fun a => unaryEncoding (count a)))
+    (hadversary : IsPPTOn (pairEncoding input wordEncoding) boolEncoding
+      (fun pair => adversary pair.1 pair.2)) :
+    IsPPTOn (pairEncoding input wordEncoding) boolEncoding
+      (fun pair => test (generator pair.1) (seedBits pair.1) (count pair.1)
+        (adversary pair.1) pair.2) := by
+  unfold test reduction hop
   ppt
 
 /-- Capping a sampled index only merges rejecting branches. -/
@@ -271,6 +310,27 @@ theorem advantage_eq (generator : Word → Word) (count : ℕ → ℕ) (adversar
   rw [← hreal, ← hideal, hybrid_zero, hybrid_last] at havg
   exact havg
 
+/-- The same exact loss applies with the seed length independent of the security parameter.
+This form is convenient for indexed candidate families. -/
+theorem test_advantage_eq (generator : Word → Word) (seedBits count : ℕ)
+    (adversary : Word → ProbComp Bool) :
+    Game.advantage
+      (((uniformBits seedBits).map (iterate generator seedBits count)).bind
+        (fun word => ProbComp.eval (adversary word)))
+      ((uniformBits (seedBits + count)).bind (fun word => ProbComp.eval (adversary word))) =
+      (2 ^ (Nat.log 2 count + 1) : ℕ) *
+        Game.advantage
+          (((uniformBits seedBits).map generator).bind
+            (fun word => ProbComp.eval (test generator seedBits count adversary word)))
+          ((uniformBits (seedBits + 1)).bind
+            (fun word => ProbComp.eval (test generator seedBits count adversary word))) := by
+  have h := advantage_eq generator (fun _ => count) (fun _ => adversary) seedBits
+  simp only [advantage, eval_prgRealGame, eval_prgIdealGame, PRG.Generator.realExperiment,
+    PRG.Generator.idealExperiment] at h
+  rw [← generatorEnsemble, ← hybrid_zero generator (fun _ => count) seedBits] at h
+  simpa only [hybrid, Nat.add_zero, Nat.sub_zero, generatorEnsemble, PRG.Generator.outputDist,
+    PRG.Generator.coe_mk, test] using h
+
 /-- Padding the sampled hop loses at most twice the number of expansions. -/
 theorem advantage_le (generator : Word → Word) (count : ℕ → ℕ) (adversary : Distinguisher)
     (n : ℕ) (hpositive : 0 < count n) :
@@ -300,6 +360,45 @@ theorem loss_polynomial {count : ℕ → ℕ}
     rw [pow_succ]
     lia
 
+/-- Polynomially many expansions preserve the secure choice in a uniformly efficient family.
+The choice is supplied only in the proof; each reduction receives its index as ordinary input. -/
+theorem indexed_indistinguishable {generator : ℕ → ℕ → Word → Word}
+    {seedBits count choose : ℕ → ℕ}
+    (hgenerator : IsPolyTime (pairEncoding (pairEncoding unaryEncoding unaryEncoding) wordEncoding)
+      (fun input => generator input.1.1 input.1.2 input.2))
+    (hseedBits : IsPolyTime unaryEncoding (fun n => unaryEncoding (seedBits n)))
+    (hcount : IsPolyTime unaryEncoding (fun n => unaryEncoding (count n)))
+    (hsecure : ∀ adversary : ℕ → ℕ → Word → ProbComp Bool,
+      IsPPTOn (pairEncoding (pairEncoding unaryEncoding unaryEncoding) wordEncoding)
+        boolEncoding (fun input => adversary input.1.1 input.1.2 input.2) →
+      Negligible (fun n => Game.advantage
+        (((uniformBits (seedBits n)).map (generator n (choose n))).bind
+          (fun word => ProbComp.eval (adversary n (choose n) word)))
+        ((uniformBits (seedBits n + 1)).bind
+          (fun word => ProbComp.eval (adversary n (choose n) word))))) :
+    ∀ adversary : ℕ → ℕ → Word → ProbComp Bool,
+      IsPPTOn (pairEncoding (pairEncoding unaryEncoding unaryEncoding) wordEncoding)
+        boolEncoding (fun input => adversary input.1.1 input.1.2 input.2) →
+      Negligible (fun n => Game.advantage
+        (((uniformBits (seedBits n)).map
+          (iterate (generator n (choose n)) (seedBits n) (count n))).bind
+            (fun word => ProbComp.eval (adversary n (choose n) word)))
+        ((uniformBits (seedBits n + count n)).bind
+          (fun word => ProbComp.eval (adversary n (choose n) word)))) := by
+  intro adversary hadversary
+  let reduction := fun n index =>
+    test (generator n index) (seedBits n) (count n) (adversary n index)
+  have hreduce : IsPPTOn (pairEncoding (pairEncoding unaryEncoding unaryEncoding) wordEncoding)
+      boolEncoding (fun input => reduction input.1.1 input.1.2 input.2) :=
+    test_isPPT (generator := fun input : ℕ × ℕ => generator input.1 input.2)
+      (seedBits := fun input : ℕ × ℕ => seedBits input.1)
+      (count := fun input : ℕ × ℕ => count input.1)
+      (adversary := fun input : ℕ × ℕ => adversary input.1 input.2)
+      hgenerator (by polytime) (by polytime) hadversary
+  have h := negligible_polynomial_mul (hsecure reduction hreduce)
+    (fun _ => Game.advantage_nonneg _ _) (loss_polynomial hcount)
+  exact h.congr (fun n => (test_advantage_eq _ _ _ _).symm)
+
 /-- Polynomially many seed expansions preserve computational indistinguishability. -/
 theorem indistinguishable {generator : Word → Word} {count : ℕ → ℕ}
     (hgenerator : PseudorandomGenerator generator (fun n => n + 1))
@@ -307,7 +406,7 @@ theorem indistinguishable {generator : Word → Word} {count : ℕ → ℕ}
     ComputationallyIndistinguishable (generatorEnsemble (stretch generator count))
       (fun n => uniformBits (n + count n)) := by
   intro adversary hadversary
-  have hreduce := reduction_isPPT hgenerator.polyTime hgenerator.length_eq hcount hadversary
+  have hreduce := reduction_isPPT hgenerator.polyTime hcount hadversary
   have hnegligible := hgenerator.indistinguishable _ hreduce
   have hloss := negligible_polynomial_mul hnegligible
     (fun n => advantage_nonneg _ _) (loss_polynomial hcount)
@@ -322,7 +421,7 @@ theorem pseudorandomGenerator {generator : Word → Word} {count : ℕ → ℕ}
     (hpositive : ∀ n, 0 < count n) :
     PseudorandomGenerator (stretch generator count) (fun n => n + count n) := by
   refine PseudorandomGenerator.of_indistinguishable
-    (stretch_isPolyTime hgenerator.polyTime hgenerator.length_eq hcount) ?_ ?_
+    (stretch_isPolyTime hgenerator.polyTime hcount) ?_ ?_
     (indistinguishable hgenerator hcount)
   · intro seed
     exact length_iterate hgenerator.length_eq _ _ _

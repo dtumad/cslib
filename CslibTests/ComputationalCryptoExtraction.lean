@@ -8,7 +8,7 @@ module
 
 public import Cslib.Crypto.Computational.Extraction
 public import Cslib.Crypto.Computational.Pseudoentropy.OneWay
-public import Cslib.Crypto.Computational.Pseudoentropy.ThreeSource.Padding
+public import Cslib.Crypto.Computational.Pseudoentropy.ThreeSource.Amplification
 
 /-!
 # Extraction and entropy examples
@@ -25,30 +25,31 @@ namespace CslibTests.ComputationalCryptoExtraction
 open Cslib Cslib.Probability Cslib.Probability.PMF Cslib.Crypto
 
 open Filter Pseudoentropy in
-/-- A general OWF supplies equally sized, uniformly efficient one-bit expanders, with one
-choice secure against all uniform indexed tests. Combining the candidates is still required. -/
-theorem owf_padded_candidates {f : Word → Word} (hf : OneWay f) :
+/-- A general OWF supplies uniformly efficient candidates whose common output length pays for
+all their independent seeds, with one secure choice. XOR combination is still required. -/
+theorem owf_amplified_candidates {f : Word → Word} (hf : OneWay f) :
     ∃ (pair : SamplablePair) (saved : pair.SeedRealization) (bound common : ℕ → ℕ),
       IsPolyTime unaryEncoding (fun n => unaryEncoding (common n)) ∧
       StrictMono common ∧ (∀ n, n + 1 ≤ common n) ∧
       IsPolyTime (pairEncoding (pairEncoding unaryEncoding unaryEncoding) wordEncoding)
-        (fun input => EntropyGrid.paddedGenerate input.1.1 (saved.length input.1.1)
+        (fun input => EntropyGrid.amplifiedGenerate input.1.1 (saved.length input.1.1)
           (bound input.1.1) (16 * (input.1.1 + 7)) (common input.1.1) input.1.2
             (saved.evaluate input.1.1) input.2) ∧
       (∀ n index, index < EntropyGrid.size (saved.length n) (16 * (n + 7)) →
         ∀ seed, seed.length = common n →
-          (EntropyGrid.paddedGenerate n (saved.length n) (bound n) (16 * (n + 7)) (common n)
-            index (saved.evaluate n) seed).length = common n + 1) ∧
+          (EntropyGrid.amplifiedGenerate n (saved.length n) (bound n) (16 * (n + 7)) (common n)
+            index (saved.evaluate n) seed).length =
+              EntropyGrid.size (saved.length n) (16 * (n + 7)) * common n + 1) ∧
       ∃ choose : ℕ → ℕ,
         (∀ᶠ n in atTop, choose n < EntropyGrid.size (saved.length n) (16 * (n + 7))) ∧
         ∀ test : ℕ → ℕ → Word → ProbComp Bool,
           IsPPTOn (pairEncoding (pairEncoding unaryEncoding unaryEncoding) wordEncoding)
             boolEncoding (fun input => test input.1.1 input.1.2 input.2) →
           Negligible (fun n => Game.advantage
-            (((uniformBits (common n)).map (EntropyGrid.paddedGenerate n (saved.length n) (bound n)
-                (16 * (n + 7)) (common n) (choose n) (saved.evaluate n))).bind
+            (((uniformBits (common n)).map (EntropyGrid.amplifiedGenerate n (saved.length n)
+                (bound n) (16 * (n + 7)) (common n) (choose n) (saved.evaluate n))).bind
                   (fun word => ProbComp.eval (test n (choose n) word)))
-            ((uniformBits (common n + 1)).bind
+            ((uniformBits (EntropyGrid.size (saved.length n) (16 * (n + 7)) * common n + 1)).bind
                 (fun word => ProbComp.eval (test n (choose n) word)))) := by
   have hdensity : IsPolyTime unaryEncoding (fun n => unaryEncoding (16 * (n + 7))) := by polytime
   obtain ⟨pair, hpair⟩ := hf.exists_pseudoentropyPair
@@ -59,12 +60,13 @@ theorem owf_padded_candidates {f : Word → Word} (hf : OneWay f) :
     (densityBound := fun n => 16 * (n + 7))
     saved.length_isPolyTime hbound hdensity
   refine ⟨pair, saved, bound, common, hcommon, hmono, hge, ?_, ?_, ?_⟩
-  · exact EntropyGrid.paddedGenerate_isPolyTime saved
+  · exact EntropyGrid.amplifiedGenerate_isPolyTime saved
       (observationBound := bound) (densityBound := fun n => 16 * (n + 7)) (common := common)
       hbound hdensity hcommon
   · intro n index hindex seed hseed
-    exact EntropyGrid.length_paddedGenerate saved n _ _ _ _ (hfits n) (hsize n index hindex) hseed
-  · exact EntropyGrid.exists_secure_padded_choice hpair saved
+    exact EntropyGrid.length_amplifiedGenerate saved n _ _ _ _
+      (hfits n) (hsize n index hindex) hseed
+  · exact EntropyGrid.exists_secure_amplified_choice hpair saved
       (observationBound := bound) (densityBound := fun n => 16 * (n + 7)) (common := common)
       hbound hdensity hcommon hfits hsize
       (Eventually.of_forall EntropyGrid.four_steps_le_owf_gap)

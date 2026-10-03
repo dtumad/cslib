@@ -118,6 +118,7 @@ The first extraction ingredients are checked:
 | [ThreeSource/Seeded](Pseudoentropy/ThreeSource/Seeded.lean) | A deterministic polynomial-time implementation uses exactly the original sampler coins and three matrix seeds. Its uniform-input distribution equals the sampled extractor's law, and every correctly sized input has the advertised output length. |
 | [EntropyGrid](Pseudoentropy/EntropyGrid.lean) and [ThreeSource/Candidates](Pseudoentropy/ThreeSource/Candidates.lean) | Every entry in an efficient entropy grid expands. Rounding the true entropies gives one choice secure against all uniform indexed tests; the program never computes that choice. |
 | [GeneratorPadding](GeneratorPadding.lean) and [ThreeSource/Padding](Pseudoentropy/ThreeSource/Padding.lean) | Padding gives the candidates one common polynomial seed length and exactly one bit of stretch. An efficient reduction preserves the secure choice with exact distinguishing advantage. |
+| [ThreeSource/Amplification](Pseudoentropy/ThreeSource/Amplification.lean) | Each candidate is stretched to one bit beyond the total seed cost of the grid. The random-hop reduction preserves the secure choice with polynomial loss. |
 | [LinearHash](../../Computability/Probabilistic/LinearHash.lean) | Boolean-matrix hashing, its word implementation, its PPT sampler, and exact agreement with the finite extraction experiment. |
 | [Extraction](Extraction.lean) | A source indistinguishable from a sufficiently diffuse comparison source yields computationally uniform extraction. |
 
@@ -423,13 +424,14 @@ resulting common schedule is polynomial, strictly increasing, and at least `n + 
 [`GeneratorPadding`](GeneratorPadding.lean) evaluates the raw generator on its seed prefix,
 retains the unused input bits, and truncates the result to one bit more than the common length.
 Its reduction samples an independent suffix and preserves the distinguishing advantage exactly.
-The checked `owf_padded_candidates` example starts from a general word OWF and obtains a uniformly
-efficient family of equally sized one-bit expanders, with one secure choice.
+[`ThreeSource.Amplification`](Pseudoentropy/ThreeSource/Amplification.lean) then stretches each
+candidate to `gridSize * commonLength + 1` bits. Its uniform random-hop reduction has polynomial
+loss and retains the secure choice. The checked `owf_amplified_candidates` example starts from a
+general word OWF and derives this uniformly efficient family, including the exact output lengths
+needed to pay for every candidate's independent seed.
 
-The remaining route needs amplification and XOR combination, and a final generator with stretch
-at every seed length. Each candidate must first be amplified
-enough to pay for all candidates' independent seeds before their outputs are combined by XOR.
-The final generator must compute and combine the whole family.
+The remaining route needs XOR combination and a final generator with stretch at every seed
+length. The final generator must compute and combine the whole family.
 `ComputationallyIndistinguishable.extract_uniform` separately assumes its comparison source and
 negligible collision bound; collisions of the OWF output alone do not provide the entropy surplus.
 
@@ -531,6 +533,9 @@ The `_with` combinators let callbacks capture runtime inputs. For growing loops,
 [`IsPolyTime.iterate_spec`](../../Computability/Probabilistic/Iteration.lean) uses one invariant
 to prove the final postcondition and bound intermediate sizes. A polynomial number of iterations
 also needs this size control to yield a polynomial-time algorithm.
+`IsPolyTime.iterate_with_spec` lets a deterministic body capture the input, and
+`iterate_with_bounded_growth` derives the size bound when each round's growth is polynomial in
+that input's size. Both reuse the same bounded-loop compiler.
 
 `OracleComp.iterate count step initial` feeds each random state into the next round.
 `IsPPTOn.iterate_spec` proves strict PPT and the final postcondition from one invariant;
@@ -580,6 +585,10 @@ the certified iteration, and the supplied adversary with `ppt`.
 The hop is sampled by one uniform algorithm; it is not selected separately at each input length.
 The sampler assigns unused indices to a rejecting branch on both sides. Thus the reduction uses
 a bounded number of fair bits even when the number of hops is not a power of two.
+The indexed version keeps the seed width separate from the security parameter and lets the
+generator capture a candidate index. Its efficiency proof needs no global expansion promise:
+each call reads a bounded prefix. `length_iterate_of_le` supplies the separate output-length
+proof using the one-bit promise only at that prefix width.
 
 The first exercises led to these shared interfaces:
 
@@ -678,9 +687,9 @@ Our guide for the general construction is Thomas Holenstein,
 TCC 2006, [write-up](https://crypto.ethz.ch/publications/files/Holens06.pdf).
 Section 3.3 supplies the collision-probability proof of the leftover hash lemma; Sections 4–5
 give the pseudo-entropy-pair construction and its conversion to a PRG. The general implication
-is not yet formalized here: amplification and XOR combination, and expansion at every seed length
-remain. The entropy grid has a proved secure choice; its deterministic candidates have uniform
-polynomial-time certificates and a common seed length with exactly one bit of stretch.
+is not yet formalized here: XOR combination and expansion at every seed length remain. The
+entropy grid has a proved secure choice; its deterministic candidates have uniform polynomial-time
+certificates and a common seed length, and are amplified beyond the total seed cost of the grid.
 We cite individual results in the
 modules that formalize them and distinguish these proved ingredients from the full theorem.
 For the constructive uniform hard-core argument we also follow Thomas Holenstein,

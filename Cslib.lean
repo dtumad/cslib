@@ -214,6 +214,7 @@ public import Cslib.Crypto.Computational.Pseudoentropy.SeedExtraction
 public import Cslib.Crypto.Computational.Pseudoentropy.Selection
 public import Cslib.Crypto.Computational.Pseudoentropy.SequenceLearner
 public import Cslib.Crypto.Computational.Pseudoentropy.ThreeSource
+public import Cslib.Crypto.Computational.Pseudoentropy.ThreeSource.Amplification
 public import Cslib.Crypto.Computational.Pseudoentropy.ThreeSource.Candidates
 public import Cslib.Crypto.Computational.Pseudoentropy.ThreeSource.Padding
 public import Cslib.Crypto.Computational.Pseudoentropy.ThreeSource.Seeded

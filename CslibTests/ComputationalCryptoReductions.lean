@@ -46,6 +46,17 @@ example (generator : Word → Word) (seed : Word) :
 example : PRGStretch.stretch (fun word => word ++ [false]) (fun _ => 2) [] = [false, false] := by
   decide +kernel
 
+/-- Captured input and a variable-width expansion need no global length promise for efficiency. -/
+example : IsPolyTime (pairEncoding wordEncoding unaryEncoding) (fun input =>
+    PRGStretch.iterate (fun seed => input.1 ++ seed) input.1.length input.2 []) := by
+  polytime
+
+/-- The length proof only requires one-bit expansion at the seed width actually used. -/
+example (seedBits count : ℕ) (seed : Word) (hseed : seed.length = seedBits) :
+    (PRGStretch.iterate (fun word => word.take seedBits ++ [false]) seedBits count seed).length =
+      seedBits + count := by
+  rw [PRGStretch.length_iterate_of_le (by intro word hw; simp [hw]) _ _ hseed.ge, hseed]
+
 /-- One-bit expansion can be applied twice by an ordinary certified program. -/
 example {generator : Word → Word} (h : PseudorandomGenerator generator (fun n => n + 1)) :
     PseudorandomGenerator (PRGStretch.stretch generator (fun _ => 2)) (fun n => n + 2) :=
