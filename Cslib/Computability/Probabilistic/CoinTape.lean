@@ -199,9 +199,40 @@ theorem IsPPTOn.exists_seeded_evaluator {α β : Type} {input : α ↪ Word} {ou
   obtain ⟨c, d, evaluate, hefficient, _, hlaw⟩ := h.exists_total_seeded_evaluator
   exact ⟨c, d, evaluate, hefficient, fun a => hlaw a _ le_rfl⟩
 
-/-- A predictor can use one larger saved tape across inputs of different lengths. The evaluator
-trims that tape to the input's own polynomial budget, preserving each prediction distribution.
-No machine internals are exposed to reductions using this interface. -/
+/-- A typed program can use one larger saved tape across inputs of different lengths. The
+total word evaluator trims to each input's own budget and accepts arbitrary encoded words. -/
+theorem IsPPTOn.exists_padded_coin_evaluator {α β : Type} {input : α → Word} {output : β ↪ Word}
+    {program : α → ProbComp β} (h : IsPPTOn input output program) :
+    ∃ (c d : ℕ) (evaluate : Word → Word → Word),
+      IsPolyTime coinInputEncoding (fun pair => evaluate pair.1 pair.2) ∧
+      ∀ a budget, c * ((input a).length + 1) ^ d ≤ budget →
+        (ProbComp.eval (program a)).map output = (uniformBits budget).map
+          (fun coins => evaluate coins (input a)) := by
+  obtain ⟨c, d, evaluate, hefficient, hrealize⟩ := h.exists_polyTime_coin_evaluator
+  refine ⟨c, d, fun coins input => evaluate (coins.take (c * (input.length + 1) ^ d)) input,
+    ?_, ?_⟩
+  · apply hefficient.comp_pair <;> polytime
+  · intro a budget hbudget
+    rw [hrealize, ← uniformBits_take hbudget, PMF.map_comp]
+    rfl
+
+/-- Reading the raw evaluator's first bit preserves a Boolean program's distribution. The
+common tape budget may depend only on a bound on input size. -/
+theorem IsPPTOn.exists_padded_bool_coin_evaluator {α : Type} {input : α → Word}
+    {program : α → ProbComp Bool} (h : IsPPTOn input boolEncoding program) :
+    ∃ (c d : ℕ) (evaluate : Word → Word → Word),
+      IsPolyTime coinInputEncoding (fun pair => evaluate pair.1 pair.2) ∧
+      ∀ a budget, c * ((input a).length + 1) ^ d ≤ budget →
+        ProbComp.eval (program a) = (uniformBits budget).map
+          (fun coins => (evaluate coins (input a)).headD false) := by
+  obtain ⟨c, d, evaluate, hefficient, hrealize⟩ := h.exists_padded_coin_evaluator
+  refine ⟨c, d, evaluate, hefficient, ?_⟩
+  intro a budget hbudget
+  have heq := congrArg (PMF.map (fun word : Word => word.headD false)) (hrealize a budget hbudget)
+  simpa [PMF.map_comp, Function.comp_def, boolEncoding, PMF.map,
+    Function.Embedding.coeFn_mk] using heq
+
+/-- Specialize the common saved-tape evaluator to the cryptographic parameter interface. -/
 theorem IsPPT.exists_padded_bool_coin_evaluator
     {program : ℕ → Word → ProbComp Bool} (h : IsPPT boolEncoding program) :
     ∃ (c d : ℕ) (evaluate : Word → Word → Word),
@@ -209,12 +240,7 @@ theorem IsPPT.exists_padded_bool_coin_evaluator
       ∀ n input budget, c * ((parameterInput n input).length + 1) ^ d ≤ budget →
         ProbComp.eval (program n input) = (uniformBits budget).map
           (fun coins => (evaluate coins (parameterInput n input)).headD false) := by
-  obtain ⟨c, d, evaluate, hefficient, hrealize⟩ := h.exists_bool_polyTime_coin_evaluator
-  refine ⟨c, d, fun coins input => evaluate (coins.take (c * (input.length + 1) ^ d)) input,
-    ?_, ?_⟩
-  · apply hefficient.comp_pair <;> polytime
-  · intro n input budget hbudget
-    rw [hrealize, ← uniformBits_take hbudget, PMF.map_comp]
-    rfl
+  obtain ⟨c, d, evaluate, hefficient, hlaw⟩ := h.on.exists_padded_bool_coin_evaluator
+  exact ⟨c, d, evaluate, hefficient, fun n input => hlaw (n, input)⟩
 
 end Cslib.Probability

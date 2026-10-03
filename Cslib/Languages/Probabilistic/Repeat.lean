@@ -86,6 +86,20 @@ namespace ProbComp
 
 variable {α Seed : Type*} [Fintype Seed] [Nonempty Seed]
 
+/-- Every supported repeated output has the prescribed length and supported elements. -/
+theorem mem_support_replicate_iff (count : ℕ) (program : ProbComp α)
+    (values : List α) :
+    values ∈ (eval (OracleComp.replicate count program)).support ↔
+      values.length = count ∧ ∀ value ∈ values, value ∈ (eval program).support := by
+  induction count generalizing values with
+  | zero => cases values <;> simp
+  | succ count ih =>
+    cases values with
+    | nil =>
+      simp [OracleComp.replicate_succ]
+    | cons value rest =>
+      simp [OracleComp.replicate_succ, ih, and_assoc, and_left_comm]
+
 /-- Repeated closed runs have the independent product law, for any finite output distribution. -/
 theorem eval_replicate [Finite α] (count : ℕ) (program : ProbComp α) :
     eval (OracleComp.replicate count program) =

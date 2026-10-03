@@ -435,7 +435,10 @@ and conditional label entropy at least the soft-mask density, including weights 
 the hidden label. A strict PPT random-coordinate reduction now converts a sequence distinguisher
 into a predictor with an exact weighted-bias identity. Its client efficiency proof is
 `unfold coordinatePrediction; ppt`; the target's hidden label is never passed to the predictor.
-The weak learner's description bounds, amplification, and combined failure accounting remain
+The [saved predictor](Computational/Hybrid/SavedPrediction.lean) now has exact replay, strict PPT
+sampling, and a description bound independent of the boosting state used to sample its examples.
+Its total efficient evaluator accepts arbitrary word codes, and the checked size bound justifies
+truncation before storage. The weak learner's amplification and combined failure accounting remain
 to be proved; following
 the write-up's set-oracle formulation would additionally require a cached membership simulation.
 The three-source game argument and conversion of this pair into an expanding generator also remain

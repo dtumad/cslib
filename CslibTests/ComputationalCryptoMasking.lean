@@ -7,13 +7,15 @@ Authors: Samuel Schlesinger
 module
 
 public import Cslib.Crypto.Computational.Pseudoentropy.Masking
+public import Cslib.Crypto.Computational.Hybrid.SavedPrediction
 
 /-!
 # Masked-coordinate prediction examples
 
 The examples check hidden-label-dependent masks, fresh randomness on repeated inputs, signed
 hybrid cancellation, the loss from unused sampled indices, and strict PPT composition with
-arbitrary certified training sources and distinguishers.
+arbitrary certified training sources and distinguishers. Saved descriptions preserve the same
+prediction law, and their size contract justifies truncation before storage.
 -/
 
 public section
@@ -118,5 +120,58 @@ theorem coordinatePrediction_isPPT {source : ℕ → ProbComp (Word × Bool)}
       (fun pair => coordinatePrediction source test pair.1 pair.2) := by
   unfold coordinatePrediction
   ppt
+
+/-- Freeze the training examples and test coins. The chosen width bounds future observations;
+the sampler remains strict PPT even if a training example exceeds that width. -/
+noncomputable def coordinateDescriptions (source : ℕ → ProbComp (Word × Bool))
+    (c d n : ℕ) : ProbComp Word :=
+  SavedPrediction.sample wordEncoding (unaryEncoding n) (maskedTraining n (source n)) (source n)
+    ((n + 1) ^ 2) c d ((n + 1) ^ 3)
+
+/-- Ordinary client programs can sample predictor descriptions using `ppt`. -/
+theorem coordinateDescriptions_isPPT {source : ℕ → ProbComp (Word × Bool)}
+    (hsource : IsPPTOn unaryEncoding (pairEncoding wordEncoding boolEncoding) source) (c d : ℕ) :
+    IsPPTOn unaryEncoding wordEncoding (coordinateDescriptions source c d) := by
+  have hmasked := maskedTraining_isPPT hsource
+  unfold coordinateDescriptions
+  ppt
+
+/-- One uniform deterministic evaluator replays the coordinate predictor at every bounded
+observation. Its code does not contain the source program or its captured boosting state. -/
+theorem coordinateDescriptions_realize {test : ℕ → List (Word × Bool) → ProbComp Bool}
+    (htest : IsPPTOn (pairEncoding unaryEncoding
+      (listEncoding (pairEncoding wordEncoding boolEncoding))) boolEncoding
+        (fun pair => test pair.1 pair.2)) :
+    ∃ (c d : ℕ) (predict : Word → Word → Bool),
+      IsPolyTime coinInputEncoding (fun pair => [predict pair.1 pair.2]) ∧
+      ∀ source n observation, observation.length ≤ (n + 1) ^ 3 →
+        ProbComp.eval ((fun code => predict code observation) <$>
+          coordinateDescriptions source c d n) =
+          ProbComp.eval (coordinatePrediction source test n observation) := by
+  obtain ⟨c, d, predict, hefficient, hlaw⟩ := SavedPrediction.exists_evaluator htest
+  refine ⟨c, d, predict, hefficient, ?_⟩
+  intro source n observation hwidth
+  simpa [coordinateDescriptions, coordinatePrediction, maskedSequencePredictor, maskedTraining,
+    wordEncoding] using hlaw n (maskedTraining n (source n)) (source n) ((n + 1) ^ 2)
+      ((n + 1) ^ 3) observation hwidth
+
+/-- The boosting loop may truncate every returned code without changing any prediction, once
+its bound covers the saved descriptions. This holds for arbitrary source programs and codes. -/
+theorem saved_prediction_survives_truncation
+    (replacement original : ProbComp (Word × Bool)) (base observation : Word)
+    (count c d width bound : ℕ) (predict : Word → Word → Bool)
+    (hreplacement : ∀ value ∈ (ProbComp.eval replacement).support, value.1.length ≤ width)
+    (horiginal : ∀ value ∈ (ProbComp.eval original).support, value.1.length ≤ width)
+    (hbound : SavedPrediction.codeBound base.length count c d width ≤ bound) :
+    ProbComp.eval ((fun code => predict (code.take bound) observation) <$>
+      SavedPrediction.sample wordEncoding base replacement original count c d width) =
+      ProbComp.eval ((fun code => predict code observation) <$>
+        SavedPrediction.sample wordEncoding base replacement original count c d width) := by
+  simp only [ProbComp.eval_map, PMF.map]
+  apply PMF.bind_congr_on_support
+  intro code hcode
+  have hsize := SavedPrediction.length_sample_le wordEncoding base replacement original
+    count c d width hreplacement horiginal hcode
+  simp only [Function.comp_def, List.take_of_length_le (hsize.trans hbound)]
 
 end CslibTests.ComputationalCryptoMasking

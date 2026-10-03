@@ -27,6 +27,28 @@ def tagged (left : List Bool) : List Bool := left.flatMap fun bit => [true, bit]
 /-- Encode two binary words as one. -/
 def encode (left right : List Bool) : List Bool := tagged left ++ false :: right
 
+/-- Read the tagged first component. An incomplete final tag is discarded; a missing delimiter
+still returns all complete tagged bits. -/
+def fst : List Bool → List Bool
+  | true :: bit :: rest => bit :: fst rest
+  | _ => []
+
+/-- Read the suffix after the first delimiter. A word without a delimiter has empty suffix. -/
+def snd : List Bool → List Bool
+  | false :: rest => rest
+  | true :: _ :: rest => snd rest
+  | _ => []
+
+@[simp] theorem fst_encode (left right : List Bool) : fst (encode left right) = left := by
+  induction left with
+  | nil => rfl
+  | cons bit left ih => exact congrArg (bit :: ·) ih
+
+@[simp] theorem snd_encode (left right : List Bool) : snd (encode left right) = right := by
+  induction left with
+  | nil => rfl
+  | cons bit left ih => exact ih
+
 /-- Tagging uses two bits per original bit. -/
 @[simp] theorem length_tagged (left : List Bool) : (tagged left).length = 2 * left.length := by
   induction left with

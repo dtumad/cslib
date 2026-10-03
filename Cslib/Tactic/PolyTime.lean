@@ -338,6 +338,8 @@ attribute [aesop safe apply (rule_sets := [PolyTime])]
   Cslib.Probability.IsPolyTime.dropWhile
   Cslib.Probability.IsPolyTime.parameterInput
   Cslib.Probability.IsPolyTime.list_tail
+  Cslib.Probability.IsPolyTime.bitPair_fst
+  Cslib.Probability.IsPolyTime.bitPair_snd
   Cslib.Probability.IsPolyTime.getD
   Cslib.Probability.IsPolyTime.range
   Cslib.Probability.isPolyTime_list_headD
@@ -358,6 +360,10 @@ attribute [aesop safe apply (rule_sets := [PolyTime])]
   Cslib.Probability.IsPolyTime.unary_div_two
   Cslib.Probability.IsPolyTime.unary_min_one
   Cslib.Probability.IsPolyTime.unary_log2
+
+attribute [aesop safe apply (index := [unindexed]) (rule_sets := [PolyTime])]
+  Cslib.Probability.isPolyTime_bitPair_fst
+  Cslib.Probability.isPolyTime_bitPair_snd
 
 attribute [aesop unsafe 50% apply (rule_sets := [PolyTime])]
   Cslib.Probability.IsPolyTime.drop

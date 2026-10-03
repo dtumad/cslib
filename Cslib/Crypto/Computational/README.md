@@ -102,6 +102,7 @@ The first extraction ingredients are checked:
 | [Boosting/Clipped](Pseudoentropy/Boosting/Clipped.lean) and [Boosting/Selection](Pseudoentropy/Boosting/Selection.lean) | Exact dyadic randomized prediction, the lower-tail error bound, and uniform empirical selection of a slope with strict PPT certificates and explicit losses. |
 | [Masking](Pseudoentropy/Masking.lean) | Fresh randomized labels with conditional entropy at least the soft-mask density, and a strict PPT sequence-to-prediction reduction with an exact weighted-bias identity. |
 | [Prediction](Prediction.lean) and [Hybrid/Sequence](Hybrid/Sequence.lean) | Shared trial-bit prediction and independent-sequence hybrid combinators, with strict PPT certificates and an exact signed reduction loss. |
+| [Hybrid/SavedPrediction](Hybrid/SavedPrediction.lean) | Strict PPT sampling of bounded predictor descriptions, total efficient evaluation, and exact agreement with the coordinate predictor on every bounded observation. |
 | [LinearHash](../../Computability/Probabilistic/LinearHash.lean) | Boolean-matrix hashing, its word implementation, its PPT sampler, and exact agreement with the finite extraction experiment. |
 | [Extraction](Extraction.lean) | A source indistinguishable from a sufficiently diffuse comparison source yields computationally uniform extraction. |
 
@@ -210,9 +211,19 @@ inputs. The shared [sequence hybrid](Hybrid/Sequence.lean) proves this exact los
 adjacent gaps have different signs, including zero repetitions and rejected padding indices.
 The complete client certificate is `unfold coordinatePrediction; ppt`.
 
+[`SavedPrediction`](Hybrid/SavedPrediction.lean) saves the sampled surrounding examples, trial
+bit, and test coins into a word. `exists_evaluator` supplies one deterministic polynomial-time
+evaluator with the same prediction distribution at every observation within the chosen width.
+The description contains the sampled data; it does not recursively store the boosting state used
+to generate those data. `length_sample_le` bounds every description in terms of the public test
+parameter, repetition count, observation width, and fixed test clock. The checked client examples
+prove that the boosting loop's truncation preserves prediction whenever its bound covers this
+size. Both the decoder and evaluator are total on arbitrary words, and no efficient inverse of
+the abstract parameter or observation encoding is assumed.
+
 This supplies the coordinate reduction for the direct soft-weight route. The extraction estimate
-for these masked sources, bounded saved predictor descriptions, selection of the successful sign,
-and amplification to the boosting learner's high-probability contract remain to be proved.
+for these masked sources, selection of the successful sign, and amplification to the boosting
+learner's high-probability contract remain to be proved.
 
 The [sampled decisions](Pseudoentropy/Boosting/Decision.lean) implement the overlapping density
 and majority guards from Figure 2 and Claim 2.6 of the uniform hard-core write-up. With weight

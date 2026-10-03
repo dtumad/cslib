@@ -62,26 +62,48 @@ private def project (first : Bool) (fallback : Word := []) :
     | some side => if side == first then [bit] else []
   finish state := if state.isNone then fallback else []
 
+private theorem project_eval_suffix (first : Bool) (word : Word) (fallback : Word := []) :
+    (project first fallback).evalFrom (some false) word = if first then [] else word := by
+  induction word with
+  | nil => cases first <;> rfl
+  | cons bit word ih =>
+    change (if false == first then [bit] else []) ++
+      (project first fallback).evalFrom (some false) word = if first then [] else bit :: word
+    rw [ih]
+    cases first <;> rfl
+
 private theorem project_eval (first : Bool) (left right : Word) (fallback : Word := []) :
     (project first fallback).eval (List.BitPair.encode left right) =
       if first then left else right := by
-  have hsuffix (word : Word) :
-      (project first fallback).evalFrom (some false) word = if first then [] else word := by
-    induction word with
-    | nil => cases first <;> rfl
-    | cons bit word ih =>
-      change (if false == first then [bit] else []) ++
-        (project first fallback).evalFrom (some false) word = if first then [] else bit :: word
-      rw [ih]
-      cases first <;> rfl
   induction left with
-  | nil => exact hsuffix right
+  | nil => exact project_eval_suffix first right fallback
   | cons bit left ih =>
     change (if true == first then [bit] else []) ++
       (project first fallback).eval (List.BitPair.encode left right) =
         if first then bit :: left else right
     rw [ih]
     cases first <;> rfl
+
+private theorem project_eval_decode (first : Bool) (word : Word) :
+    (project first).eval word =
+      if first then List.BitPair.fst word else List.BitPair.snd word := by
+  match word with
+  | [] => cases first <;> rfl
+  | false :: rest => exact project_eval_suffix first rest
+  | [true] => cases first <;> rfl
+  | true :: bit :: rest =>
+    change (if true == first then [bit] else []) ++ (project first).eval rest =
+      if first then bit :: List.BitPair.fst rest else List.BitPair.snd rest
+    rw [project_eval_decode first rest]
+    cases first <;> rfl
+
+/-- Total first-component decoding is polynomial time, including malformed words. -/
+theorem isPolyTime_bitPair_fst : IsPolyTime wordEncoding List.BitPair.fst := by
+  simpa [project_eval_decode, wordEncoding] using (project true).isPolyTime wordEncoding
+
+/-- Total second-component decoding shares the same finite-state transducer. -/
+theorem isPolyTime_bitPair_snd : IsPolyTime wordEncoding List.BitPair.snd := by
+  simpa [project_eval_decode, wordEncoding] using (project false).isPolyTime wordEncoding
 
 /-- Reading the first component of a pair is polynomial time in its complete encoding. -/
 theorem isPolyTime_fst (left : α ↪ Word) (right : β ↪ Word) :
@@ -158,6 +180,18 @@ theorem length_element_le_length_listEncoding (element : α ↪ Word)
     · lia
     · have := ih hmem; lia
 
+/-- A uniform element-size bound gives a linear bound on the encoded collection. -/
+theorem length_listEncoding_le (element : α ↪ Word) {values : List α} {bound : ℕ}
+    (hbound : ∀ value ∈ values, (element value).length ≤ bound) :
+    (listEncoding element values).length ≤ values.length * (2 * bound + 1) := by
+  induction values with
+  | nil => simp
+  | cons value rest ih =>
+    have hhead := hbound value (by simp)
+    have hrest := ih (fun value hmem => hbound value (by simp [hmem]))
+    simp only [listEncoding_cons, length_pairEncoding, List.length_cons, Nat.add_mul]
+    lia
+
 /-- Removing an initial segment cannot increase the representation size. -/
 theorem length_listEncoding_drop_le (element : α ↪ Word) (values : List α) (count : ℕ) :
     (listEncoding element (values.drop count)).length ≤ (listEncoding element values).length := by
@@ -222,6 +256,16 @@ theorem isPolyTime_list_unaryLength (element : α ↪ Word) :
     rw [ih]
 
 variable {encode : γ → Word} {left : α ↪ Word} {right : β ↪ Word}
+
+/-- Decode the first component of an efficiently computed word. -/
+theorem IsPolyTime.bitPair_fst {word : γ → Word} (hword : IsPolyTime encode word) :
+    IsPolyTime encode (fun a => List.BitPair.fst (word a)) :=
+  isPolyTime_bitPair_fst.comp_encoded hword
+
+/-- Decode the second component of an efficiently computed word. -/
+theorem IsPolyTime.bitPair_snd {word : γ → Word} (hword : IsPolyTime encode word) :
+    IsPolyTime encode (fun a => List.BitPair.snd (word a)) :=
+  isPolyTime_bitPair_snd.comp_encoded hword
 
 /-- Pair two efficiently computed values, charging for the complete encoded pair. -/
 theorem IsPolyTime.pair {f : γ → α} {g : γ → β}
