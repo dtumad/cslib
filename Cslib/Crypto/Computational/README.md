@@ -117,6 +117,7 @@ The first extraction ingredients are checked:
 | [ThreeSource](Pseudoentropy/ThreeSource.lean) | Three game transitions prove the combined extractor secure for any bounded entropy-valid candidate in an efficient indexed family. The fixed-schedule theorem is a singleton specialization; every retained seed is counted. |
 | [ThreeSource/Seeded](Pseudoentropy/ThreeSource/Seeded.lean) | A deterministic polynomial-time implementation uses exactly the original sampler coins and three matrix seeds. Its uniform-input distribution equals the sampled extractor's law, and every correctly sized input has the advertised output length. |
 | [EntropyGrid](Pseudoentropy/EntropyGrid.lean) and [ThreeSource/Candidates](Pseudoentropy/ThreeSource/Candidates.lean) | Every entry in an efficient entropy grid expands. Rounding the true entropies gives one choice secure against all uniform indexed tests; the program never computes that choice. |
+| [GeneratorPadding](GeneratorPadding.lean) and [ThreeSource/Padding](Pseudoentropy/ThreeSource/Padding.lean) | Padding gives the candidates one common polynomial seed length and exactly one bit of stretch. An efficient reduction preserves the secure choice with exact distinguishing advantage. |
 | [LinearHash](../../Computability/Probabilistic/LinearHash.lean) | Boolean-matrix hashing, its word implementation, its PPT sampler, and exact agreement with the finite extraction experiment. |
 | [Extraction](Extraction.lean) | A source indistinguishable from a sufficiently diffuse comparison source yields computationally uniform extraction. |
 
@@ -414,12 +415,19 @@ Rounding both actual entropies down identifies a valid entry whenever the gap co
 This choice is mathematical; all candidate programs use only their explicit integer index.
 [`EntropyGrid.exists_secure_choice`](Pseudoentropy/ThreeSource/Candidates.lean) transfers the
 three-source proof to these deterministic expanders. The choice precedes the quantification over
-uniform indexed tests. The checked `owf_expanding_candidates` example starts from a general word
-OWF, obtains its pseudoentropy pair and saved sampler, and proves both expansion of every candidate
-and security of one choice. The linear precision `16 * (n + 7)` suffices for the proved OWF gap.
+uniform indexed tests. The linear precision `16 * (n + 7)` suffices for the proved OWF gap.
 
-The remaining route needs common seed lengths, amplification and XOR combination, and a final
-generator with stretch at every seed length. Each candidate must first be amplified
+[`ThreeSource.Padding`](Pseudoentropy/ThreeSource/Padding.lean) now puts every candidate at the
+same seed length. A shared unary size bound covers every index in the polynomial grid. The
+resulting common schedule is polynomial, strictly increasing, and at least `n + 1`.
+[`GeneratorPadding`](GeneratorPadding.lean) evaluates the raw generator on its seed prefix,
+retains the unused input bits, and truncates the result to one bit more than the common length.
+Its reduction samples an independent suffix and preserves the distinguishing advantage exactly.
+The checked `owf_padded_candidates` example starts from a general word OWF and obtains a uniformly
+efficient family of equally sized one-bit expanders, with one secure choice.
+
+The remaining route needs amplification and XOR combination, and a final generator with stretch
+at every seed length. Each candidate must first be amplified
 enough to pay for all candidates' independent seeds before their outputs are combined by XOR.
 The final generator must compute and combine the whole family.
 `ComputationallyIndistinguishable.extract_uniform` separately assumes its comparison source and
@@ -670,9 +678,9 @@ Our guide for the general construction is Thomas Holenstein,
 TCC 2006, [write-up](https://crypto.ethz.ch/publications/files/Holens06.pdf).
 Section 3.3 supplies the collision-probability proof of the leftover hash lemma; Sections 4–5
 give the pseudo-entropy-pair construction and its conversion to a PRG. The general implication
-is not yet formalized here: common seed lengths, amplification and XOR combination, and expansion
-at every seed length remain. The expanding entropy grid has a proved secure choice, and its
-exact deterministic candidates have uniform polynomial-time certificates.
+is not yet formalized here: amplification and XOR combination, and expansion at every seed length
+remain. The entropy grid has a proved secure choice; its deterministic candidates have uniform
+polynomial-time certificates and a common seed length with exactly one bit of stretch.
 We cite individual results in the
 modules that formalize them and distinguish these proved ingredients from the full theorem.
 For the constructive uniform hard-core argument we also follow Thomas Holenstein,

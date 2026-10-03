@@ -53,6 +53,21 @@ def pairEncoding (left : α ↪ Word) (right : β ↪ Word) : (α × β) ↪ Wor
     (pairEncoding left right pair).length = 2 * (left pair.1).length + (right pair.2).length + 1 :=
   List.BitPair.length_encode _ _
 
+/-- Efficient unary values have one polynomial bound across a polynomially bounded range of
+indices. The selected index need not itself be efficiently computable. -/
+theorem IsPolyTime.indexed_polynomial_bound {f : ℕ → ℕ → ℕ} {count : ℕ → ℕ}
+    (hf : IsPolyTime (pairEncoding unaryEncoding unaryEncoding)
+      (fun input => unaryEncoding (f input.1 input.2)))
+    (hcount : PolynomiallyBounded count) :
+    ∃ c d : ℕ, ∀ n i, i < count n → f n i ≤ c * (n + 1) ^ d := by
+  obtain ⟨c, d, hf⟩ := hf.length_le
+  have hpoly : PolynomiallyBounded (fun n => c * (2 * n + count n + 2) ^ d) := by fun_prop
+  obtain ⟨C, D, hpoly⟩ := hpoly
+  refine ⟨C, D, fun n i hi => ?_⟩
+  have h := hf (n, i)
+  simp only [length_pairEncoding, unaryEncoding_apply, List.length_replicate] at h
+  exact h.trans ((Nat.mul_le_mul_left c (Nat.pow_le_pow_left (by lia) d)).trans (hpoly n))
+
 /-- A coin tape and an ordinary input use the shared binary pair encoding. -/
 abbrev coinInputEncoding : (Word × Word) ↪ Word := pairEncoding wordEncoding wordEncoding
 

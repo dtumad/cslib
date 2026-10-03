@@ -16,8 +16,9 @@ Each entropy-grid entry defines a deterministic polynomial-time expander with it
 length. One entry is secure against every uniform indexed test; its index may vary arbitrarily
 with the security parameter. The construction enumerates all entries and never computes entropy.
 
-These candidates still have different seed lengths. Padding, amplification, and XOR combination
-are needed to turn them into one generator.
+These raw candidates have different seed lengths. `ThreeSource.Padding` gives them a common
+seed length and one bit of stretch. Amplification and XOR combination are still needed to turn
+them into one generator.
 
 ## References
 
