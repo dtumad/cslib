@@ -317,6 +317,53 @@ theorem three_source_extraction_half {pair : SamplablePair} {gap : ℕ → ℝ}
     exact Or.inr ((halfBitBudget n (saved.length n)).trans
       (mul_le_mul_of_nonneg_left hn (Nat.cast_nonneg _)))
 
+open Filter Pseudoentropy in
+/-- A test may receive an arbitrary varying candidate index, with no efficient choice supplied.
+The exact-seed client extracts that many bits from each component, up to the half-bit budget. -/
+theorem three_source_indexed_extraction_half {pair : SamplablePair} {gap : ℕ → ℝ}
+    (hpair : pair.HasGap gap) (saved : pair.SeedRealization)
+    (hfirst : ∀ᶠ n in atTop, (1 / 2 : ℝ) ≤ entropy ((pair.joint n).map Prod.fst))
+    (hmiddle : ∀ᶠ n in atTop, (1 / 2 : ℝ) ≤ conditionalEntropy (pair.joint n) + gap n)
+    (hlast : ∀ᶠ n in atTop, (1 / 2 : ℝ) ≤ saved.length n -
+      entropy ((pair.joint n).map Prod.fst) - conditionalEntropy (pair.joint n))
+    (choose : ∀ n, Fin (n + 1)) (test : ℕ → ℕ → Word → ProbComp Bool)
+    (htest : IsPPTOn (pairEncoding (pairEncoding unaryEncoding unaryEncoding) wordEncoding)
+      boolEncoding (fun input => test input.1.1 input.1.2 input.2)) :
+    ∃ bound : ℕ → ℕ, IsPolyTime unaryEncoding (fun n => unaryEncoding (bound n)) ∧
+      let count := fun n => ExtractionSchedule.count n (saved.length n) 3
+      Negligible (fun n => Game.advantage
+        (((uniformBits (ThreeSource.seedLength (count n) (saved.length n) (bound n)
+          (choose n) (choose n) (choose n))).map (ThreeSource.generate (count n) (saved.length n)
+            (bound n) (choose n) (choose n) (choose n) (saved.evaluate n))).bind
+              (fun word => ProbComp.eval (test n (choose n) word)))
+        ((uniformBits (ThreeSource.outputLength (count n) (saved.length n) (bound n)
+          (choose n) (choose n) (choose n))).bind
+            (fun word => ProbComp.eval (test n (choose n) word)))) := by
+  obtain ⟨bound, hefficient, hfits⟩ := pair.exists_observationBound
+  refine ⟨bound, hefficient, ?_⟩
+  have hbudget (n : ℕ) : (choose n : ℝ) +
+      2 * (ExtractionSchedule.slack n (saved.length n) 3 : ℝ) ≤
+        ExtractionSchedule.count n (saved.length n) 3 * (1 / 2 : ℝ) := by
+    have hi : (choose n : ℝ) ≤ n := by exact_mod_cast Nat.le_of_lt_succ (choose n).isLt
+    linarith [halfBitBudget n (saved.length n)]
+  have h := hpair.extract_indexed_three saved (fun n => choose n)
+    (candidates := fun n => n + 1) (inverseSlack := fun _ => 3)
+    (observationBits := fun _ i => i) (labelBits := fun _ i => i)
+    (remainingBits := fun _ i => i) (numerator := fun _ _ => 1) (densityBound := fun _ => 1)
+    (by polytime) hefficient (by polytime) (by polytime) (by polytime) (by polytime)
+    (by polytime) (by polytime) hfits (Eventually.of_forall (fun n => (choose n).isLt))
+    (by filter_upwards [hmiddle] with n hn; norm_num [dyadicSize, hn])
+    (by
+      filter_upwards [hfirst] with n hn
+      exact Or.inr ((hbudget n).trans (mul_le_mul_of_nonneg_left hn (Nat.cast_nonneg _))))
+    (Eventually.of_forall (fun n => by simpa [dyadicSize] using hbudget n))
+    (by
+      filter_upwards [hlast] with n hn
+      exact Or.inr ((hbudget n).trans (mul_le_mul_of_nonneg_left hn (Nat.cast_nonneg _))))
+    test htest
+  simp_rw [ThreeSource.eval_generate_of_realization saved _ _ _ _ _ _ (hfits _)]
+  simpa only [advantage, ProbComp.eval_bind, ProbComp.eval_sampleBits] using h
+
 /-- A client hashes retained word seeds while exposing every sampled observation and label. -/
 noncomputable def extractRetainedSeeds {pair : Pseudoentropy.SamplablePair}
     (saved : pair.SeedRealization) (n : ℕ) : ProbComp (List (Word × Bool) × Word × Word) := do

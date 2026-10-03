@@ -109,12 +109,12 @@ The first extraction ingredients are checked:
 | [MaskedExtraction](Pseudoentropy/MaskedExtraction.lean) | Extracting repeated soft-masked labels preserves all observations and the public hash seed. Its explicit statistical error bounds the loss in the sequence reduction; polynomial mask precision eventually adds at most `n + 2` information bits, independently of its degree. |
 | [Selection](Pseudoentropy/Selection.lean) | Fresh labeled samples select among polynomially many indexed predictors. The pseudoentropy error bound then holds simultaneously for all indices, with any prescribed inverse-polynomial slack. |
 | [DenseMask](Pseudoentropy/DenseMask.lean) | A pseudoentropy pair's prediction bound gives all tests in an efficient polynomial-size family dense masks with any prescribed inverse-polynomial distinguishing bound and a lower bound on positive mask probabilities. |
-| [ExtractionSchedule](Pseudoentropy/ExtractionSchedule.lean) and [LabelExtraction](Pseudoentropy/LabelExtraction.lean) | An explicit polynomial repetition schedule makes label extraction computationally uniform under an admissible entropy budget, independently of the test's running-time degree. |
-| [WordExtraction](Pseudoentropy/WordExtraction.lean) | Executable matrix hashing, exact agreement with the finite extraction laws, and a security theorem for ordinary strict PPT tests on observations, seed, and output. |
+| [ExtractionSchedule](Pseudoentropy/ExtractionSchedule.lean) and [LabelExtraction](Pseudoentropy/LabelExtraction.lean) | An explicit polynomial repetition schedule makes label extraction computationally uniform along any bounded valid choice from an efficient indexed family, independently of the test's running-time degree. |
+| [WordExtraction](Pseudoentropy/WordExtraction.lean) | Executable matrix hashing, exact agreement with the finite extraction laws, and security against ordinary or indexed strict PPT tests on observations, seed, and output. |
 | [RepeatedExtraction](Pseudoentropy/RepeatedExtraction.lean) | One typed extractor and conditional-entropy bound for arbitrary finite labels, with public side information and a zero-bit case requiring no entropy. |
 | [SeedExtraction](Pseudoentropy/SeedExtraction.lean) | Statistical extraction of public observations and remaining seed randomness, with every observation and label revealed in the latter experiment. Both use the label extractor's repetition schedule. |
 | [MatrixExtraction](Pseudoentropy/MatrixExtraction.lean) and [WordSeedExtraction](Pseudoentropy/WordSeedExtraction.lean) | Concrete matrix extractors for all three components, with strict PPT certificates and exact finite laws. The observation and retained-seed security theorems discharge two-universality internally. |
-| [ThreeSource](Pseudoentropy/ThreeSource.lean) | One strict PPT program combines the three extractors. Three game transitions prove computational indistinguishability from uniform under efficient schedules meeting the entropy budgets; every retained seed is counted in the exact output length. |
+| [ThreeSource](Pseudoentropy/ThreeSource.lean) | Three game transitions prove the combined extractor secure for any bounded entropy-valid candidate in an efficient indexed family. The fixed-schedule theorem is a singleton specialization; every retained seed is counted. |
 | [ThreeSource/Seeded](Pseudoentropy/ThreeSource/Seeded.lean) | A deterministic polynomial-time implementation uses exactly the original sampler coins and three matrix seeds. Its uniform-input distribution equals the sampled extractor's law, and every correctly sized input has the advertised output length. |
 | [LinearHash](../../Computability/Probabilistic/LinearHash.lean) | Boolean-matrix hashing, its word implementation, its PPT sampler, and exact agreement with the finite extraction experiment. |
 | [Extraction](Extraction.lean) | A source indistinguishable from a sufficiently diffuse comparison source yields computationally uniform extraction. |
@@ -354,7 +354,7 @@ each indexed predictor before the selected predictor receives the challenge. Wit
 `1 / t` and `(k + 1) * t^2` trials per candidate, its error is at most any candidate's error plus
 `2 / t + count * 2^(-k)`. Its PPT certificate composes with `ppt`. The entropy examples apply the
 result to an arbitrary varying index without an efficiency assumption on that choice.
-The entropy grid still needs to be carried through extraction and the expanding construction.
+This common bound feeds the indexed extraction and three-source theorems below.
 
 [`HasGap.extract_word_labels`](Pseudoentropy/WordExtraction.lean) now combines this consequence
 with statistical extraction. If `L` is the sampler's seed length, set
@@ -389,6 +389,14 @@ and deterministic clients, then transfer the complete security theorem to the de
 output using the exact seeded law. They assume three half-bit entropy thresholds and do not yet
 establish expansion; no machine internals appear in the client.
 
+[`HasGap.extract_indexed_three`](Pseudoentropy/ThreeSource.lean) proves the same three game
+transitions for a polynomial-size family of component lengths and density guesses. It applies
+to any bounded choice meeting the entropy budgets, without requiring that choice to be efficient.
+The test receives the index and has one PPT certificate for the whole family. The extractor
+and test use efficient runtime parameters; only the proof chooses a valid index. The fixed-schedule
+theorems specialize this argument to one candidate. A checked deterministic client allows an
+arbitrary varying index to control all three digest lengths and uses exactly the declared seed.
+
 `ThreeSource.length_extract` proves the exact output length on every supported execution.
 The seed ledger also proves that retaining the three matrix seeds cancels their contribution to
 the expansion inequality: the three digest lengths must sum to more than `count * L`.
@@ -400,12 +408,12 @@ word slicing, and hashing. No additional replay-clock padding is charged to this
 
 `ComputationallyIndistinguishable.extract_uniform` still assumes its comparison source and
 negligible collision bound. Negligible collisions of the OWF output alone do not give the entropy
-surplus required for expansion. The remaining route needs removal of unknown entropy parameters
-by a uniform reduction and a final generator with stretch
-at every seed length. In the write-up's entropy grid, each candidate must first be amplified
+surplus required for expansion. The remaining route needs an explicit expanding entropy grid
+containing a valid candidate, common seed lengths, and a final generator with stretch at every
+seed length. In the write-up's entropy grid, each candidate must first be amplified
 enough to pay for all candidates' independent seeds before their outputs are combined by XOR.
-The extraction theorem above requires efficient schedules; it does not permit entropy-dependent
-advice chosen separately at each input length.
+The indexed extraction theorem proves security for a valid candidate without supplying its
+index as advice to an algorithm. The final generator must compute and combine the whole family.
 
 ## Definitions and conventions
 
@@ -651,9 +659,10 @@ Our guide for the general construction is Thomas Holenstein,
 TCC 2006, [write-up](https://crypto.ethz.ch/publications/files/Holens06.pdf).
 Section 3.3 supplies the collision-probability proof of the leftover hash lemma; Sections 4–5
 give the pseudo-entropy-pair construction and its conversion to a PRG. The general implication
-is not yet formalized here: uniform removal of unknown entropy parameters and expansion at every
-seed length remain. The three-source game argument and its exact deterministic implementation
-are checked for efficient schedules meeting the entropy budgets. We cite individual results in the
+is not yet formalized here: the expanding entropy grid, amplification and XOR combination, and
+expansion at every seed length remain. The indexed three-source game argument and its exact
+deterministic implementation are checked for any bounded valid choice in an efficient family.
+We cite individual results in the
 modules that formalize them and distinguish these proved ingredients from the full theorem.
 For the constructive uniform hard-core argument we also follow Thomas Holenstein,
 *Key Agreement from Weak Bit Agreement*, STOC 2005, Section 2.2,

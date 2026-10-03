@@ -76,27 +76,91 @@ theorem eval_extractWordLabelsIdeal (source : ProbComp Word) (count outputBits :
   exact eval_extractMatrixLabelsIdeal source count count outputBits
 
 /-- An ordinary word test after extraction gives the finite test required by the security
-theorem. Sampling, padding, hashing, and encoding the public data are all charged to PPT. -/
-theorem extractedWordTest_isPPT {count outputBits : ℕ → ℕ}
-    (test : ℕ → List Word × Word × Word → ProbComp Bool)
-    (htest : IsPPTOn (pairEncoding unaryEncoding (pairEncoding (listEncoding wordEncoding)
+theorem. Sampling, padding, hashing, and encoding the public data are all charged to PPT.
+The test and dimensions may depend on any encoded runtime parameter. -/
+theorem extractedWordTest_isPPT {α : Type} {input : α ↪ Word} {count outputBits : α → ℕ}
+    (test : α → List Word × Word × Word → ProbComp Bool)
+    (htest : IsPPTOn (pairEncoding input (pairEncoding (listEncoding wordEncoding)
       (pairEncoding wordEncoding wordEncoding))) boolEncoding (fun input => test input.1 input.2))
-    (hcount : IsPolyTime unaryEncoding (fun n => unaryEncoding (count n)))
-    (houtput : IsPolyTime unaryEncoding (fun n => unaryEncoding (outputBits n))) :
-    IsPPTOn (pairEncoding unaryEncoding
+    (hcount : IsPolyTime input (fun a => unaryEncoding (count a)))
+    (houtput : IsPolyTime input (fun a => unaryEncoding (outputBits a))) :
+    IsPPTOn (pairEncoding input
       (listEncoding (pairEncoding wordEncoding boolEncoding))) boolEncoding
       (fun input => extractLabels
         (OracleComp.uniform (BitString (outputBits input.1 * count input.1)))
         (fun seed bits => LinearHash.hash (maskEquiv (outputBits input.1) (count input.1) seed)
           (wordBits (count input.1) bits)) input.2 >>= fun result =>
             test input.1 (result.1, List.ofFn result.2.1, List.ofFn result.2.2)) := by
-  have hword : IsPPTOn (pairEncoding unaryEncoding
+  have hword : IsPPTOn (pairEncoding input
       (listEncoding (pairEncoding wordEncoding boolEncoding))) boolEncoding
       (fun input => extractWordLabels (count input.1) (outputBits input.1) input.2 >>=
         test input.1) := by ppt
   apply hword.congr
   intro input
   simp only [ProbComp.eval_bind, eval_extractWordLabels, PMF.bind_map, Function.comp_def]
+
+open Filter in
+/-- An efficient indexed family of word extractors is computationally uniform along any bounded
+choice satisfying the entropy budget. The choice is used only in the proof and need not be
+efficient; the reduction certifies the whole family of tests. -/
+theorem SamplablePair.HasGap.extract_indexed_word_labels {pair : SamplablePair} {gap : ℕ → ℝ}
+    (hpair : pair.HasGap gap) (realization : pair.SeedRealization) (choose : ℕ → ℕ)
+    {candidates inverseSlack densityBound : ℕ → ℕ} {outputBits numerator : ℕ → ℕ → ℕ}
+    (hcandidates : IsPolyTime unaryEncoding (fun n => unaryEncoding (candidates n)))
+    (houtput : IsPolyTime (pairEncoding unaryEncoding unaryEncoding)
+      (fun input => unaryEncoding (outputBits input.1 input.2)))
+    (hslack : IsPolyTime unaryEncoding (fun n => unaryEncoding (inverseSlack n)))
+    (hnumerator : IsPolyTime (pairEncoding unaryEncoding unaryEncoding)
+      (fun input => unaryEncoding (numerator input.1 input.2)))
+    (hdensity : IsPolyTime unaryEncoding (fun n => unaryEncoding (densityBound n)))
+    (hchoose : ∀ᶠ n in atTop, choose n < candidates n)
+    (hvalid : ∀ᶠ n in atTop, 0 < numerator n (choose n) ∧
+      numerator n (choose n) ≤ dyadicSize (densityBound n) ∧
+      (numerator n (choose n) : ℝ) / dyadicSize (densityBound n) ≤
+        PMF.conditionalEntropy (pair.joint n) + gap n)
+    (hbudget : ∀ᶠ n in atTop,
+      outputBits n (choose n) +
+        2 * (ExtractionSchedule.slack n (realization.length n) (inverseSlack n) : ℝ) ≤
+        ExtractionSchedule.count n (realization.length n) (inverseSlack n) *
+          ((numerator n (choose n) : ℝ) / dyadicSize (densityBound n)))
+    (test : ℕ → ℕ → List Word × Word × Word → ProbComp Bool)
+    (htest : IsPPTOn (pairEncoding (pairEncoding unaryEncoding unaryEncoding)
+      (pairEncoding (listEncoding wordEncoding) (pairEncoding wordEncoding wordEncoding)))
+      boolEncoding (fun input => test input.1.1 input.1.2 input.2)) :
+    let count := fun n => ExtractionSchedule.count n (realization.length n) (inverseSlack n)
+    Negligible (fun n => advantage
+      (OracleComp.replicate (count n) (pair.sample n) >>=
+        fun samples => extractWordLabels (count n) (outputBits n (choose n)) samples >>=
+          test n (choose n))
+      (extractWordLabelsIdeal (Prod.fst <$> pair.sample n) (count n) (outputBits n (choose n)) >>=
+        test n (choose n))) := by
+  let count := fun n => ExtractionSchedule.count n (realization.length n) (inverseSlack n)
+  have hcount : IsPolyTime unaryEncoding (fun n => unaryEncoding (count n)) :=
+    ExtractionSchedule.count_isPolyTime (isPolyTime_input unaryEncoding)
+      realization.length_isPolyTime hslack
+  have h := hpair.extract_indexed_labels realization choose
+    (inverseSlack := inverseSlack)
+    (fun n i => OracleComp.uniform (BitString (outputBits n i * count n)))
+    (fun n i seed bits => LinearHash.hash (maskEquiv (outputBits n i) (count n) seed)
+      (wordBits (count n) bits))
+    (fun n i result => test n i (result.1, List.ofFn result.2.1, List.ofFn result.2.2))
+    (extractedWordTest_isPPT (count := fun input : ℕ × ℕ => count input.1)
+      (outputBits := fun input : ℕ × ℕ => outputBits input.1 input.2)
+      (fun input : ℕ × ℕ => test input.1 input.2) htest
+      (hcount.comp_encoded (isPolyTime_fst unaryEncoding unaryEncoding)) houtput)
+    hcandidates hslack hnumerator hdensity hchoose hvalid
+    (fun n i => by simpa only [OracleComp.uniform, ProbComp.eval_sample, wordBits_ofFn] using
+      LinearHash.isTwoUniversal_flat (count n) (outputBits n i)) hbudget
+  apply h.congr
+  intro n
+  have hpublic : ProbComp.eval ((fun value => pair.encode n value.1) <$>
+      OracleComp.sample (pair.joint n)) = ProbComp.eval (Prod.fst <$> pair.sample n) := by
+    simp only [ProbComp.eval_map, ProbComp.eval_sample, pair.eval_sample, PMF.map_comp,
+      Function.comp_def]
+  simp only [count, advantage, ProbComp.eval_bind, eval_extractWordLabels,
+    eval_extractWordLabelsIdeal, PMF.bind_map, Function.comp_def, extractLabelsIdeal,
+    ProbComp.eval_replicate_congr hpublic
+      (ExtractionSchedule.count n (realization.length n) (inverseSlack n))]
 
 open Filter in
 /-- Computational label extraction as two ordinary word programs. The client supplies the
@@ -125,27 +189,9 @@ theorem SamplablePair.HasGap.extract_word_labels {pair : SamplablePair} {gap : �
         fun samples => extractWordLabels (count n) (outputBits n) samples >>= test n)
       (extractWordLabelsIdeal (Prod.fst <$> pair.sample n) (count n) (outputBits n) >>=
         test n)) := by
-  let count := fun n => ExtractionSchedule.count n (realization.length n) (inverseSlack n)
-  have hcount : IsPolyTime unaryEncoding (fun n => unaryEncoding (count n)) :=
-    ExtractionSchedule.count_isPolyTime (isPolyTime_input unaryEncoding)
-      realization.length_isPolyTime hslack
-  have h := hpair.extract_labels realization
-    (fun n => OracleComp.uniform (BitString (outputBits n * count n)))
-    (fun n seed bits => LinearHash.hash (maskEquiv (outputBits n) (count n) seed)
-      (wordBits (count n) bits))
-    (fun n result => test n (result.1, List.ofFn result.2.1, List.ofFn result.2.2))
-    (extractedWordTest_isPPT test htest hcount houtput) hslack hnumerator hdensity hvalid
-    (fun n => by simpa only [OracleComp.uniform, ProbComp.eval_sample, wordBits_ofFn] using
-      LinearHash.isTwoUniversal_flat (count n) (outputBits n)) hbudget
-  apply h.congr
-  intro n
-  have hpublic : ProbComp.eval ((fun value => pair.encode n value.1) <$>
-      OracleComp.sample (pair.joint n)) = ProbComp.eval (Prod.fst <$> pair.sample n) := by
-    simp only [ProbComp.eval_map, ProbComp.eval_sample, pair.eval_sample, PMF.map_comp,
-      Function.comp_def]
-  simp only [count, advantage, ProbComp.eval_bind, eval_extractWordLabels,
-    eval_extractWordLabelsIdeal, PMF.bind_map, Function.comp_def, extractLabelsIdeal,
-    ProbComp.eval_replicate_congr hpublic
-      (ExtractionSchedule.count n (realization.length n) (inverseSlack n))]
+  exact hpair.extract_indexed_word_labels realization (fun _ => 0)
+    (candidates := fun _ => 1) (outputBits := fun n _ => outputBits n)
+    (numerator := fun n _ => numerator n) (by polytime) (by polytime) hslack (by polytime)
+    hdensity (Eventually.of_forall (by intro n; decide)) hvalid hbudget (fun n _ => test n) (by ppt)
 
 end Cslib.Crypto.Pseudoentropy

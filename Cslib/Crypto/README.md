@@ -460,7 +460,7 @@ the uniform learner to a pseudoentropy pair, with one eventual threshold coverin
 in an efficient polynomial-size family. Fresh labeled samples
 [select among indexed predictors](Computational/Pseudoentropy/Selection.lean); the security
 proof can therefore use a varying valid density guess without giving that choice to the algorithm.
-Carrying this indexed bound through the extraction construction remains to be done. An
+The indexed bound now carries through the complete three-source extraction argument. An
 [explicit polynomial schedule](Computational/Pseudoentropy/ExtractionSchedule.lean) and the
 [word extraction theorem](Computational/Pseudoentropy/WordExtraction.lean) give negligible
 distinguishing advantage while retaining every observation and the complete matrix seed.
@@ -480,8 +480,10 @@ under efficient schedules meeting the entropy budgets. Its
 [deterministic implementation](Computational/Pseudoentropy/ThreeSource/Seeded.lean) has the same
 uniform-input distribution and uses exactly the original sampler coins and the three matrix
 seeds. A client example derives deterministic security from three half-bit entropy thresholds.
-Uniform removal of unknown entropy parameters and expansion at every seed length remain to be
-proved. The construction uses fresh soft masks; following the write-up's set-oracle
+A valid candidate may be chosen arbitrarily in the proof, while the indexed test is one uniform
+PPT program. The expanding entropy grid, candidate amplification and XOR combination, and
+expansion at every seed length remain to be proved. The construction uses fresh soft masks;
+following the write-up's set-oracle
 formulation would additionally require a cached membership simulation.
 The [computational guide](Computational/README.md#toward-general-one-way-functions) records the
 remaining obligations and cites
