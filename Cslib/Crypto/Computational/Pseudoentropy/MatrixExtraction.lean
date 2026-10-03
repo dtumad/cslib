@@ -39,6 +39,19 @@ noncomputable def extractMatrixLabels {Observation Label : Type} (inputBits outp
     (fun seed labels => LinearHash.wordHash outputBits seed
       (List.ofFn (wordBits inputBits (prepare labels)))) samples
 
+/-- Every result preserves the observations and has the declared seed and digest lengths. -/
+theorem extractMatrixLabels_result {Observation Label : Type} (inputBits outputBits : ℕ)
+    (prepare : List Label → Word) (samples : List (Observation × Label))
+    {result : List Observation × Word × Word}
+    (hresult : result ∈ (ProbComp.eval
+      (extractMatrixLabels inputBits outputBits prepare samples)).support) :
+    result.1 = samples.map Prod.fst ∧ result.2.1.length = outputBits * inputBits ∧
+      result.2.2.length = outputBits := by
+  simp only [extractMatrixLabels, extractLabels, bind_pure_comp, ProbComp.eval_map,
+    ProbComp.eval_sampleBits, PMF.mem_support_map_iff] at hresult
+  obtain ⟨seed, hseed, rfl⟩ := hresult
+  exact ⟨rfl, mem_support_uniformBits_iff.mp hseed, LinearHash.length_wordHash _ _ _⟩
+
 /-- The comparison experiment preserves the observations and samples independent seed and bits. -/
 noncomputable def extractMatrixLabelsIdeal {Observation : Type} (source : ProbComp Observation)
     (count inputBits outputBits : ℕ) : ProbComp (List Observation × Word × Word) := do
@@ -96,5 +109,40 @@ theorem eval_extractMatrixLabelsIdeal {Observation : Type} (source : ProbComp Ob
     Function.comp_def]
   simp only [ProbComp.eval, OracleComp.eval_sampleBits, uniformBits, PMF.map,
     Function.comp_def, PMF.bind_bind, PMF.pure_bind]
+
+/-- In the ideal experiment, the public matrix seed and digest together form one uniform word.
+The continuation may depend on all retained observations. -/
+theorem eval_extractMatrixLabelsIdeal_bind {Observation Output : Type}
+    (source : ProbComp Observation) (count inputBits outputBits : ℕ)
+    (next : List Observation → Word → ProbComp Output) :
+    ProbComp.eval (extractMatrixLabelsIdeal source count inputBits outputBits >>= fun result =>
+      next result.1 (result.2.1 ++ result.2.2)) =
+        ProbComp.eval (do
+          let observations ← OracleComp.replicate count source
+          let bits ← OracleComp.sampleBits (outputBits * inputBits + outputBits)
+          next observations bits) := by
+  simp only [extractMatrixLabelsIdeal, ProbComp.eval_bind, ProbComp.eval_pure,
+    ProbComp.eval_sampleBits]
+  rw [uniformBits_add]
+  simp only [PMF.bind_bind, PMF.bind_map, PMF.pure_bind, Function.comp_def]
+
+/-- An independently uniform ideal hash can be sampled after processing the observations. -/
+theorem eval_extractMatrixLabelsIdeal_append {Observation : Type}
+    (source : ProbComp Observation) (count inputBits outputBits : ℕ)
+    (next : List Observation → ProbComp Word) :
+    ProbComp.eval (extractMatrixLabelsIdeal source count inputBits outputBits >>= fun result =>
+      (fun front => front ++ (result.2.1 ++ result.2.2)) <$> next result.1) =
+        ProbComp.eval (do
+          let front ← OracleComp.replicate count source >>= next
+          let suffix ← OracleComp.sampleBits (outputBits * inputBits + outputBits)
+          return front ++ suffix) := by
+  rw [eval_extractMatrixLabelsIdeal_bind source count inputBits outputBits
+    (fun observations suffix => (fun front => front ++ suffix) <$> next observations)]
+  simp only [ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure,
+    ProbComp.eval_sampleBits, PMF.bind_bind]
+  congr 1
+  funext observations
+  simp only [PMF.map, Function.comp_def]
+  rw [PMF.bind_comm]
 
 end Cslib.Crypto.Pseudoentropy

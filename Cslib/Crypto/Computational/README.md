@@ -113,6 +113,7 @@ The first extraction ingredients are checked:
 | [RepeatedExtraction](Pseudoentropy/RepeatedExtraction.lean) | One typed extractor and conditional-entropy bound for arbitrary finite labels, with public side information and a zero-bit case requiring no entropy. |
 | [SeedExtraction](Pseudoentropy/SeedExtraction.lean) | Statistical extraction of public observations and remaining seed randomness, with every observation and label revealed in the latter experiment. Both use the label extractor's repetition schedule. |
 | [MatrixExtraction](Pseudoentropy/MatrixExtraction.lean) and [WordSeedExtraction](Pseudoentropy/WordSeedExtraction.lean) | Concrete matrix extractors for all three components, with strict PPT certificates and exact finite laws. The observation and retained-seed security theorems discharge two-universality internally. |
+| [ThreeSource](Pseudoentropy/ThreeSource.lean) | One strict PPT program combines the three extractors. Three game transitions prove computational indistinguishability from uniform under efficient schedules meeting the entropy budgets; every retained seed is counted in the exact output length. |
 | [LinearHash](../../Computability/Probabilistic/LinearHash.lean) | Boolean-matrix hashing, its word implementation, its PPT sampler, and exact agreement with the finite extraction experiment. |
 | [Extraction](Extraction.lean) | A source indistinguishable from a sufficiently diffuse comparison source yields computationally uniform extraction. |
 
@@ -366,13 +367,22 @@ using the shared matrix implementation. `extract_word_observations` pads variabl
 observations injectively; `SamplablePair.exists_observationBound` obtains an efficient padding
 bound directly from the PPT sampler, with no bound required on impossible observations.
 `extract_word_seeds` hashes concatenated fixed-width seeds while preserving all pair outputs.
-The extraction examples instantiate both entropy budgets and certify one program that samples
-once and computes all three components. That combined example checks efficiency; its complete
-security argument remains to be proved.
+[`HasGap.extract_three`](Pseudoentropy/ThreeSource.lean) proves the combined program secure by
+replacing the retained-seed component, then the labels, then the observations with uniform bits.
+The first and last transitions are statistical. The middle reduction is an ordinary PPT program
+that computes the observation hash and supplies the independent third component before calling
+the distinguisher. The extraction examples obtain both its PPT certificate and its complete
+security theorem from three half-bit entropy thresholds; no machine internals appear in the client.
+
+`ThreeSource.length_extract` proves the exact output length on every supported execution.
+The seed ledger also proves that retaining the three matrix seeds cancels their contribution to
+the expansion inequality: the three digest lengths must sum to more than `count * L`.
+Realizing that ledger as a deterministic generator with exactly that many input bits remains
+separate work. A generic replay of the PPT certificate can pad the random tape too much to expand.
 
 `ComputationallyIndistinguishable.extract_uniform` still assumes its comparison source and
 negligible collision bound. Negligible collisions of the OWF output alone do not give the entropy
-surplus required for expansion. The remaining route needs assembly of the three-source game argument,
+surplus required for expansion. The remaining route needs the exact seeded implementation,
 removal of unknown entropy parameters by a uniform reduction, and a final generator with stretch
 at every seed length. In the write-up's entropy grid, each candidate must first be amplified
 enough to pay for all candidates' independent seeds before their outputs are combined by XOR.
@@ -622,9 +632,10 @@ Our guide for the general construction is Thomas Holenstein,
 TCC 2006, [write-up](https://crypto.ethz.ch/publications/files/Holens06.pdf).
 Section 3.3 supplies the collision-probability proof of the leftover hash lemma; Sections 4–5
 give the pseudo-entropy-pair construction and its conversion to a PRG. The general implication
-is not yet formalized here. In particular, the uniform hard-core lemma, the three-source game
-argument, and removal of unknown entropy parameters still need proofs. We cite individual results in
-the modules that formalize them and distinguish these proved ingredients from the full theorem.
+is not yet formalized here: uniform removal of unknown entropy parameters, the exact seeded
+implementation, and expansion at every seed length remain. The three-source game argument is
+checked for efficient schedules meeting the entropy budgets. We cite individual results in the
+modules that formalize them and distinguish these proved ingredients from the full theorem.
 For the constructive uniform hard-core argument we also follow Thomas Holenstein,
 *Key Agreement from Weak Bit Agreement*, STOC 2005, Section 2.2,
 [write-up](https://crypto.ethz.ch/publications/files/Holens05.pdf). The checked potential analysis

@@ -70,6 +70,15 @@ noncomputable def extract (count : ℕ) (input : Word) : ProbComp Word := do
   let seed ← OracleComp.sampleBits (count * input.length)
   return seed ++ wordHash count seed input
 
+/-- Every extractor output contains the complete matrix seed and exactly `count` digest bits. -/
+theorem length_extract (count : ℕ) (input : Word) {output : Word}
+    (houtput : output ∈ (ProbComp.eval (extract count input)).support) :
+    output.length = count * input.length + count := by
+  simp only [extract, bind_pure_comp, ProbComp.eval_map, ProbComp.eval_sampleBits,
+    PMF.mem_support_map_iff] at houtput
+  obtain ⟨seed, hseed, rfl⟩ := houtput
+  simp only [List.length_append, length_wordHash, mem_support_uniformBits_iff.mp hseed]
+
 /-- The complete seeded extractor is PPT, including all sampling and the revealed seed. -/
 theorem extract_isPPTOn {α : Type} {encode : α ↪ Word} {count : α → ℕ} {input : α → Word}
     (hcount : IsPolyTime encode (fun a => unaryEncoding (count a)))

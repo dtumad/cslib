@@ -46,3 +46,12 @@ noncomputable def sampleBits : ℕ → OracleComp Query Response (List Bool)
     simp [sampleBits, uniformBits_succ, ih, uniform, PMF.map, Function.comp_def]
 
 end Cslib.OracleComp
+
+namespace Cslib.ProbComp
+
+/-- Closed fair-bit sampling has the uniform word distribution. -/
+@[simp] theorem eval_sampleBits (n : ℕ) :
+    eval (OracleComp.sampleBits n) = Probability.uniformBits n :=
+  OracleComp.eval_sampleBits _ n
+
+end Cslib.ProbComp

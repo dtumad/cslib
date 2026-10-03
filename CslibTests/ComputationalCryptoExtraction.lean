@@ -7,8 +7,7 @@ Authors: Samuel Schlesinger
 module
 
 public import Cslib.Crypto.Computational.Extraction
-public import Cslib.Crypto.Computational.Pseudoentropy.WordExtraction
-public import Cslib.Crypto.Computational.Pseudoentropy.WordSeedExtraction
+public import Cslib.Crypto.Computational.Pseudoentropy.ThreeSource
 
 /-!
 # Extraction and entropy examples
@@ -228,16 +227,11 @@ theorem remaining_seed_extraction_half {pair : SamplablePair} (saved : pair.Seed
 open Pseudoentropy in
 /-- One client samples once and extracts all three components using the ordinary program API. -/
 noncomputable def threeExtractedComponents {pair : SamplablePair}
-    (saved : pair.SeedRealization) (bound : ℕ → ℕ) (n : ℕ) : ProbComp Word := do
-  let count := ExtractionSchedule.count n (saved.length n) 3
-  let samples ← OracleComp.replicate count (saved.sampleWithSeed n)
-  let third ← extractWordSeeds count (saved.length n) n samples
-  let middle ← extractWordLabels count n third.1
-  let first ← extractWordObservations (bound n) n middle.1
-  return first ++ middle.2.1 ++ middle.2.2 ++ third.2.1 ++ third.2.2
+    (saved : pair.SeedRealization) (bound : ℕ → ℕ) (n : ℕ) : ProbComp Word :=
+  ThreeSource.extract (ExtractionSchedule.count n (saved.length n) 3) (saved.length n)
+    (bound n) n n n (saved.sampleWithSeed n)
 
-/-- The combined client proof exposes only its sampler and size certificates. This is an
-efficiency test; security of the combined construction requires the three game transitions. -/
+/-- The combined client proof exposes only its sampler and size certificates. -/
 theorem threeExtractedComponents_isPPT {pair : Pseudoentropy.SamplablePair}
     (saved : pair.SeedRealization) {bound : ℕ → ℕ}
     (hbound : IsPolyTime unaryEncoding (fun n => unaryEncoding (bound n))) :
@@ -249,6 +243,39 @@ theorem threeExtractedComponents_isPPT {pair : Pseudoentropy.SamplablePair}
     apply Pseudoentropy.ExtractionSchedule.count_isPolyTime <;> polytime
   unfold threeExtractedComponents
   ppt
+
+open Filter Pseudoentropy in
+/-- One ordinary PPT program extracts all three components. Its complete security proof needs
+only the three numerical entropy thresholds; the library supplies the padding bound and games. -/
+theorem three_source_extraction_half {pair : SamplablePair} {gap : ℕ → ℝ}
+    (hpair : pair.HasGap gap) (saved : pair.SeedRealization)
+    (hfirst : ∀ᶠ n in atTop, (1 / 2 : ℝ) ≤ entropy ((pair.joint n).map Prod.fst))
+    (hmiddle : ∀ᶠ n in atTop, (1 / 2 : ℝ) ≤ conditionalEntropy (pair.joint n) + gap n)
+    (hlast : ∀ᶠ n in atTop, (1 / 2 : ℝ) ≤ saved.length n -
+      entropy ((pair.joint n).map Prod.fst) - conditionalEntropy (pair.joint n)) :
+    ∃ bound : ℕ → ℕ,
+      IsPPTOn unaryEncoding wordEncoding (threeExtractedComponents saved bound) ∧
+      ComputationallyIndistinguishable
+        (fun n => ProbComp.eval (threeExtractedComponents saved bound n))
+        (fun n => uniformBits (ThreeSource.outputLength
+          (ExtractionSchedule.count n (saved.length n) 3) (saved.length n) (bound n) n n n)) := by
+  obtain ⟨bound, hefficient, hfits⟩ := pair.exists_observationBound
+  refine ⟨bound, threeExtractedComponents_isPPT saved hefficient, ?_⟩
+  apply hpair.extract_three saved (bound := bound) (inverseSlack := fun _ => 3)
+    (observationBits := id) (labelBits := id) (remainingBits := id)
+    (numerator := fun _ => 1) (densityBound := fun _ => 1)
+    hefficient (by polytime) (by polytime) (by polytime) (by polytime) (by polytime)
+    (by polytime) hfits
+  · filter_upwards [hmiddle] with n hn
+    norm_num [dyadicSize, hn]
+  · filter_upwards [hfirst] with n hn
+    exact Or.inr ((halfBitBudget n (saved.length n)).trans
+      (mul_le_mul_of_nonneg_left hn (Nat.cast_nonneg _)))
+  · exact Filter.Eventually.of_forall (fun n => by
+      simpa [dyadicSize] using halfBitBudget n (saved.length n))
+  · filter_upwards [hlast] with n hn
+    exact Or.inr ((halfBitBudget n (saved.length n)).trans
+      (mul_le_mul_of_nonneg_left hn (Nat.cast_nonneg _)))
 
 /-- A client hashes retained word seeds while exposing every sampled observation and label. -/
 noncomputable def extractRetainedSeeds {pair : Pseudoentropy.SamplablePair}

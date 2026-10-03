@@ -461,9 +461,8 @@ the uniform learner to a pseudoentropy pair. An
 [word extraction theorem](Computational/Pseudoentropy/WordExtraction.lean) give negligible
 distinguishing advantage while retaining every observation and the complete matrix seed.
 The client supplies efficient density and output schedules satisfying the entropy budget; all
-sampling and hashing have strict PPT certificates. The three-source game argument, uniform
-removal of unknown entropy parameters, and conversion into an expanding generator remain to
-be proved. The [shared repeated extractor](Computational/Pseudoentropy/RepeatedExtraction.lean)
+sampling and hashing have strict PPT certificates.
+The [shared repeated extractor](Computational/Pseudoentropy/RepeatedExtraction.lean)
 now handles arbitrary finite labels, including word seeds. The
 [first and third statistical transitions](Computational/Pseudoentropy/SeedExtraction.lean)
 use the same repetition schedule, preserve their public hash seeds, and permit empty outputs
@@ -471,8 +470,12 @@ when a component has no entropy. Their
 [concrete word programs](Computational/Pseudoentropy/WordSeedExtraction.lean) now discharge the
 hash-family premises through the shared matrix implementation. Observation padding uses a bound
 derived from the sampler's PPT certificate, and the retained-seed extractor reveals every pair
-output. A combined client has a strict PPT certificate; its full game argument remains to be
-proved. The construction uses fresh soft masks; following the write-up's set-oracle
+output. The [combined construction](Computational/Pseudoentropy/ThreeSource.lean) has a strict
+PPT certificate, an exact output-length theorem, and a complete three-transition security proof
+under efficient schedules meeting the entropy budgets. A client example derives this security
+theorem from three half-bit entropy thresholds. Uniform removal of unknown entropy parameters,
+the deterministic implementation with its exact seed budget, and expansion at every seed length
+remain to be proved. The construction uses fresh soft masks; following the write-up's set-oracle
 formulation would additionally require a cached membership simulation.
 The [computational guide](Computational/README.md#toward-general-one-way-functions) records the
 remaining obligations and cites
