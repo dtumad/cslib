@@ -267,6 +267,11 @@ theorem bind_congr_on_support (p : PMF α) (f g : α → PMF β)
   · have hz : p a = 0 := by simpa only [PMF.mem_support_iff, not_not] using ha
     simp [hz]
 
+/-- Re-encoding only needs to agree on outcomes which the distribution can produce. -/
+theorem map_congr_on_support (p : PMF α) (f g : α → β)
+    (h : ∀ a ∈ p.support, f a = g a) : p.map f = p.map g :=
+  bind_congr_on_support p _ _ (fun a ha => congrArg PMF.pure (h a ha))
+
 /-- Evaluating the "pairing" bind `(do let a ← p; return (a, ← f a))` at `(a, b)`
 gives the product `p a * f a b`. -/
 theorem bind_pair_apply (p : PMF α) (f : α → PMF β) (a : α) (b : β) :

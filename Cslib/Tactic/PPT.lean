@@ -42,12 +42,18 @@ attribute [aesop safe apply (index := [unindexed]) (rule_sets := [PPT])]
   Cslib.Probability.isPPT_sampleBits
   Cslib.Probability.IsPolyTime.isPPT_word
   Cslib.Probability.IsPolyTime.isPPT
-  Cslib.Probability.IsPolyTime.isPPTOn
-  Cslib.Probability.IsPolyTime.sampleBits
-  Cslib.Probability.IsPolyTime.uniformBits
-  Cslib.Probability.isPPTOn_uniformBool
   Cslib.Probability.IsOraclePPTOn.map_bool
   Cslib.Probability.OracleEncoding.IsPPTOn.map_bool
+
+-- Matching a primitive by unification can evaluate a whole random program while its output
+-- encoding is still unknown. Inspect the program head before applying primitive rules.
+@[aesop safe -10 tactic (rule_sets := [PPT])]
+private meta def pptPrimitive : Lean.Elab.Tactic.TacticM Unit :=
+  Cslib.Tactic.PPT.applyHead #[
+    (``Pure.pure, ``Cslib.Probability.IsPolyTime.isPPTOn),
+    (``Cslib.OracleComp.sampleBits, ``Cslib.Probability.IsPolyTime.sampleBits),
+    (``Cslib.OracleComp.sample, ``Cslib.Probability.IsPolyTime.uniformBits),
+    (``Cslib.OracleComp.uniform, ``Cslib.Probability.isPPTOn_uniformBool)]
 
 attribute [aesop safe apply (rule_sets := [PPT])]
   Cslib.Probability.IsPPT.map_word

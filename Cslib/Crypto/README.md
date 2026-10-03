@@ -467,8 +467,12 @@ be proved. The [shared repeated extractor](Computational/Pseudoentropy/RepeatedE
 now handles arbitrary finite labels, including word seeds. The
 [first and third statistical transitions](Computational/Pseudoentropy/SeedExtraction.lean)
 use the same repetition schedule, preserve their public hash seeds, and permit empty outputs
-when a component has no entropy. Their concrete hash families and the complete game assembly
-remain to be connected. The construction uses fresh soft masks; following the write-up's set-oracle
+when a component has no entropy. Their
+[concrete word programs](Computational/Pseudoentropy/WordSeedExtraction.lean) now discharge the
+hash-family premises through the shared matrix implementation. Observation padding uses a bound
+derived from the sampler's PPT certificate, and the retained-seed extractor reveals every pair
+output. A combined client has a strict PPT certificate; its full game argument remains to be
+proved. The construction uses fresh soft masks; following the write-up's set-oracle
 formulation would additionally require a cached membership simulation.
 The [computational guide](Computational/README.md#toward-general-one-way-functions) records the
 remaining obligations and cites

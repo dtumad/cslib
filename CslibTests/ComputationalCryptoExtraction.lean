@@ -8,7 +8,7 @@ module
 
 public import Cslib.Crypto.Computational.Extraction
 public import Cslib.Crypto.Computational.Pseudoentropy.WordExtraction
-public import Cslib.Crypto.Computational.Pseudoentropy.SeedExtraction
+public import Cslib.Crypto.Computational.Pseudoentropy.WordSeedExtraction
 
 /-!
 # Extraction and entropy examples
@@ -157,6 +157,17 @@ example {source : ℕ → ProbComp (Word × Bool)} {sourceBits : ℕ → ℕ}
   ppt
 
 open Filter Pseudoentropy in
+/-- A common numerical budget used by the positive-entropy examples below. -/
+private theorem halfBitBudget (n sourceBits : ℕ) :
+    (n : ℝ) + 2 * (ExtractionSchedule.slack n sourceBits 3 : ℝ) ≤
+      ExtractionSchedule.count n sourceBits 3 * (1 / 2 : ℝ) := by
+  have hinformation : (1 : ℝ) ≤ ((sourceBits : ℝ) + n + 2) ^ 2 := by
+    have h : 1 ≤ (sourceBits + n + 2) ^ 2 := Nat.succ_le_of_lt (by positivity)
+    exact_mod_cast h
+  norm_num [ExtractionSchedule.count, ExtractionSchedule.slack]
+  nlinarith [mul_nonneg (Nat.cast_nonneg n : (0 : ℝ) ≤ n) (sub_nonneg.mpr hinformation)]
+
+open Filter Pseudoentropy in
 /-- A known half-bit pseudoentropy threshold suffices to extract `n` computationally uniform
 labels. The test sees every observation and every matrix-seed bit. The proof discharges the
 repetition and slack budget using the stated half-bit threshold. -/
@@ -178,11 +189,66 @@ theorem label_extraction_half {pair : SamplablePair} {gap : ℕ → ℝ}
     norm_num [dyadicSize, hn]
   · apply Filter.Eventually.of_forall
     intro n
-    have hinformation : (1 : ℝ) ≤ ((saved.length n : ℝ) + n + 2) ^ 2 := by
-      have h : 1 ≤ (saved.length n + n + 2) ^ 2 := Nat.succ_le_of_lt (by positivity)
-      exact_mod_cast h
-    norm_num [ExtractionSchedule.count, ExtractionSchedule.slack, dyadicSize]
-    nlinarith [mul_nonneg (Nat.cast_nonneg n : (0 : ℝ) ≤ n) (sub_nonneg.mpr hinformation)]
+    simpa [dyadicSize] using halfBitBudget n (saved.length n)
+
+open Filter Pseudoentropy in
+/-- The first extractor obtains its padding bound from PPT and uses it in the actual program.
+A half-bit entropy assumption yields `n` uniform digest bits with the full matrix seed public. -/
+theorem observation_extraction_half {pair : SamplablePair} (saved : pair.SeedRealization)
+    (hentropy : ∀ᶠ n in atTop, (1 / 2 : ℝ) ≤ entropy ((pair.joint n).map Prod.fst)) :
+    ∃ bound : ℕ → ℕ, IsPolyTime unaryEncoding (fun n => unaryEncoding (bound n)) ∧
+      let count := fun n => ExtractionSchedule.count n (saved.length n) 3
+      StatisticallyIndistinguishable
+        (fun n => ProbComp.eval (OracleComp.replicate (count n) (Prod.fst <$> pair.sample n) >>=
+          extractWordObservations (bound n) n))
+        (fun n => uniformBits (n * (count n * (2 * bound n + 1)) + n)) := by
+  obtain ⟨bound, hefficient, hbound⟩ := pair.exists_observationBound
+  refine ⟨bound, hefficient, saved.extract_word_observations bound (fun _ => 3) id hbound ?_⟩
+  filter_upwards [hentropy] with n hn
+  exact Or.inr ((halfBitBudget n (saved.length n)).trans
+    (mul_le_mul_of_nonneg_left hn (Nat.cast_nonneg _)))
+
+open Filter Pseudoentropy in
+/-- The third extractor's concrete hash releases `n` uniform bits below its residual-entropy
+budget, preserving all original pair outputs and the complete matrix seed. -/
+theorem remaining_seed_extraction_half {pair : SamplablePair} (saved : pair.SeedRealization)
+    (hentropy : ∀ᶠ n in atTop, (1 / 2 : ℝ) ≤ saved.length n -
+      entropy ((pair.joint n).map Prod.fst) - conditionalEntropy (pair.joint n)) :
+    let count := fun n => ExtractionSchedule.count n (saved.length n) 3
+    StatisticallyIndistinguishable
+      (fun n => ProbComp.eval (OracleComp.replicate (count n) (saved.sampleWithSeed n) >>=
+        extractWordSeeds (count n) (saved.length n) n))
+      (fun n => ProbComp.eval (extractMatrixLabelsIdeal (pair.sample n) (count n)
+        (count n * saved.length n) n)) := by
+  apply saved.extract_word_seeds (fun _ => 3) id
+  filter_upwards [hentropy] with n hn
+  exact Or.inr ((halfBitBudget n (saved.length n)).trans
+    (mul_le_mul_of_nonneg_left hn (Nat.cast_nonneg _)))
+
+open Pseudoentropy in
+/-- One client samples once and extracts all three components using the ordinary program API. -/
+noncomputable def threeExtractedComponents {pair : SamplablePair}
+    (saved : pair.SeedRealization) (bound : ℕ → ℕ) (n : ℕ) : ProbComp Word := do
+  let count := ExtractionSchedule.count n (saved.length n) 3
+  let samples ← OracleComp.replicate count (saved.sampleWithSeed n)
+  let third ← extractWordSeeds count (saved.length n) n samples
+  let middle ← extractWordLabels count n third.1
+  let first ← extractWordObservations (bound n) n middle.1
+  return first ++ middle.2.1 ++ middle.2.2 ++ third.2.1 ++ third.2.2
+
+/-- The combined client proof exposes only its sampler and size certificates. This is an
+efficiency test; security of the combined construction requires the three game transitions. -/
+theorem threeExtractedComponents_isPPT {pair : Pseudoentropy.SamplablePair}
+    (saved : pair.SeedRealization) {bound : ℕ → ℕ}
+    (hbound : IsPolyTime unaryEncoding (fun n => unaryEncoding (bound n))) :
+    IsPPTOn unaryEncoding wordEncoding (threeExtractedComponents saved bound) := by
+  have hsource := saved.sampleWithSeed_isPPT
+  have hlength := saved.length_isPolyTime
+  have hcount : IsPolyTime unaryEncoding (fun n =>
+      unaryEncoding (Pseudoentropy.ExtractionSchedule.count n (saved.length n) 3)) := by
+    apply Pseudoentropy.ExtractionSchedule.count_isPolyTime <;> polytime
+  unfold threeExtractedComponents
+  ppt
 
 /-- A client hashes retained word seeds while exposing every sampled observation and label. -/
 noncomputable def extractRetainedSeeds {pair : Pseudoentropy.SamplablePair}

@@ -42,6 +42,26 @@ namespace Cslib.Crypto.Pseudoentropy.SamplablePair
 
 open Probability
 
+/-- A sampler's PPT certificate supplies an efficiently computed bound on every possible
+public observation. Impossible values in its finite observation type need no size bound. -/
+theorem exists_observationBound (pair : SamplablePair) :
+    ∃ bound : ℕ → ℕ, IsPolyTime unaryEncoding (fun n => unaryEncoding (bound n)) ∧
+      ∀ n observation, observation ∈ ((pair.joint n).map Prod.fst).support →
+        (pair.encode n observation).length ≤ bound n := by
+  have hsample : IsPPTOn unaryEncoding wordEncoding (fun n => Prod.fst <$> pair.sample n) := by
+    have hefficient := pair.efficient
+    ppt
+  obtain ⟨c, d, hbound⟩ := hsample.length_le
+  refine ⟨fun n => c * (n + 1) ^ d, by polytime, ?_⟩
+  intro n observation hobservation
+  have hsupported : pair.encode n observation ∈ (ProbComp.eval
+      (Prod.fst <$> pair.sample n)).support := by
+    obtain ⟨result, hresult, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hobservation
+    simp only [ProbComp.eval_map, pair.eval_sample, PMF.map_comp, Function.comp_def]
+    exact (PMF.mem_support_map_iff _ _ _).mpr ⟨result, hresult, rfl⟩
+  simpa only [wordEncoding, Function.Embedding.refl_apply, unaryEncoding_apply,
+    List.length_replicate] using hbound n (pair.encode n observation) hsupported
+
 /-- A deterministic evaluator of a pair from a uniform seed, with all input bits counted. -/
 structure SeedRealization (pair : SamplablePair) where
   /-- The complete number of seed bits at this parameter. -/

@@ -96,6 +96,8 @@ private meta def polytimeConstruct : TacticM Unit := withMainContext do
   let rule ← lambdaTelescope target.getAppArgs.back! fun _ body => do
     if body.isAppOf ``DFunLike.coe && body.getAppArgs[4]!.isAppOf ``pairEncoding then
       return ``IsPolyTime.pair
+    if body.isAppOf ``HAppend.hAppend || body.isAppOf ``List.append then
+      return ``IsPolyTime.append
     if body.isAppOf ``List.zipWith then return ``IsPolyTime.zipWith
     if body.isAppOf ``List.cons && body.getAppArgs[1]!.isAppOf ``List.foldl &&
         body.getAppArgs.back!.isAppOf ``List.nil then return ``IsPolyTime.foldl_bool
@@ -302,6 +304,7 @@ attribute [aesop safe apply (index := [unindexed]) (rule_sets := [PolyTime])]
   foldl_rule
   Cslib.Probability.isPolyTime_const
   Cslib.Probability.isPolyTime_input
+  Cslib.Probability.isPolyTime_decode_list_bool
   Cslib.Probability.isPolyTime_flatMap
   Cslib.Probability.isPolyTime_map
   Cslib.Probability.isPolyTime_filter

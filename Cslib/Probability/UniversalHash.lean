@@ -44,6 +44,15 @@ def IsTwoUniversal (seed : PMF Seed) (hash : Seed → Input → Output) : Prop :
   ∀ x y, x ≠ y → (∑ s, if hash s x = hash s y then (seed s).toReal else 0) ≤
     (Fintype.card Output : ℝ)⁻¹
 
+omit [Finite Input] in
+/-- An injective input representation preserves two-universality. -/
+theorem IsTwoUniversal.precompose {Input' : Type*}
+    {seed : PMF Seed} {hash : Seed → Input → Output}
+    (hhash : IsTwoUniversal seed hash) {encode : Input' → Input}
+    (hinjective : Function.Injective encode) :
+    IsTwoUniversal seed (fun key value => hash key (encode value)) :=
+  fun _ _ hne => hhash _ _ (fun heq => hne (hinjective heq))
+
 /-- Hash a source using an independent seed and reveal both the seed and the hash value. -/
 noncomputable def seededHash (seed : PMF Seed) (source : PMF Input)
     (hash : Seed → Input → Output) : PMF (Seed × Output) :=

@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 
 public import Cslib.Computability.Probabilistic.BitString
+public import Cslib.Languages.Probabilistic.Repeat
 public import Cslib.Probability.LinearHash
 public import Cslib.Tactic.PPT
 
@@ -26,6 +27,14 @@ source references are in `Cslib.Probability.LinearHash`.
 namespace Cslib.Probability.LinearHash
 
 open Cslib.Probability.PMF
+
+/-- A uniformly sampled flat matrix gives the usual two-universal family. -/
+theorem isTwoUniversal_flat (inputBits outputBits : ℕ) :
+    IsTwoUniversal (PMF.uniformOfFintype (BitString (outputBits * inputBits)))
+      (fun seed => hash (maskEquiv outputBits inputBits seed)) := by
+  apply IsTwoUniversal.precompose_seed
+  rw [PMF.uniformOfFintype_map_equiv]
+  exact isTwoUniversal inputBits outputBits
 
 /-- A word implementation of binary matrix hashing. Missing seed bits are zero. -/
 def wordHash (count : ℕ) (seed input : Word) : Word :=
@@ -69,7 +78,9 @@ theorem extract_isPPTOn {α : Type} {encode : α ↪ Word} {count : α → ℕ} 
   unfold extract
   ppt
 
-attribute [aesop safe apply (index := [unindexed]) (rule_sets := [PPT])] extract_isPPTOn
+@[aesop safe -10 tactic (rule_sets := [PPT])]
+private meta def pptExtract : Lean.Elab.Tactic.TacticM Unit :=
+  Cslib.Tactic.PPT.applyHead #[(``extract, ``extract_isPPTOn)]
 
 /-- The word extractor agrees exactly with the finite strong-extraction experiment. -/
 theorem eval_extract_bind {n m : ℕ} (source : PMF (BitString n)) :
@@ -85,17 +96,36 @@ theorem eval_extract_bind {n m : ℕ} (source : PMF (BitString n)) :
   simp only [PMF.map, Function.comp_def,
     wordHash_eq_ofFn, masksFromWord, wordBits_ofFn]
 
+/-- The word extractor's exact finite law on one fixed-width input. -/
+theorem eval_extract_ofFn {n m : ℕ} (input : BitString n) :
+    ProbComp.eval (extract m (List.ofFn input)) =
+      (PMF.uniformOfFintype (BitString (m * n))).map
+        (fun seed => List.ofFn seed ++ List.ofFn (hash (maskEquiv m n seed) input)) := by
+  simpa only [PMF.pure_map, PMF.pure_bind, seededHash_eq_bind, PMF.map_comp,
+    Function.comp_def] using
+    eval_extract_bind (m := m) (PMF.pure input)
+
+/-- Hashing concatenated independent fixed-width words has the tuple extraction law. -/
+theorem eval_extract_replicate {width : ℕ} (source : ProbComp (BitString width))
+    (count outputBits : ℕ) :
+    ProbComp.eval (OracleComp.replicate count (List.ofFn <$> source) >>=
+      fun words => extract outputBits words.flatten) =
+        (seededHash (PMF.uniformOfFintype (BitString (outputBits * (count * width))))
+          (ProbComp.eval (OracleComp.replicate count source))
+          (fun seed values => hash (maskEquiv outputBits (count * width) seed)
+            (wordBits (count * width) (values.map List.ofFn).flatten))).map
+              (fun result => List.ofFn result.1 ++ List.ofFn result.2) := by
+  simp only [OracleComp.replicate_map, ProbComp.eval_bind, ProbComp.eval_map,
+    ProbComp.eval_replicate, PMF.bind_map, PMF.map_comp, PMF.map_bind,
+    seededHash_eq_bind, Function.comp_def, List.map_ofFn, ← ofFn_maskEquiv_symm,
+    wordBits_ofFn, eval_extract_ofFn]
+
 /-- The executable extractor satisfies the strong leftover hash bound on a finite word source. -/
 theorem extract_distance_le {n m : ℕ} (source : PMF (BitString n)) :
     dist ((source.map List.ofFn).bind (fun input => ProbComp.eval (extract m input)))
         (uniformBits (m * n + m)) ≤
       Real.sqrt ((2 : ℝ) ^ m * collisionProbability source) / 2 := by
-  have huniversal : IsTwoUniversal (PMF.uniformOfFintype (BitString (m * n)))
-      (fun seed => hash (maskEquiv m n seed)) := by
-    apply IsTwoUniversal.precompose_seed
-    rw [uniformOfFintype_map_equiv]
-    exact isTwoUniversal n m
-  have h := huniversal.leftover_hash source
+  have h := (isTwoUniversal_flat n m).leftover_hash source
   have hideal : ((PMF.uniformOfFintype (BitString (m * n))).bind
       (fun seed => (PMF.uniformOfFintype (BitString m)).map (seed, ·))).map
       (fun pair => List.ofFn pair.1 ++ List.ofFn pair.2) = uniformBits (m * n + m) := by

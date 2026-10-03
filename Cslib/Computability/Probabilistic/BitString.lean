@@ -27,6 +27,35 @@ hashing share their representations, sampling laws, and polynomial-time proofs.
 
 namespace Cslib.Probability
 
+/-- Pad a self-delimiting word to `2 * bound + 1` bits when its length is at most `bound`.
+Words outside the bound remain distinguishable, rather than being truncated. -/
+def padWord (bound : ℕ) (word : Word) : Word :=
+  pairEncoding wordEncoding wordEncoding
+    (word, List.replicate (2 * (bound - word.length)) false)
+
+/-- Padding never identifies distinct words, even when their bounds differ. -/
+theorem word_eq_of_padWord_eq {bound bound' : ℕ} {word word' : Word}
+    (h : padWord bound word = padWord bound' word') : word = word' :=
+  congrArg Prod.fst ((pairEncoding wordEncoding wordEncoding).injective h)
+
+/-- Every word within the supplied bound has the same padded length. -/
+theorem length_padWord {bound : ℕ} {word : Word} (h : word.length ≤ bound) :
+    (padWord bound word).length = 2 * bound + 1 := by
+  simp only [padWord, length_pairEncoding, wordEncoding, Function.Embedding.refl_apply,
+    List.length_replicate]
+  lia
+
+/-- Self-delimiting padding uses the shared word encoder and unary arithmetic. -/
+theorem padWord_isPolyTime {α : Type} {encode : α ↪ Word}
+    {bound : α → ℕ} {word : α → Word}
+    (hbound : IsPolyTime encode (fun a => unaryEncoding (bound a)))
+    (hword : IsPolyTime encode word) :
+    IsPolyTime encode (fun a => padWord (bound a) (word a)) := by
+  unfold padWord
+  polytime
+
+attribute [aesop safe apply (rule_sets := [PolyTime])] padWord_isPolyTime
+
 /-- View a word as `n` coordinates, using false for missing bits. Valid lengths lose no data. -/
 def wordBits (n : ℕ) (word : Word) : BitString n := fun i => word[i.val]?.getD false
 
@@ -43,6 +72,15 @@ theorem ofFn_wordBits {n : ℕ} {word : Word} (hlen : word.length = n) :
   apply List.ext_getElem (by simp)
   intro i hi hi'
   simp [wordBits, List.getElem?_eq_getElem hi']
+
+/-- Padding embeds bounded words into a fixed finite bitstring space. -/
+theorem word_eq_of_paddedBits_eq {bound : ℕ} {left right : Word}
+    (hleft : left.length ≤ bound) (hright : right.length ≤ bound)
+    (h : wordBits (2 * bound + 1) (padWord bound left) =
+      wordBits (2 * bound + 1) (padWord bound right)) : left = right := by
+  apply word_eq_of_padWord_eq
+  simpa only [ofFn_wordBits (length_padWord hleft), ofFn_wordBits (length_padWord hright)] using
+    congrArg List.ofFn h
 
 /-- The fixed-width representation reads a bounded range of indices, padding missing bits. -/
 theorem ofFn_wordBits_eq_range (n : ℕ) (word : Word) :
@@ -64,6 +102,30 @@ attribute [aesop safe apply (rule_sets := [PolyTime])] wordBits_isPolyTime
 def maskEquiv (k n : ℕ) : BitString (k * n) ≃ (Fin k → BitString n) :=
   (Equiv.arrowCongr finProdFinEquiv.symm (Equiv.refl Bool)).trans
     (Equiv.curry (Fin k) (Fin n) Bool)
+
+/-- Packing fixed-width rows is ordinary list concatenation. -/
+theorem ofFn_maskEquiv_symm {count width : ℕ} (rows : Fin count → BitString width) :
+    List.ofFn ((maskEquiv count width).symm rows) =
+      (List.ofFn (fun i => List.ofFn (rows i))).flatten := by
+  rw [List.ofFn_mul]
+  congr 1
+  apply congrArg List.ofFn
+  funext i
+  apply congrArg List.ofFn
+  funext j
+  have h := congrArg (fun values => values i j) ((maskEquiv count width).apply_symm_apply rows)
+  change (maskEquiv count width).symm rows (finProdFinEquiv (i, j)) = rows i j at h
+  convert h using 1
+  apply congrArg ((maskEquiv count width).symm rows)
+  apply Fin.ext
+  simp only [finProdFinEquiv_apply_val]
+  lia
+
+/-- Concatenated fixed-width rows recover the same finite tuple, including empty rows. -/
+theorem wordBits_flatten_ofFn {count width : ℕ} (rows : Fin count → BitString width) :
+    wordBits (count * width) ((List.ofFn rows).map List.ofFn).flatten =
+      (maskEquiv count width).symm rows := by
+  simp only [List.map_ofFn, Function.comp_def, ← ofFn_maskEquiv_symm, wordBits_ofFn]
 
 /-- Interpret a flat sampled word as a matrix of masks. -/
 def masksFromWord (k n : ℕ) (word : Word) : Fin k → BitString n :=

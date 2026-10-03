@@ -112,6 +112,7 @@ The first extraction ingredients are checked:
 | [WordExtraction](Pseudoentropy/WordExtraction.lean) | Executable matrix hashing, exact agreement with the finite extraction laws, and a security theorem for ordinary strict PPT tests on observations, seed, and output. |
 | [RepeatedExtraction](Pseudoentropy/RepeatedExtraction.lean) | One typed extractor and conditional-entropy bound for arbitrary finite labels, with public side information and a zero-bit case requiring no entropy. |
 | [SeedExtraction](Pseudoentropy/SeedExtraction.lean) | Statistical extraction of public observations and remaining seed randomness, with every observation and label revealed in the latter experiment. Both use the label extractor's repetition schedule. |
+| [MatrixExtraction](Pseudoentropy/MatrixExtraction.lean) and [WordSeedExtraction](Pseudoentropy/WordSeedExtraction.lean) | Concrete matrix extractors for all three components, with strict PPT certificates and exact finite laws. The observation and retained-seed security theorems discharge two-universality internally. |
 | [LinearHash](../../Computability/Probabilistic/LinearHash.lean) | Boolean-matrix hashing, its word implementation, its PPT sampler, and exact agreement with the finite extraction experiment. |
 | [Extraction](Extraction.lean) | A source indistinguishable from a sufficiently diffuse comparison source yields computationally uniform extraction. |
 
@@ -359,15 +360,19 @@ Shannon entropy. `remainingSeed_word_extraction` hashes the complete original se
 `L - H(observation) - H(label | observation)`, retaining every observation and label. Both
 preserve their independent public hash seed and allow zero output bits without a positive entropy
 budget. The retained-seed sampler is strict PPT and exactly realizes the finite experiment,
-including unused coins. The generic `extractLabels` now accepts word labels as well as Boolean
-labels; the retained-seed hashing example's client certificate closes with `ppt` after providing
-the sampler and seed-length certificates. Two-universality is still an explicit premise for
-these two statistical transitions.
+including unused coins. The generic `extractLabels` accepts word labels as well as Boolean labels.
+The [concrete programs](Pseudoentropy/WordSeedExtraction.lean) discharge the hash-family premises
+using the shared matrix implementation. `extract_word_observations` pads variable-length
+observations injectively; `SamplablePair.exists_observationBound` obtains an efficient padding
+bound directly from the PPT sampler, with no bound required on impossible observations.
+`extract_word_seeds` hashes concatenated fixed-width seeds while preserving all pair outputs.
+The extraction examples instantiate both entropy budgets and certify one program that samples
+once and computes all three components. That combined example checks efficiency; its complete
+security argument remains to be proved.
 
 `ComputationallyIndistinguishable.extract_uniform` still assumes its comparison source and
 negligible collision bound. Negligible collisions of the OWF output alone do not give the entropy
-surplus required for expansion. The remaining route needs concrete hashes for the first and
-third components and assembly of the three-source game argument,
+surplus required for expansion. The remaining route needs assembly of the three-source game argument,
 removal of unknown entropy parameters by a uniform reduction, and a final generator with stretch
 at every seed length. In the write-up's entropy grid, each candidate must first be amplified
 enough to pay for all candidates' independent seeds before their outputs are combined by XOR.

@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 
 public import Cslib.Crypto.Computational.OneWay
+public import Cslib.Computability.Probabilistic.BitString
 public import Cslib.Tactic.PPT
 
 /-!
@@ -37,37 +38,9 @@ open Probability
 
 namespace OneWayNormalization
 
-/-- Encode the image without ambiguity and pad to `2 * bound + 1` bits when it fits the bound. -/
-def padImage (bound : ℕ) (image : Word) : Word :=
-  pairEncoding wordEncoding wordEncoding
-    (image, List.replicate (2 * (bound - image.length)) false)
-
-/-- Equality of padded outputs always implies equality of the original images. -/
-theorem image_eq_of_padImage_eq {bound bound' : ℕ} {image image' : Word}
-    (h : padImage bound image = padImage bound' image') : image = image' :=
-  congrArg Prod.fst ((pairEncoding wordEncoding wordEncoding).injective h)
-
-/-- Padding has the advertised fixed length on every image within the bound. -/
-theorem length_padImage {bound : ℕ} {image : Word} (h : image.length ≤ bound) :
-    (padImage bound image).length = 2 * bound + 1 := by
-  simp only [padImage, length_pairEncoding, wordEncoding, Function.Embedding.refl_apply,
-    List.length_replicate]
-  lia
-
-/-- Padding composes the existing pair encoder and unary arithmetic. -/
-theorem padImage_isPolyTime {α : Type} {encode : α ↪ Word}
-    {bound : α → ℕ} {image : α → Word}
-    (hbound : IsPolyTime encode (fun a => unaryEncoding (bound a)))
-    (himage : IsPolyTime encode image) :
-    IsPolyTime encode (fun a => padImage (bound a) (image a)) := by
-  unfold padImage
-  polytime
-
-attribute [aesop safe apply (rule_sets := [PolyTime])] padImage_isPolyTime
-
 /-- Normalize a word function using a polynomial-time bound supplied in unary. -/
 def normalize (f : Word → Word) (bound : ℕ → ℕ) (input : Word) : Word :=
-  padImage (bound input.length) (f input)
+  padWord (bound input.length) (f input)
 
 /-- Output normalization preserves deterministic polynomial time. -/
 theorem normalize_isPolyTime {f : Word → Word} (hf : IsPolyTime wordEncoding f)
@@ -81,7 +54,7 @@ The only preparation is padding its challenge; the candidate is returned unchang
 theorem inversion_le (f : Word → Word) (bound : ℕ → ℕ) (adversary : Inverter) (n : ℕ) :
     winProbability (inversionGame (normalize f bound) adversary n) ≤
       winProbability (inversionGame f
-        (fun n image => adversary n (padImage (bound n) image)) n) := by
+        (fun n image => adversary n (padWord (bound n) image)) n) := by
   unfold inversionGame
   apply winProbability_bind_mono
   intro input hinput
@@ -92,7 +65,7 @@ theorem inversion_le (f : Word → Word) (bound : ℕ → ℕ) (adversary : Inve
   intro candidate _
   apply winProbability_pure_mono
   intro h
-  exact beq_iff_eq.mpr (image_eq_of_padImage_eq (beq_iff_eq.mp h))
+  exact beq_iff_eq.mpr (word_eq_of_padWord_eq (beq_iff_eq.mp h))
 
 end OneWayNormalization
 
@@ -103,7 +76,7 @@ theorem OneWay.normalize {f : Word → Word} (hf : OneWay f) (bound : ℕ → �
   apply OneWay.of_inversion_negligible (OneWayNormalization.normalize_isPolyTime hf.polyTime hbound)
   intro adversary hPPT
   have hreduce : IsPPT wordEncoding (fun n image =>
-      adversary n (OneWayNormalization.padImage (bound n) image)) := by ppt
+      adversary n (padWord (bound n) image)) := by ppt
   exact negligible_of_le (hf.inversion_negligible _ hreduce)
     (fun _ => winProbability_nonneg _) (OneWayNormalization.inversion_le f bound adversary)
 
@@ -121,6 +94,6 @@ theorem OneWay.exists_fixedOutputLength {f : Word → Word} (hf : OneWay f) :
   refine ⟨OneWayNormalization.normalize f bound, fun n => 2 * bound n + 1,
     hf.normalize bound hbound, ?_, by polytime⟩
   intro input
-  exact OneWayNormalization.length_padImage (hsize input)
+  exact length_padWord (hsize input)
 
 end Cslib.Crypto

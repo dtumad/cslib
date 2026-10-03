@@ -24,7 +24,7 @@ namespace CslibTests.ComputationalCryptoReductions
 open Cslib Cslib.Probability Cslib.Crypto
 
 /-- A bound below the image length never truncates the self-delimiting image. -/
-example : OneWayNormalization.padImage 0 [true, false] = [true, true, true, false, false] := by
+example : padWord 0 [true, false] = [true, true, true, false, false] := by
   decide +kernel
 
 /-- Even a zero padding budget preserves one-wayness, since the original image is retained.

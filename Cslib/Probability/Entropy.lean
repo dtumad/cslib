@@ -153,13 +153,22 @@ theorem entropy_map_le [Finite α] [Finite β] (p : PMF α) (f : α → β) :
   exact neg_le_neg (Real.logb_le_logb_of_le (by norm_num)
     (lt_of_le_of_ne ENNReal.toReal_nonneg (Ne.symm ha)) hmass)
 
+/-- Re-encoding preserves entropy when distinct supported outcomes remain distinct. -/
+theorem entropy_map_of_injOn [Finite α] [Finite β] (p : PMF α) {f : α → β}
+    (hf : Set.InjOn f p.support) : entropy (p.map f) = entropy p := by
+  classical
+  let : Nonempty α := ⟨p.support_nonempty.choose⟩
+  have hmap : (p.map f).map (Function.invFunOn f p.support) = p := by
+    rw [PMF.map_comp]
+    exact (map_congr_on_support p _ id (fun a ha => hf.leftInvOn_invFunOn ha)).trans
+      (PMF.map_id p)
+  exact le_antisymm (entropy_map_le p f)
+    (by simpa only [hmap] using entropy_map_le (p.map f) (Function.invFunOn f p.support))
+
 /-- Injective re-encoding preserves entropy. -/
 theorem entropy_map_of_injective [Finite α] [Finite β] (p : PMF α) {f : α → β}
-    (hf : Function.Injective f) : entropy (p.map f) = entropy p := by
-  classical
-  let := Fintype.ofFinite α
-  rw [entropy_map_eq_sum, entropy_eq_sum_surprisal]
-  simp [surprisal, hf.eq_iff]
+    (hf : Function.Injective f) : entropy (p.map f) = entropy p :=
+  entropy_map_of_injOn p hf.injOn
 
 /-- Mixing finite distributions cannot lower their average entropy. -/
 theorem sum_mul_entropy_le_entropy_bind [Fintype α] [Finite β]

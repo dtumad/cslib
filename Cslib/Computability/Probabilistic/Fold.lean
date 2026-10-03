@@ -267,6 +267,11 @@ theorem IsPolyTime.decode_list_bool {word : α → Word}
       (isPolyTime_snd wordEncoding boolEncoding))
     (growth := fun _ => 1) (by fun_prop) (by simp [wordEncoding])
 
+/-- An encoded list of Boolean values can be read as an ordinary word. -/
+theorem isPolyTime_decode_list_bool :
+    IsPolyTime (listEncoding boolEncoding) (fun word => word) :=
+  (isPolyTime_input (listEncoding boolEncoding)).decode_list_bool
+
 /-- Concatenate an encoded collection of words into an ordinary word. -/
 theorem IsPolyTime.flatten {values : α → List Word}
     (hvalues : IsPolyTime encode (fun a => listEncoding wordEncoding (values a))) :
