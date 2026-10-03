@@ -481,8 +481,13 @@ under efficient schedules meeting the entropy budgets. Its
 uniform-input distribution and uses exactly the original sampler coins and the three matrix
 seeds. A client example derives deterministic security from three half-bit entropy thresholds.
 A valid candidate may be chosen arbitrarily in the proof, while the indexed test is one uniform
-PPT program. The expanding entropy grid, candidate amplification and XOR combination, and
-expansion at every seed length remain to be proved. The construction uses fresh soft masks;
+PPT program. The [entropy grid](Computational/Pseudoentropy/EntropyGrid.lean) now gives
+polynomially many guesses, all expanding, with at least one valid choice. Its
+[deterministic candidates](Computational/Pseudoentropy/ThreeSource/Candidates.lean) have uniform
+polynomial-time certificates, and one choice is secure against every uniform indexed test.
+An end-to-end example derives these candidates from a general word OWF.
+Common seed lengths, candidate amplification and XOR combination, and expansion at every seed
+length remain to be proved. The construction uses fresh soft masks;
 following the write-up's set-oracle
 formulation would additionally require a cached membership simulation.
 The [computational guide](Computational/README.md#toward-general-one-way-functions) records the

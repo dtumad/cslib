@@ -158,6 +158,19 @@ theorem IsPolyTime.unary_div_two (hf : IsPolyTime encode (fun a => List.replicat
     IsPolyTime encode (fun a => List.replicate (f a / 2) true) :=
   isPolyTime_unary_div_two.comp_encoded (encodeArg := unaryEncoding) hf
 
+/-- Repeated halving divides by a power of two without constructing the divisor. -/
+theorem IsPolyTime.unary_div_pow_two
+    (hf : IsPolyTime encode (fun a => List.replicate (f a) true))
+    (hg : IsPolyTime encode (fun a => List.replicate (g a) true)) :
+    IsPolyTime encode (fun a => List.replicate (f a / 2 ^ g a) true) := by
+  have hiterate (k n : ℕ) : (fun m : ℕ => m / 2)^[k] n = n / 2 ^ k := by
+    induction k with
+    | zero => simp
+    | succ k ih => simp [Function.iterate_succ_apply', ih, Nat.div_div_eq_div_mul, pow_succ]
+  simpa only [hiterate, unaryEncoding_apply] using
+    hf.iterate_encoded_of_length_le (stateEncoding := unaryEncoding)
+      hg isPolyTime_unary_div_two (by intro n; simpa using Nat.div_le_self n 2)
+
 /-- Truncate an efficiently computed unary number to zero or one. -/
 theorem IsPolyTime.unary_min_one (hf : IsPolyTime encode (fun a => List.replicate (f a) true)) :
     IsPolyTime encode (fun a => List.replicate (min (f a) 1) true) := by

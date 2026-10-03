@@ -8,6 +8,7 @@ module
 
 public import Cslib.Crypto.Computational.Basic
 public import Cslib.Computability.Probabilistic.Encoding
+public import Cslib.Computability.Probabilistic.Sampling
 public import Cslib.Probability.Entropy
 
 /-!
@@ -85,6 +86,21 @@ theorem HasGap.eventually_error_ge {pair : SamplablePair} {gap : ℕ → ℝ}
   have hsum := PMF.sum_toReal (ProbComp.eval (predictionGame pair.sample adversary n))
   simp only [Fintype.sum_bool] at hsum
   simp only [winProbability, Game.winProbability] at hn
+  linarith
+
+/-- A fair-bit predictor has zero correlation, so entropy plus the prediction gap cannot
+eventually exceed one. -/
+theorem HasGap.eventually_entropy_add_gap_le_one {pair : SamplablePair} {gap : ℕ → ℝ}
+    (hgap : pair.HasGap gap) :
+    ∀ᶠ n in atTop, PMF.conditionalEntropy (pair.joint n) + gap n ≤ 1 := by
+  have h := hgap (fun _ _ => OracleComp.uniform Bool) (isPPTOn_uniformBool _)
+  have hfair (n : ℕ) : winProbability
+      (predictionGame pair.sample (fun _ _ => OracleComp.uniform Bool) n) = 1 / 2 := by
+    simp [winProbability, Game.winProbability, predictionGame, ProbComp.eval_bind,
+      ProbComp.eval_map, PMF.bind_apply, PMF.map_apply, OracleComp.uniform,
+      PMF.uniformOfFintype_apply, ENNReal.tsum_mul_right, PMF.tsum_coe]
+  filter_upwards [h] with n hn
+  rw [hfair] at hn
   linarith
 
 /-- A smaller requested gap follows from any larger proved gap. -/

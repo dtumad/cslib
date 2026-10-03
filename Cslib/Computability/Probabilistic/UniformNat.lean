@@ -78,7 +78,36 @@ theorem IsPolyTime.dyadicSize {α : Type} {input : α ↪ Word} {bound : α → 
   simp only [dyadicSize_eq_boundedBinaryValue]
   polytime
 
+@[aesop safe -10 tactic (rule_sets := [PolyTime])]
+private meta def polytimeDyadicSize : Lean.Elab.Tactic.TacticM Unit :=
+  Cslib.Tactic.PolyTime.applyUnaryHead #[(``dyadicSize, ``IsPolyTime.dyadicSize)]
+
+-- Also recognize the expanded power-of-two expression in explicitly unfolded client programs.
 attribute [aesop safe apply (rule_sets := [PolyTime])] IsPolyTime.dyadicSize
+
+/-- Decode the first coordinate of a rectangular grid with a dyadic row width. -/
+theorem IsPolyTime.div_dyadicSize {α : Type} {input : α ↪ Word} {index bound : α → ℕ}
+    (hindex : IsPolyTime input (fun a => unaryEncoding (index a)))
+    (hbound : IsPolyTime input (fun a => unaryEncoding (bound a))) :
+    IsPolyTime input (fun a => unaryEncoding
+      (index a / Cslib.Probability.dyadicSize (bound a))) := by
+  unfold Cslib.Probability.dyadicSize
+  exact hindex.unary_div_pow_two
+    (hbound.unary_log2.unary_add (isPolyTime_const input (unaryEncoding 1)))
+
+/-- Decode the second coordinate of a rectangular grid with a dyadic row width. -/
+theorem IsPolyTime.mod_dyadicSize {α : Type} {input : α ↪ Word} {index bound : α → ℕ}
+    (hindex : IsPolyTime input (fun a => unaryEncoding (index a)))
+    (hbound : IsPolyTime input (fun a => unaryEncoding (bound a))) :
+    IsPolyTime input (fun a => unaryEncoding
+      (index a % Cslib.Probability.dyadicSize (bound a))) := by
+  simpa only [Nat.mod_eq_sub_mul_div, Nat.mul_comm, unaryEncoding_apply] using
+    hindex.unary_sub ((hindex.div_dyadicSize hbound).unary_mul hbound.dyadicSize)
+
+@[aesop safe -10 tactic (rule_sets := [PolyTime])]
+private meta def polytimeDyadicCoordinates : Lean.Elab.Tactic.TacticM Unit :=
+  Cslib.Tactic.PolyTime.applyUnaryHead
+    #[(``HDiv.hDiv, ``IsPolyTime.div_dyadicSize), (``HMod.hMod, ``IsPolyTime.mod_dyadicSize)]
 
 /-- An exact uniform index in a power-of-two range, using a fixed number of fair bits. -/
 noncomputable def sampleDyadicIndex (bound : ℕ) : ProbComp ℕ :=

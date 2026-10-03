@@ -141,6 +141,40 @@ def seedLength (count seedBits bound observationBits labelBits remainingBits : �
   count * seedBits + (remainingBits * (count * seedBits) +
     (labelBits * count + observationBits * (count * (2 * bound + 1))))
 
+section Lengths
+
+variable {α : Type} {input : α ↪ Word}
+  {count seedBits bound observationBits labelBits remainingBits : α → ℕ}
+  (hcount : IsPolyTime input (fun a => unaryEncoding (count a)))
+  (hseed : IsPolyTime input (fun a => unaryEncoding (seedBits a)))
+  (hbound : IsPolyTime input (fun a => unaryEncoding (bound a)))
+  (hobservation : IsPolyTime input (fun a => unaryEncoding (observationBits a)))
+  (hlabel : IsPolyTime input (fun a => unaryEncoding (labelBits a)))
+  (hremaining : IsPolyTime input (fun a => unaryEncoding (remainingBits a)))
+
+include hcount hseed hbound hobservation hlabel hremaining
+
+/-- The exact seed ledger can be computed in unary from efficient dimensions. -/
+theorem seedLength_isPolyTime : IsPolyTime input (fun a => unaryEncoding
+    (seedLength (count a) (seedBits a) (bound a)
+      (observationBits a) (labelBits a) (remainingBits a))) := by
+  unfold seedLength
+  polytime
+
+/-- The exact output ledger can be computed in unary from efficient dimensions. -/
+theorem outputLength_isPolyTime : IsPolyTime input (fun a => unaryEncoding
+    (outputLength (count a) (seedBits a) (bound a)
+      (observationBits a) (labelBits a) (remainingBits a))) := by
+  unfold outputLength
+  polytime
+
+end Lengths
+
+@[aesop safe -10 tactic (rule_sets := [PolyTime])]
+private meta def polytimeLengths : Lean.Elab.Tactic.TacticM Unit :=
+  Cslib.Tactic.PolyTime.applyUnaryHead
+    #[(``seedLength, ``seedLength_isPolyTime), (``outputLength, ``outputLength_isPolyTime)]
+
 /-- Retained matrix seeds cancel in the expansion budget: only the digest bits must exceed
 the original sampler coins. `ThreeSource.Seeded` realizes this exact input length. -/
 theorem seedLength_lt_outputLength_iff

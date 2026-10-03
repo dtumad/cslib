@@ -7,7 +7,8 @@ Authors: Samuel Schlesinger
 module
 
 public import Cslib.Crypto.Computational.Extraction
-public import Cslib.Crypto.Computational.Pseudoentropy.ThreeSource.Seeded
+public import Cslib.Crypto.Computational.Pseudoentropy.OneWay
+public import Cslib.Crypto.Computational.Pseudoentropy.ThreeSource.Candidates
 
 /-!
 # Extraction and entropy examples
@@ -22,6 +23,44 @@ public section
 namespace CslibTests.ComputationalCryptoExtraction
 
 open Cslib Cslib.Probability Cslib.Probability.PMF Cslib.Crypto
+
+open Filter Pseudoentropy in
+/-- A general OWF supplies a uniformly efficient family of expanding candidates and one
+choice secure against all uniform indexed tests. Combining the candidates is still required. -/
+theorem owf_expanding_candidates {f : Word → Word} (hf : OneWay f) :
+    ∃ (pair : SamplablePair) (saved : pair.SeedRealization) (bound : ℕ → ℕ),
+      IsPolyTime (pairEncoding (pairEncoding unaryEncoding unaryEncoding) wordEncoding)
+        (fun input => EntropyGrid.generate input.1.1 (saved.length input.1.1) (bound input.1.1)
+          (16 * (input.1.1 + 7)) input.1.2 (saved.evaluate input.1.1) input.2) ∧
+      (∀ n index seed, seed.length =
+          EntropyGrid.seedLength n (saved.length n) (bound n) (16 * (n + 7)) index →
+        seed.length < (EntropyGrid.generate n (saved.length n) (bound n) (16 * (n + 7))
+          index (saved.evaluate n) seed).length) ∧
+      ∃ choose : ℕ → ℕ,
+        (∀ᶠ n in atTop, choose n < EntropyGrid.size (saved.length n) (16 * (n + 7))) ∧
+        ∀ test : ℕ → ℕ → Word → ProbComp Bool,
+          IsPPTOn (pairEncoding (pairEncoding unaryEncoding unaryEncoding) wordEncoding)
+            boolEncoding (fun input => test input.1.1 input.1.2 input.2) →
+          Negligible (fun n => Game.advantage
+            (((uniformBits (EntropyGrid.seedLength n (saved.length n) (bound n)
+              (16 * (n + 7)) (choose n))).map (EntropyGrid.generate n (saved.length n) (bound n)
+                (16 * (n + 7)) (choose n) (saved.evaluate n))).bind
+                  (fun word => ProbComp.eval (test n (choose n) word)))
+            ((uniformBits (EntropyGrid.outputLength n (saved.length n) (bound n)
+              (16 * (n + 7)) (choose n))).bind
+                (fun word => ProbComp.eval (test n (choose n) word)))) := by
+  obtain ⟨pair, hpair⟩ := hf.exists_pseudoentropyPair
+  obtain ⟨saved⟩ := pair.exists_seedRealization
+  obtain ⟨bound, hbound, hfits⟩ := pair.exists_observationBound
+  refine ⟨pair, saved, bound, ?_, ?_, ?_⟩
+  · exact EntropyGrid.generate_of_realization_isPolyTime saved
+      (densityBound := fun n => 16 * (n + 7)) hbound (by polytime)
+  · intro n index seed hseed
+    rw [EntropyGrid.length_generate saved n _ _ _ (hfits n) hseed, hseed]
+    exact EntropyGrid.seedLength_lt_outputLength ..
+  · exact EntropyGrid.exists_secure_choice hpair saved (densityBound := fun n => 16 * (n + 7))
+      hbound (by polytime) hfits
+      (Eventually.of_forall EntropyGrid.four_steps_le_owf_gap)
 
 /-- A row-major identity matrix preserves a two-bit input. -/
 example : LinearHash.wordHash 2 [true, false, false, true] [true, false] = [true, false] := by

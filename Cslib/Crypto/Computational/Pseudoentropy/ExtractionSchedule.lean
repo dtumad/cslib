@@ -59,7 +59,10 @@ theorem slack_isPolyTime {α : Type} {input : α ↪ Word} {n sourceBits inverse
   unfold slack
   polytime
 
-attribute [aesop safe apply (rule_sets := [PolyTime])] count_isPolyTime slack_isPolyTime
+@[aesop safe -10 tactic (rule_sets := [PolyTime])]
+private meta def polytimeSchedule : Lean.Elab.Tactic.TacticM Unit :=
+  Cslib.Tactic.PolyTime.applyUnaryHead
+    #[(``count, ``count_isPolyTime), (``slack, ``slack_isPolyTime)]
 
 /-- Reserving two slacks costs exactly `1 / (2 * (inverseSlack + 1))` bits per sample. -/
 theorem two_slack_eq (n sourceBits inverseSlack : ℕ) :

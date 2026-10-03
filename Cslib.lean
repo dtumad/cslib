@@ -196,6 +196,7 @@ public import Cslib.Crypto.Computational.Pseudoentropy.Boosting.Selection
 public import Cslib.Crypto.Computational.Pseudoentropy.Boosting.Training
 public import Cslib.Crypto.Computational.Pseudoentropy.Boosting.Vote
 public import Cslib.Crypto.Computational.Pseudoentropy.DenseMask
+public import Cslib.Crypto.Computational.Pseudoentropy.EntropyGrid
 public import Cslib.Crypto.Computational.Pseudoentropy.ExtractionSchedule
 public import Cslib.Crypto.Computational.Pseudoentropy.HashPair
 public import Cslib.Crypto.Computational.Pseudoentropy.HashReduction
@@ -212,6 +213,7 @@ public import Cslib.Crypto.Computational.Pseudoentropy.SeedExtraction
 public import Cslib.Crypto.Computational.Pseudoentropy.Selection
 public import Cslib.Crypto.Computational.Pseudoentropy.SequenceLearner
 public import Cslib.Crypto.Computational.Pseudoentropy.ThreeSource
+public import Cslib.Crypto.Computational.Pseudoentropy.ThreeSource.Candidates
 public import Cslib.Crypto.Computational.Pseudoentropy.ThreeSource.Seeded
 public import Cslib.Crypto.Computational.Pseudoentropy.WordExtraction
 public import Cslib.Crypto.Computational.Pseudoentropy.WordReduction

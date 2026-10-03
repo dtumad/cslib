@@ -39,6 +39,17 @@ meta def applyHead (rules : Array (Name × Name)) : TacticM Unit :=
   Cslib.Tactic.applyProgramHead ``IsPolyTime rules
 
 open Lean Meta Elab Tactic in
+/-- Dispatch a unary arithmetic certificate by the encoded natural-number expression.
+Recognize both the named embedding and its simplified list representation. -/
+meta def applyUnaryHead (rules : Array (Name × Name)) : TacticM Unit :=
+  Cslib.Tactic.applyProgramHead ``IsPolyTime rules fun body => do
+    if body.isAppOf ``DFunLike.coe && body.getAppArgs[4]!.isAppOf ``unaryEncoding then
+      return body.getAppArgs.back!
+    if body.isAppOf ``List.replicate && body.getAppArgs.back!.isAppOf ``Bool.true then
+      return body.getAppArgs[1]!
+    throwError "expected a unary natural-number result"
+
+open Lean Meta Elab Tactic in
 /-- Apply a rule with selected named arguments, keeping proof obligations in the metavariable
 context so that subsequent tactics must discharge them. -/
 meta def applyWithArguments (rule : Name)
@@ -102,6 +113,9 @@ private meta def polytimeConstruct : TacticM Unit := withMainContext do
     if body.isAppOf ``DFunLike.coe && body.getAppArgs[4]!.isAppOf ``pairEncoding &&
         body.getAppArgs.back!.isAppOf ``Prod.mk then
       return ``IsPolyTime.pair
+    if body.isAppOf ``DFunLike.coe && body.getAppArgs[4]!.isAppOf ``parameterEncoding &&
+        body.getAppArgs.back!.isAppOf ``Prod.mk then
+      return ``IsPolyTime.parameterInput
     if body.isAppOf ``HAppend.hAppend || body.isAppOf ``List.append then
       return ``IsPolyTime.append
     if body.isAppOf ``List.zipWith then return ``IsPolyTime.zipWith

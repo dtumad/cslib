@@ -116,6 +116,7 @@ The first extraction ingredients are checked:
 | [MatrixExtraction](Pseudoentropy/MatrixExtraction.lean) and [WordSeedExtraction](Pseudoentropy/WordSeedExtraction.lean) | Concrete matrix extractors for all three components, with strict PPT certificates and exact finite laws. The observation and retained-seed security theorems discharge two-universality internally. |
 | [ThreeSource](Pseudoentropy/ThreeSource.lean) | Three game transitions prove the combined extractor secure for any bounded entropy-valid candidate in an efficient indexed family. The fixed-schedule theorem is a singleton specialization; every retained seed is counted. |
 | [ThreeSource/Seeded](Pseudoentropy/ThreeSource/Seeded.lean) | A deterministic polynomial-time implementation uses exactly the original sampler coins and three matrix seeds. Its uniform-input distribution equals the sampled extractor's law, and every correctly sized input has the advertised output length. |
+| [EntropyGrid](Pseudoentropy/EntropyGrid.lean) and [ThreeSource/Candidates](Pseudoentropy/ThreeSource/Candidates.lean) | Every entry in an efficient entropy grid expands. Rounding the true entropies gives one choice secure against all uniform indexed tests; the program never computes that choice. |
 | [LinearHash](../../Computability/Probabilistic/LinearHash.lean) | Boolean-matrix hashing, its word implementation, its PPT sampler, and exact agreement with the finite extraction experiment. |
 | [Extraction](Extraction.lean) | A source indistinguishable from a sufficiently diffuse comparison source yields computationally uniform extraction. |
 
@@ -406,14 +407,23 @@ extractor, and `length_generate` gives the exact output length for every correct
 Parsing reuses the shared matrix row reader; `polytime` certifies the supplied evaluator calls,
 word slicing, and hashing. No additional replay-clock padding is charged to this implementation.
 
-`ComputationallyIndistinguishable.extract_uniform` still assumes its comparison source and
-negligible collision bound. Negligible collisions of the OWF output alone do not give the entropy
-surplus required for expansion. The remaining route needs an explicit expanding entropy grid
-containing a valid candidate, common seed lengths, and a final generator with stretch at every
-seed length. In the write-up's entropy grid, each candidate must first be amplified
+[`EntropyGrid.exists_valid`](Pseudoentropy/EntropyGrid.lean) now supplies the entropy guesses.
+For dyadic denominator `D`, the grid has `(D * L + 1) * D` entries. The three digest lengths
+reserve the concentration and hashing slack, and their sum exceeds `count * L` for every entry.
+Rounding both actual entropies down identifies a valid entry whenever the gap covers `4 / D`.
+This choice is mathematical; all candidate programs use only their explicit integer index.
+[`EntropyGrid.exists_secure_choice`](Pseudoentropy/ThreeSource/Candidates.lean) transfers the
+three-source proof to these deterministic expanders. The choice precedes the quantification over
+uniform indexed tests. The checked `owf_expanding_candidates` example starts from a general word
+OWF, obtains its pseudoentropy pair and saved sampler, and proves both expansion of every candidate
+and security of one choice. The linear precision `16 * (n + 7)` suffices for the proved OWF gap.
+
+The remaining route needs common seed lengths, amplification and XOR combination, and a final
+generator with stretch at every seed length. Each candidate must first be amplified
 enough to pay for all candidates' independent seeds before their outputs are combined by XOR.
-The indexed extraction theorem proves security for a valid candidate without supplying its
-index as advice to an algorithm. The final generator must compute and combine the whole family.
+The final generator must compute and combine the whole family.
+`ComputationallyIndistinguishable.extract_uniform` separately assumes its comparison source and
+negligible collision bound; collisions of the OWF output alone do not provide the entropy surplus.
 
 ## Definitions and conventions
 
@@ -574,6 +584,7 @@ The first exercises led to these shared interfaces:
 | Inferring a transformation from its certificate left ambiguous function arguments. | Postprocessing maps and truncation targets are explicit arguments. |
 | A certified callback with an abstract output encoding failed under nested captured inputs. | `polytime` reduces the constructed argument tuple before matching the callback; the supplied certificate remains necessary. |
 | Similar implementations caused proof search to select unrelated program certificates. | `PolyTime.applyHead` and `PPT.applyHead` share dispatch by the program's syntactic head before unification. |
+| Composed entropy schedules caused arithmetic proof search to unfold large formulas. | `PolyTime.applyUnaryHead` dispatches through unary encodings, and size ledgers compose through their own certificates. |
 | Reading fields of a certified tuple-valued callback required separate field certificates. | `polytime` derives projections of explicit tuple encodings automatically and composes functions of the security parameter through its input encoding. |
 | Simplifying large fixed unary parameters exhausted recursion depth. | `polytime` certifies fully specified constant outputs before expanding their representation. |
 | A prediction callback returned a conditional Boolean with a captured negated bit. | Boolean postprocessing handles fixed unary operations, conditional singleton results, and constructed output encodings. |
@@ -659,9 +670,9 @@ Our guide for the general construction is Thomas Holenstein,
 TCC 2006, [write-up](https://crypto.ethz.ch/publications/files/Holens06.pdf).
 Section 3.3 supplies the collision-probability proof of the leftover hash lemma; Sections 4–5
 give the pseudo-entropy-pair construction and its conversion to a PRG. The general implication
-is not yet formalized here: the expanding entropy grid, amplification and XOR combination, and
-expansion at every seed length remain. The indexed three-source game argument and its exact
-deterministic implementation are checked for any bounded valid choice in an efficient family.
+is not yet formalized here: common seed lengths, amplification and XOR combination, and expansion
+at every seed length remain. The expanding entropy grid has a proved secure choice, and its
+exact deterministic candidates have uniform polynomial-time certificates.
 We cite individual results in the
 modules that formalize them and distinguish these proved ingredients from the full theorem.
 For the constructive uniform hard-core argument we also follow Thomas Holenstein,
