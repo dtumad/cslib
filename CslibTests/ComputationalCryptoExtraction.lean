@@ -7,15 +7,14 @@ Authors: Samuel Schlesinger
 module
 
 public import Cslib.Crypto.Computational.Extraction
-public import Cslib.Crypto.Computational.Pseudoentropy.OneWay
-public import Cslib.Crypto.Computational.Pseudoentropy.ThreeSource.Combined
+public import Cslib.Crypto.Computational.OneWayToPRG
 
 /-!
 # Extraction and entropy examples
 
 The examples check the matrix representation, malformed tapes, public-seed security, and a
-client reduction from computational indistinguishability through extraction. They do not assert
-the existence of a one-way function or a proof of the general OWF-to-PRG theorem.
+client reduction from computational indistinguishability through extraction. The end-to-end
+example derives a PRG from a general one-way function, whose existence remains an assumption.
 -/
 
 public section
@@ -24,45 +23,10 @@ namespace CslibTests.ComputationalCryptoExtraction
 
 open Cslib Cslib.Probability Cslib.Probability.PMF Cslib.Crypto
 
-open Filter Pseudoentropy in
-/-- A general OWF supplies a uniformly efficient, secure expanding family. Its polynomial
-seed-length schedule remains to be converted to a single generator at every input length. -/
-theorem owf_expanding_family {f : Word → Word} (hf : OneWay f) :
-    ∃ (length : ℕ → ℕ) (generator : ℕ → Word → Word),
-      IsPolyTime unaryEncoding (fun n => unaryEncoding (length n)) ∧
-      (∀ n, n + 1 ≤ length n) ∧
-      IsPolyTime (pairEncoding unaryEncoding wordEncoding)
-        (fun input => generator input.1 input.2) ∧
-      (∀ n seed, (generator n seed).length = length n + 1) ∧
-      ComputationallyIndistinguishable
-        (fun n => (uniformBits (length n)).map (generator n))
-        (fun n => uniformBits (length n + 1)) := by
-  have hdensity : IsPolyTime unaryEncoding (fun n => unaryEncoding (16 * (n + 7))) := by polytime
-  obtain ⟨pair, hpair⟩ := hf.exists_pseudoentropyPair
-  obtain ⟨saved⟩ := pair.exists_seedRealization
-  obtain ⟨bound, hbound, hfits⟩ := pair.exists_observationBound
-  obtain ⟨common, hcommon, _, hge, hsize⟩ := EntropyGrid.exists_common_seedLength
-    (sourceBits := saved.length) (observationBound := bound)
-    (densityBound := fun n => 16 * (n + 7))
-    saved.length_isPolyTime hbound hdensity
-  have hlength := saved.length_isPolyTime
-  have htotal : IsPolyTime unaryEncoding (fun n =>
-      unaryEncoding (EntropyGrid.size (saved.length n) (16 * (n + 7)) * common n)) :=
-    (EntropyGrid.size_isPolyTime hlength hdensity).unary_mul hcommon
-  refine ⟨fun n => EntropyGrid.size (saved.length n) (16 * (n + 7)) * common n,
-    fun n => EntropyGrid.combinedGenerate n (saved.length n) (bound n) (16 * (n + 7))
-      (common n) (saved.evaluate n), htotal, ?_, ?_, ?_, ?_⟩
-  · intro n
-    exact (hge n).trans (Nat.le_mul_of_pos_left _ (EntropyGrid.size_pos ..))
-  · exact EntropyGrid.combinedGenerate_isPolyTime saved
-      (observationBound := bound) (densityBound := fun n => 16 * (n + 7)) (common := common)
-      hbound hdensity hcommon
-  · intro n seed
-    exact EntropyGrid.length_combinedGenerate ..
-  · exact EntropyGrid.combinedGenerate_indistinguishable hpair saved
-      (observationBound := bound) (densityBound := fun n => 16 * (n + 7)) (common := common)
-      hbound hdensity hcommon hfits hsize
-      (Eventually.of_forall EntropyGrid.four_steps_le_owf_gap)
+/-- The complete general implication uses the same PRG contract as the permutation theorem. -/
+theorem owf_pseudorandomGenerator {f : Word → Word} (hf : OneWay f) :
+    ∃ generator : Word → Word, PseudorandomGenerator generator (fun n => n + 1) :=
+  hf.exists_pseudorandomGenerator
 
 /-- XOR pads missing coordinates with false and truncates at its declared width. -/
 example : xorWords 3 [[true, false, true, true], [false, true], [true]] =

@@ -64,9 +64,10 @@ For a guided introduction, proof roadmap, and small Lean examples, start with th
 [`Computational`](Computational) provides definitions of one-way functions and permutations,
 pseudorandom generators,
 and pseudorandom functions, following Arora and Barak, Boneh and Shoup, and Goldreich, Goldwasser,
-and Micali. References appear in the modules. The library proves that a one-way permutation yields
-a uniform polynomial-time pseudorandom generator with one-bit stretch, through Goldreich–Levin.
-The existence of the starting one-way permutation is an assumption.
+and Micali. References appear in the modules. The library proves that a general one-way function
+implies a uniform polynomial-time pseudorandom generator with one-bit stretch at every seed length.
+The smaller permutation construction uses Goldreich–Levin directly. Existence of the starting
+one-way function remains an assumption.
 
 The supporting layers are:
 
@@ -381,130 +382,38 @@ random-oracle theory and its lazy/eager equivalence theorem remain to be develop
 Direct transition checks also exercise workspace restoration through blank gaps and negative
 positions, two successive invocations through the existing unary loop, and the zero-tape case.
 
-### Further development
+### Main computational results and further development
 
-**One-way permutations imply pseudorandom generators** is proved, including strict uniform PPT
-reductions, the Goldreich–Levin decoder, and one-bit expansion at every seed length. Stretch
-amplification gives any efficiently computed strictly larger output length, with polynomial time
-proved for the resulting generator and its reduction. The next target is **one-way functions
-imply pseudorandom generators**; that implication is not yet proved.
+**General one-way functions imply pseudorandom generators** is proved in
+[`Computational/OneWayToPRG`](Computational/OneWayToPRG.lean). The conclusion includes
+uniform deterministic polynomial time, one-bit expansion at every seed length, and security
+against uniform strict PPT distinguishers. The existence of a one-way function remains an
+assumption. The top-level proof obtains a pseudoentropy pair and applies its generator theorem.
 
-The first steps on that route are checked: output collisions of general OWFs are negligible,
-the strong leftover hash lemma applies to two-universal hashing with public seeds and side
-information, and Boolean-matrix extraction has a uniform PPT implementation.
-[`Computational/Extraction`](Computational/Extraction.lean) transfers computational
-indistinguishability through this extractor, with an explicit high-entropy comparison-source
-hypothesis. These ingredients do not yet complete the HILL generator construction.
-Goldreich–Levin now handles arbitrary output lengths, and a separate uniform reduction supplies
-fixed-output-length normalization. The finite entropy layer proves the chain rule and the
-averaged hash-isolation bound from Lemma 3 of the write-up.
-The [hashed parity pair](Computational/Pseudoentropy/HashPair.lean) now realizes that bound
-with a strict PPT sampler, an exact sampling law, and an injective public encoding. Its
-[finite prediction-to-inversion bound](Computational/Pseudoentropy/HashReduction.lean) handles
-unequal fibers and saved predictor coins with an explicit cubic loss. The
-[word reduction](Computational/Pseudoentropy/WordReduction.lean) proves the exact game
-correspondences and certifies the inverter as strict PPT.
-[`OneWay.exists_pseudoentropyPair`](Computational/Pseudoentropy/OneWay.lean) consequently gives
-a samplable pseudoentropy pair from every general word OWF, with gap `1 / (2 * (n + 7))` below
-the conditional-entropy prediction threshold. Its
-[uniform seed realization](Computational/Pseudoentropy/Seed.lean) preserves the exact joint law
-and accounts for unused coins in the entropy chain rule. Independent repetitions now have checked
-conditional-information and conditional-mass concentration bounds, with loss measured against
-the seed length. [Smoothed conditional extraction](../Probability/EntropyExtraction.lean) now
-turns these bounds into statistical closeness while preserving the public marginal and hash seed.
-The [hard-core boosting analysis](Computational/Pseudoentropy/Boosting/Progress.lean) proves the
-potential decrease and finite round bound, following
-[Holenstein's uniform hard-core proof](https://crypto.ethz.ch/publications/files/Holens05.pdf).
-The [weight sampler](Computational/Pseudoentropy/Boosting/Sampling.lean) realizes dyadic soft
-weights exactly with fair bits. Shared bounded repetition and success counting have strict PPT
-certificates, independent product laws, and Hoeffding error bounds. A polynomial trial budget
-gives inverse-polynomial accuracy with exponentially small failure. The sampled threshold
-decisions now have [strict PPT programs and guard guarantees](Computational/Pseudoentropy/Boosting/Decision.lean),
-including a bound on the error of the executable majority predictor. The
-[clocked loop](Computational/Pseudoentropy/Boosting/Program.lean) now has a strict PPT certificate
-and state-size bounds on every execution. Its [correctness theorem](Computational/Pseudoentropy/Boosting/Loop.lean)
-connects the stored votes to the potential proof and bounds total error by the clock times the
-sum of the two test errors and the learner error. It assumes a learner contract for the truncated
-predictor descriptions. The [final clipped-vote predictor](Computational/Pseudoentropy/Boosting/Selection.lean)
-now has an exact fair-bit implementation and a uniform empirical slope search. Its error bound
-combines the dense-margin guarantee with explicit rounding, estimation, and selection-failure
-losses. Explicit polynomial precisions preserve an inverse-polynomial prediction advantage.
-The [complete training algorithm](Computational/Pseudoentropy/Boosting/Training.lean) now combines
-the loop and final selection, with strict PPT training and observation-only prediction. Its
-unconditional error bound includes guard errors, learner failures, and slope-selection failures.
-Shared candidate selection has a strict PPT certificate and a reusable accuracy rule.
-The [fresh-mask sampler](Computational/Pseudoentropy/Masking.lean) also has a strict PPT certificate
-and conditional label entropy at least the soft-mask density, including weights that depend on
-the hidden label. A strict PPT random-coordinate reduction now converts a sequence distinguisher
-into a predictor with an exact weighted-bias identity. Its client efficiency proof is
-`unfold coordinatePrediction; ppt`; the target's hidden label is never passed to the predictor.
-The [saved predictor](Computational/Hybrid/SavedPrediction.lean) now has exact replay, strict PPT
-sampling, and a description bound independent of the boosting state used to sample its examples.
-Its total efficient evaluator accepts arbitrary word codes, and the checked size bound justifies
-truncation before storage. The [concrete learner](Computational/Pseudoentropy/Boosting/Learner.lean)
-samples orientations and selects descriptions by fresh weighted validation. A noticeable average
-bias gives the loop's truncated-predictor contract with an explicit discovery-and-selection error;
-the full learner is strict PPT. The [sequence reduction](Computational/Pseudoentropy/Learning.lean)
-supplies that bias from a distinguishing gap of either sign. The
-[complete sequence learner](Computational/Pseudoentropy/SequenceLearner.lean) now combines the
-saved evaluator, adaptive learner, and final prediction program. A sequence gap against every
-dense mask gives one prediction-error bound; its total sampling failure is negligible for
-polynomial parameters and confidence at least `n`. An end-to-end test constructs the evaluator
-from a certified sequence test and proves an eventual prediction advantage. The
-[masked-source extraction bound](Computational/Pseudoentropy/MaskedExtraction.lean) now gives
-the statistical error for every sufficiently dense vote collection, preserving all observations
-and the public hash seed, including observations represented as arbitrary words. Its information
-bound eventually charges only `n + 2` extra bits for any polynomial mask precision, independently
-of its degree. The [dense-mask theorem](Computational/Pseudoentropy/DenseMask.lean) now applies
-the uniform learner to a pseudoentropy pair, with one eventual threshold covering every test
-in an efficient polynomial-size family. Fresh labeled samples
-[select among indexed predictors](Computational/Pseudoentropy/Selection.lean); the security
-proof can therefore use a varying valid density guess without giving that choice to the algorithm.
-The indexed bound now carries through the complete three-source extraction argument. An
-[explicit polynomial schedule](Computational/Pseudoentropy/ExtractionSchedule.lean) and the
-[word extraction theorem](Computational/Pseudoentropy/WordExtraction.lean) give negligible
-distinguishing advantage while retaining every observation and the complete matrix seed.
-The client supplies efficient density and output schedules satisfying the entropy budget; all
-sampling and hashing have strict PPT certificates.
-The [shared repeated extractor](Computational/Pseudoentropy/RepeatedExtraction.lean)
-now handles arbitrary finite labels, including word seeds. The
-[first and third statistical transitions](Computational/Pseudoentropy/SeedExtraction.lean)
-use the same repetition schedule, preserve their public hash seeds, and permit empty outputs
-when a component has no entropy. Their
-[concrete word programs](Computational/Pseudoentropy/WordSeedExtraction.lean) now discharge the
-hash-family premises through the shared matrix implementation. Observation padding uses a bound
-derived from the sampler's PPT certificate, and the retained-seed extractor reveals every pair
-output. The [combined construction](Computational/Pseudoentropy/ThreeSource.lean) has a strict
-PPT certificate, an exact output-length theorem, and a complete three-transition security proof
-under efficient schedules meeting the entropy budgets. Its
-[deterministic implementation](Computational/Pseudoentropy/ThreeSource/Seeded.lean) has the same
-uniform-input distribution and uses exactly the original sampler coins and the three matrix
-seeds. A client example derives deterministic security from three half-bit entropy thresholds.
-A valid candidate may be chosen arbitrarily in the proof, while the indexed test is one uniform
-PPT program. The [entropy grid](Computational/Pseudoentropy/EntropyGrid.lean) now gives
-polynomially many guesses, all expanding, with at least one valid choice. Its
-[deterministic candidates](Computational/Pseudoentropy/ThreeSource/Candidates.lean) have uniform
-polynomial-time certificates, and one choice is secure against every uniform indexed test.
-The [padding theorem](Computational/Pseudoentropy/ThreeSource/Padding.lean) gives the whole grid
-one common polynomial seed length and exactly one bit of stretch, preserving its secure choice.
-The [amplification theorem](Computational/Pseudoentropy/ThreeSource/Amplification.lean) stretches
-each candidate to one bit beyond the total seed cost of the grid and preserves the secure choice.
-The [combined construction](Computational/Pseudoentropy/ThreeSource/Combined.lean) runs the whole
-grid on independent seed blocks and XORs the outputs. Its reduction preserves the exact advantage.
-An end-to-end example now derives a uniformly efficient, secure expanding family from a general
-word OWF. Converting its polynomial seed-length schedule to a generator at every input length
-remains to be proved. The construction uses fresh soft masks;
-following the write-up's set-oracle
-formulation would additionally require a cached membership simulation.
-The [computational guide](Computational/README.md#toward-general-one-way-functions) records the
-remaining obligations and cites
-[Holenstein's write-up](https://crypto.ethz.ch/publications/files/Holens06.pdf) and the
-[original HILL theorem](https://doi.org/10.1137/S0097539793244708).
+The construction follows [Holenstein's write-up](https://crypto.ethz.ch/publications/files/Holens06.pdf),
+Sections 4–5, for the [Håstad–Impagliazzo–Levin–Luby theorem](https://doi.org/10.1137/S0097539793244708).
+Its ingredients are output normalization, hashed parity, a uniform soft-mask argument, repeated
+extraction, and a polynomial entropy grid. Candidates are padded, amplified, and combined by XOR.
+A final bounded search and calibrated reduction extend the family to every input length while
+preserving uniform security. No entropy estimate or successful candidate is advice to the program.
+The matrix implementation proves polynomial efficiency without claiming the source's optimized
+seed-length exponent.
+
+The simpler **one-way-permutation construction** uses the complete Goldreich–Levin decoder and
+handles even and odd seed lengths directly. Both results use the same PRG contract.
+[`Computational/Stretch`](Computational/Stretch.lean) then gives any efficiently computed strictly
+larger output length. The [computational guide](Computational/README.md) provides the proof map,
+programming examples, security conventions, and source credits.
+
+Further framework work includes general stateful oracle sequencing and a reusable random-oracle
+theory with eager/lazy equivalence. The general OWF-to-PRG proof is a closed-program result and
+uses fresh soft masks; matching the write-up's set-oracle presentation would additionally need
+cached membership simulation.
 
 The semantic PRG family API introduced in
 [#876](https://github.com/leanprover/cslib/pull/876) is integrated with the computational definition.
 The real and ideal programs denote its experiments exactly, with the same advantage convention.
-The one-way-permutation theorem concludes with this shared security property, and its reductions
+Both OWF-to-PRG theorems conclude with this shared security property, and their reductions
 can still use the program-based `ComputationallyIndistinguishable` interface.
 
 - We plan on developing applied calculi and logics for modelling and reasoning about security protocols.

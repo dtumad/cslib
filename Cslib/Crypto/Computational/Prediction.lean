@@ -17,6 +17,10 @@ on rejection. Averaging over a fresh fair trial turns the test's signed distingu
 prediction bias. The test may capture any public observation; neither the hidden bit nor a
 decision about masking that bit is an input to the predictor.
 
+`calibratedTest` uses this predictor as a fresh reference for another Boolean experiment.
+Applying the same calibration on both sides squares the distinguishing advantage. This gives
+a nonnegative signed gap without computing its sign, which is useful when averaging tests.
+
 ## References
 
 * Thomas Holenstein, *Pseudorandom Generators from One-Way Functions: A Simple Construction for
@@ -98,5 +102,51 @@ theorem bitPredictor_isPPT {α : Type} {input : α ↪ Word}
 @[aesop safe -10 tactic (rule_sets := [PPT])]
 private meta def pptBitPredictor : Lean.Elab.Tactic.TacticM Unit :=
   Cslib.Tactic.PPT.applyHead #[(``bitPredictor, ``bitPredictor_isPPT)]
+
+/-- Use a fresh real-or-ideal trial to orient a challenge test without knowing its gap's sign. -/
+noncomputable def calibratedTest (real ideal challenge : ProbComp Bool) : ProbComp Bool := do
+  let direction ← bitPredictor (fun trial => if trial then real else ideal)
+  (fun result => result == direction) <$> challenge
+
+/-- Calibration multiplies the challenge's bias by the signed gap of the reference games. -/
+theorem winProbability_calibratedTest (real ideal challenge : ProbComp Bool) :
+    winProbability (calibratedTest real ideal challenge) =
+      1 / 2 + (winProbability real - winProbability ideal) *
+        (winProbability challenge - 1 / 2) := by
+  let direction := bitPredictor (fun trial => if trial then real else ideal)
+  have htotal := PMF.sum_toReal (ProbComp.eval direction)
+  have hbias := bitPredictor_bias (fun trial => if trial then real else ideal) true
+  simp only [Fintype.sum_bool] at htotal
+  simp only [beq_true, id_map', ite_true, Bool.false_eq_true, ite_false] at hbias
+  simp only [calibratedTest, winProbability_bind, Fintype.sum_bool, beq_false,
+    beq_true, id_map', winProbability_not]
+  change (ProbComp.eval direction true).toReal * winProbability challenge +
+    (ProbComp.eval direction false).toReal * (1 - winProbability challenge) = _
+  change (ProbComp.eval direction true).toReal - 1 / 2 = _ at hbias
+  linear_combination (1 - winProbability challenge) * htotal +
+    (2 * winProbability challenge - 1) * hbias
+
+/-- The same calibration on both sides turns a possibly negative gap into its square. -/
+theorem calibratedTest_gap (real ideal : ProbComp Bool) :
+    winProbability (calibratedTest real ideal real) -
+      winProbability (calibratedTest real ideal ideal) = advantage real ideal ^ 2 := by
+  simp only [winProbability_calibratedTest, advantage, Game.advantage, sq_abs]
+  change _ = (winProbability real - winProbability ideal) ^ 2
+  ring
+
+/-- Calibration is an ordinary PPT composition of its three supplied experiments. -/
+theorem calibratedTest_isPPT {α : Type} {input : α ↪ Word}
+    {real ideal challenge : α → ProbComp Bool}
+    (hreal : IsPPTOn input boolEncoding real)
+    (hideal : IsPPTOn input boolEncoding ideal)
+    (hchallenge : IsPPTOn input boolEncoding challenge) :
+    IsPPTOn input boolEncoding
+      (fun a => calibratedTest (real a) (ideal a) (challenge a)) := by
+  unfold calibratedTest
+  ppt
+
+@[aesop safe -10 tactic (rule_sets := [PPT])]
+private meta def pptCalibratedTest : Lean.Elab.Tactic.TacticM Unit :=
+  Cslib.Tactic.PPT.applyHead #[(``calibratedTest, ``calibratedTest_isPPT)]
 
 end Cslib.Crypto

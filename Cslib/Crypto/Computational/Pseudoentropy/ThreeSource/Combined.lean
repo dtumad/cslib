@@ -19,8 +19,8 @@ the program itself never chooses or estimates an entropy.
 This completes the indexed construction of Thomas Holenstein, *Pseudorandom Generators from
 One-Way Functions: A Simple Construction for Any Hardness*, TCC 2006, Section 5, final proof of
 Theorem 1, [write-up](https://crypto.ethz.ch/publications/files/Holens06.pdf).
-The security parameter still determines the seed length. A generator at every input length
-requires a further reindexing argument.
+The security parameter determines the seed length here. `GeneratorReindex` extends this family
+to every input length, and `Pseudoentropy.Generator` assembles the complete theorem.
 -/
 
 @[expose] public section

@@ -33,7 +33,7 @@ concentration bound for independent repetitions of the pair.
   Our checked machine replay supplies the deterministic uniform-seed presentation expected by
   Definition 4. Section 5 provides the entropy accounting for the three-extractor construction.
   The concentration bound is the seed-length variant documented in `EntropyConcentration`.
-  These results do not yet establish the PRG construction.
+  `Pseudoentropy.Generator` combines these ingredients into the complete PRG construction.
 -/
 
 @[expose] public section

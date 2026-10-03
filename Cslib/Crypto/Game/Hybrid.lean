@@ -44,6 +44,25 @@ theorem negligible_polynomial_mul {ε : ℕ → ℝ} {p : ℕ → ℕ}
   apply mul_le_mul_of_nonneg_right _ (hε₀ n)
   exact_mod_cast hp n
 
+open Filter Topology in
+/-- Negligible decay survives reindexing when the new parameter tends to infinity and the old
+parameter is polynomially bounded in it. The reindexing function need not be computable. -/
+theorem Negligible.comp_of_polynomial_bound {ε : ℕ → ℝ} {index bound : ℕ → ℕ}
+    (hε : Negligible ε) (hindex : Tendsto index atTop atTop)
+    (hbound : PolynomiallyBounded bound) (hle : ∀ᶠ n in atTop, n ≤ bound (index n)) :
+    Negligible (fun n => ε (index n)) := by
+  have habs : Negligible (fun n => |ε n|) := hε.trans_abs_le (fun _ => by simp)
+  intro degree
+  have hlimit := (negligible_polynomial_mul habs (fun _ => abs_nonneg _)
+    (hbound.pow degree) 0).comp hindex
+  simp only [pow_zero, one_mul, Nat.cast_pow, Function.comp_def] at hlimit
+  apply (tendsto_zero_iff_abs_tendsto_zero _).2
+  refine squeeze_zero' (Eventually.of_forall (fun _ => abs_nonneg _)) ?_ hlimit
+  filter_upwards [hle] with n hn
+  simp only [Function.comp_def, abs_mul, abs_pow,
+    abs_of_nonneg (Nat.cast_nonneg n : (0 : ℝ) ≤ n)]
+  gcongr
+
 open Filter in
 /-- Negligible success is eventually smaller than the reciprocal of any positive
 polynomially bounded loss. -/

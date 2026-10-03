@@ -9,6 +9,7 @@ module
 public import Cslib.Crypto.Computational.Stretch
 public import Cslib.Crypto.Computational.GoldreichLevin.HardCore
 public import Cslib.Crypto.Computational.OneWay.Normalize
+public import Cslib.Crypto.Computational.GeneratorReindex
 
 /-!
 # Client proofs of cryptographic reductions
@@ -22,6 +23,35 @@ public section
 namespace CslibTests.ComputationalCryptoReductions
 
 open Cslib Cslib.Probability Cslib.Crypto
+
+/-- Bounded search accepts a captured predicate and charges for its unary search range. -/
+example : IsPolyTime (pairEncoding unaryEncoding unaryEncoding) (fun input =>
+    unaryEncoding (Nat.findGreatest (fun n => n * n ≤ input.1) input.2)) := by
+  polytime
+
+/-- A nonmonotone schedule can skip an oversized intermediate seed. -/
+example : GeneratorReindex.parameter (fun n => if n = 1 then 10 else n + 1) 4 = 3 := by
+  decide +kernel
+
+/-- The finite initial range also expands, including an empty seed. -/
+example : GeneratorReindex.generate (fun n => 2 * (n + 1)) (fun _ seed => seed ++ [false])
+    [] = [false] := by decide +kernel
+
+/-- A seed between two scheduled lengths retains its unused suffix bits. -/
+theorem reindexRetainsSuffix :
+    GeneratorReindex.generate (fun n => 2 * (n + 1)) (fun _ seed => seed ++ [false])
+    [true, false, true, false, true] = [true, false, true, false, false, true] := by
+  decide +kernel
+
+/-- Opposite signed gaps cancel under naive averaging, but calibration retains advantage one. -/
+example : advantage
+    (pure [true] >>= UniformChoice.test 1 (pure [true]) (pure [false])
+      (fun index word => pure (if index = 0 then word.headD false else !word.headD false)))
+    (pure [false] >>= UniformChoice.test 1 (pure [true]) (pure [false])
+      (fun index word => pure (if index = 0 then word.headD false else !word.headD false))) =
+      1 := by
+  rw [UniformChoice.advantage_eq, show dyadicSize 1 = 2 by decide +kernel]
+  norm_num [Fin.sum_univ_two, advantage, Game.advantage, Game.winProbability]
 
 /-- A bound below the image length never truncates the self-delimiting image. -/
 example : padWord 0 [true, false] = [true, true, true, false, false] := by

@@ -9,7 +9,7 @@ module
 public import Cslib.Computability.Probabilistic.Output
 public import Cslib.Crypto.Computational.Hybrid
 public import Cslib.Crypto.Computational.GoldreichLevin.HardCore
-public import Cslib.Crypto.Computational.Pseudoentropy.OneWay
+public import Cslib.Crypto.Computational.OneWayToPRG
 public import Cslib.Crypto.Computational.Statistical
 
 /-!
@@ -23,10 +23,9 @@ a concrete answer-complementing reduction, and a polynomial hybrid argument unde
 common hop bound. The finite Goldreich–Levin decoder has a list-size and recovery guarantee,
 and its seeded randomized reduction converts prediction bias into inversion success in the
 word-based security game, with an explicit inverse-polynomial precision.
-The walkthrough includes the full OWP-to-PRG construction: the hard-core predicate and
-the reduction's PPT certificate are proved, including even and odd seed lengths. For general
-one-way functions it now reaches a strict PPT samplable pseudoentropy pair, with an explicit
-inverse-polynomial gap; converting that pair to a PRG remains to be proved.
+The walkthrough includes both OWP-to-PRG and general OWF-to-PRG. The latter passes through a
+samplable pseudoentropy pair, extraction, amplification, XOR, and uniform length conversion.
+Both conclude with the same PRG contract, including strict expansion at every seed length.
 -/
 
 public section
@@ -217,6 +216,11 @@ theorem oneWay_to_pseudoentropyPair (f : Word → Word) (hf : OneWay f) :
     ∃ pair : Pseudoentropy.SamplablePair,
       pair.HasGap (fun n => 1 / (2 * ((n : ℝ) + 7))) :=
   hf.exists_pseudoentropyPair
+
+/-- A general one-way function suffices for the full PRG contract, at every seed length. -/
+theorem oneWay_to_PRG (f : Word → Word) (hf : OneWay f) :
+    ∃ generator : Word → Word, PseudorandomGenerator generator (fun n => n + 1) :=
+  hf.exists_pseudorandomGenerator
 
 /-- A reduction that runs an adversary and complements its answer. -/
 def complement (adversary : Distinguisher) : Distinguisher :=
