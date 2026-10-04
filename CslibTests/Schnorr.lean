@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Devon Tuma
 -/
 
-import Cslib.Crypto.Primitives.Schnorr.Oracle
+import Cslib.Crypto.Primitives.Schnorr.Fork
 import Cslib.Foundations.Data.PFunctor.Free.Trace
 import Mathlib.Algebra.Field.ZMod
 
@@ -65,5 +65,74 @@ example : FreeM.replay [⟨(), (17 : F)⟩] twoSamples =
 
 example : FreeM.replay [⟨(), (17 : F)⟩, ⟨(), (23 : F)⟩] twoSamples =
     some (pure ((17 : F), (23 : F))) := rfl
+
+-- The simulated commitment is 1 when the challenge is 0 and response is 1.
+-- An existing entry at that input causes an explicit programming failure.
+#guard ((((Schnorr.simulateSign sample (1 : F) (7 : F) "message").run
+  [(("message", 1), 42)]).run.liftM counted).run 0).run == (none, 2)
+
+abbrev forkEffects : PFunctor := random + PFunctor.mk (String × F) (fun _ => F)
+
+def forkAnswers (op : forkEffects.A) : StateM ℕ (forkEffects.B op) := fun count =>
+  match op with
+  | .inl () => ((count : F), count + 1)
+  | .inr _ => ((count : F), count + 1)
+
+-- A regression adversary knows the test secret. It requests a signature on another message,
+-- then creates its own forgery. This tests the entire extractor, not a security assumption.
+def knowledgeable (_pk : F) :
+    (Schnorr.signatureEffects random String F F).FreeM (String × F × F) := do
+  let _ ← FreeM.lift (P := Schnorr.signatureEffects random String F F)
+    (.inr (.inr "signed"))
+  let challenge ← FreeM.lift (P := Schnorr.signatureEffects random String F F)
+    (.inr (.inl ("fresh", 11)))
+  pure ("fresh", 11, Schnorr.respond (7 : F) 11 challenge)
+
+#guard ((((Schnorr.signatureExtractor sample (1 : F) (7 : F) knowledgeable).liftM
+  forkAnswers).run 0).run == (some (7 : F), 4))
+
+-- A signing-oracle reply loses freshness and cannot become an extraction target.
+#guard ((((Schnorr.signatureExtractor sample (1 : F) (7 : F) replaySignature).liftM
+  forkAnswers).run 0).run == (none, 2))
+
+-- With the identity public key this candidate accepts every challenge. The adversary makes
+-- no hash query, so extraction must include the verifier's final query as a forkable occurrence.
+def identityKey (_pk : F) :
+    (Schnorr.signatureEffects random String F F).FreeM (String × F × F) :=
+  pure ("fresh", 1, 1)
+
+#guard ((((Schnorr.signatureExtractor sample (1 : F) (0 : F) identityKey).liftM
+  forkAnswers).run 0).run == (some (0 : F), 2))
+
+def equalChallenges (op : forkEffects.A) : Id (forkEffects.B op) :=
+  match op with
+  | .inl () => pure (0 : F)
+  | .inr _ => pure (0 : F)
+
+-- Equal challenges are rejected before dividing, even though both transcripts verify.
+#guard (((Schnorr.signatureExtractor sample (1 : F) (0 : F) identityKey).liftM
+  equalChallenges).run == none)
+
+open MeasureTheory ProbabilityTheory
+open scoped ENNReal
+
+local instance : MeasurableSpace F := ⊤
+local instance : MeasurableSingletonClass F := ⟨fun _ => trivial⟩
+local instance : MeasurableSpace (List ((Unit × F) × F)) := ⊤
+
+noncomputable def answers (_ : random.A) : Measure F := uniformOn Set.univ
+
+-- Instantiate the joint-state collision theorem with the concrete scalar cardinality.
+example (cache : List ((Unit × F) × F)) :
+    FreeM.denote answers ((Schnorr.simulateSign sample (1 : F) (7 : F) ()).run cache).run
+      {none} ≤ cache.length / (101 : ℝ≥0∞) := by
+  have hg : Function.Bijective (fun scalar : F => scalar • (1 : F)) := by
+    constructor
+    · intro x y h
+      simpa only [smul_eq_mul, mul_one] using h
+    · intro x
+      exact ⟨x, by simp⟩
+  simpa [Nat.card_eq_fintype_card] using Schnorr.denote_simulateSign_none_le
+    answers sample (1 : F) (7 : F) () cache hg (FreeM.denote_lift (P := random) answers ())
 
 end SchnorrTests

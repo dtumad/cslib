@@ -15,6 +15,11 @@ returns a value in `β` or exposes a visible query from `p` and continues from
 the selected direction. It is the M-type of the return-or-query polynomial
 `p + C β`, the coinductive counterpart of `FreeM p β`.
 
+This is the identity-monad case of the coalgebraic resumption construction
+`ν X, T (β ⊕ p X)` (Goncharov, Milius, and Rauch, *Complete Elgot Monads and Coalgebraic
+Resumptions*, 2016). It differs from the cofree comonad, whose one-step view is
+`β × p X`: a cofree value labels every node, whereas a resumption returns a value only at a leaf.
+
 The named `map` and `bind` operations are maximally universe-polymorphic in
 their source and target result types. The `Monad` and `LawfulMonad` instances
 cover the ordinary specialization in which those result types live in one

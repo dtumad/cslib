@@ -59,4 +59,16 @@ theorem uniform_simulatedCommitment [MeasurableSingletonClass G] [Finite G]
   map_uniformOn_univ
     ((Equiv.ofBijective (fun scalar : F => scalar • g) hg).trans (Equiv.subRight _))
 
+/-- Forgetting the challenge and response leaves a uniform simulated commitment. -/
+theorem denote_simulateTranscript_map_fst [MeasurableSingletonClass G] [Finite G]
+    (hg : Function.Bijective (fun scalar : F => scalar • g)) (pk : G)
+    (hsample : FreeM.denote μ sample = uniformOn Set.univ) :
+    (FreeM.denote μ (simulateTranscript sample g pk)).map Prod.fst = uniformOn Set.univ := by
+  rw [← FreeM.denote_map _ _ _ measurable_fst]
+  simp only [simulateTranscript, FreeM.map_eq_map, map_bind, map_pure,
+    FreeM.denote_bind_of_discrete, FreeM.denote_pure, hsample]
+  simp_rw [Measure.bind_dirac_eq_map _ Measurable.of_discrete,
+    uniform_simulatedCommitment g hg pk]
+  rw [Measure.bind_const, measure_univ, one_smul]
+
 end Cslib.Crypto.Schnorr

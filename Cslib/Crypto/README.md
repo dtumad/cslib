@@ -79,6 +79,15 @@ of both complete traces and prefixes. `FreeM.denote_liftM_stateT` connects inlin
 handlers to their joint result-and-state kernels; `Game.advantage_le_disagreement` gives the
 native-measure coupling bound for game hops.
 
+[`Schnorr.Simulation`](Primitives/Schnorr/Simulation.lean) simulates signing from the public key.
+It proves equality of the entire signature/cache measure with honest signing restricted to
+fresh hash inputs, and bounds each programming collision by `cache.length / |F|`.
+[`Schnorr.Fork`](Primitives/Schnorr/Fork.lean) composes this simulator with final verification,
+adaptive hash-query selection, and checked extraction. `FreeM.fork` retains the exact continuation
+at the selected occurrence; its structural theorem identifies the common replay prefix, and
+its measure theorem preserves the first execution's distribution. Tests exercise the full
+extractor, including identity public keys, repeated challenges, and signed-message freshness.
+
 Machine realizability still needs encodings, a compiler that preserves the joint result and
 state measure, and clocks charging local work and handler implementation. In particular, a
 uniform exponent is not a unit-cost machine instruction: the binary sampler's operation bound
@@ -89,11 +98,10 @@ preserve the chosen admissibility predicate for a parameterized group family.
 Silent machine steps can be made visible by adjoining `PFunctor.y` as a deterministic tick
 operation; certifying the transition compiler and its cost remains a separate obligation.
 
-Full Schnorr signature security still needs the adaptive random-oracle occurrence selector,
-the signing simulator and its programming-collision bound, and their composition with extraction.
-The fixed-commitment identification bound does not establish EUF-CMA security. Those remaining
-reductions must retain the cache and adversary state at the selected hash query; equality of
-marginal output measures alone does not establish that property.
+Full Schnorr signature security still needs the adaptive forking probability inequality,
+coverage of every successful fresh forgery by the hash selector, and accumulation of the
+signing-collision error over adaptive requests. The extractor's soundness and the
+fixed-commitment identification bound do not yet establish a concrete EUF-CMA advantage bound.
 
 ## Plans and notes
 

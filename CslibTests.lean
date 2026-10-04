@@ -31,6 +31,7 @@ import CslibTests.MultiTapeComplexity
 import CslibTests.PACLearning
 import CslibTests.PFunctor
 import CslibTests.PFunctorCrypto
+import CslibTests.PFunctorFork
 import CslibTests.PFunctorFree
 import CslibTests.PFunctorProbability
 import CslibTests.PFunctorSampling
