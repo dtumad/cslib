@@ -8,6 +8,7 @@ module
 
 public import Cslib.Computability.PolynomialTime.List
 public import Cslib.Foundations.Data.Nat.Bits
+public import Mathlib.Data.Fin.Embedding
 
 /-!
 # Polynomial-time binary representations
@@ -26,6 +27,12 @@ open Cslib
 def binaryEncoding : ℕ ↪ Word := ⟨Nat.bits, Nat.bits_injective⟩
 
 @[simp] theorem binaryEncoding_apply (n : ℕ) : binaryEncoding n = n.bits := rfl
+
+/-- Bounded exponents use the same binary representation as their underlying natural numbers. -/
+def finBinaryEncoding (n : ℕ) : Fin n ↪ Word := Fin.valEmbedding.trans binaryEncoding
+
+@[simp] theorem finBinaryEncoding_apply (n : ℕ) (value : Fin n) :
+    finBinaryEncoding n value = binaryEncoding value.val := rfl
 
 variable {α : Type} {encode : α → Word}
 

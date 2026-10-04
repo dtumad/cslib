@@ -10,6 +10,7 @@ import CslibTests.Circuits
 import CslibTests.Commitment
 import CslibTests.Complexity.Combinators
 import CslibTests.Congruence
+import CslibTests.CryptoRuntime
 import CslibTests.CryptoSampling
 import CslibTests.DFA
 import CslibTests.FreeMonad

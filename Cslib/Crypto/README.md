@@ -123,14 +123,17 @@ entire joint result-and-handler-state computation. Saved-coin replay now has a u
 certificate for certified deterministic handlers, with explicit bounds on reply lengths and
 per-call state growth. Request buffers grow by at most one bit per transition; the replay bound
 charges for copying complete snapshots, accumulated caches, and oracle replies.
+Sampling the private tape before execution preserves the joint output-and-oracle-state measure.
+`ElGamal.PolynomialTime` certifies honest key generation, encryption, and decryption uniformly
+across an indexed group family. It derives binary exponentiation from certified multiplication
+and polynomial bounds on element encodings. The parameter data and remaining group primitives
+have explicit uniform certificates; sampling exhaustion remains visible in `OptionT`.
 
 Crypto machine realizability still needs the randomized cache and signing handlers, machine-level
-forking, and the scheme and reduction certificates. Only
-group and field operations may be assumed through explicit uniform primitive certificates.
-In particular, a
-uniform exponent is not a unit-cost machine instruction: the binary sampler's operation bound
-must be combined with costs for bit arithmetic and group operations. The per-sample cutoff
-failure must also be accumulated over the game's sampling calls. Computational and asymptotic
+forking, Schnorr's algorithm certificates, and both security reductions' certificates.
+Only group and field operations may be assumed through explicit uniform primitive certificates.
+The per-sample cutoff failure must also be accumulated over the game's sampling calls.
+Computational and asymptotic
 ElGamal security additionally require the reduction to
 preserve the chosen admissibility predicate for a parameterized group family.
 The machine resumption exposes one coin per transition and an additional operation per oracle

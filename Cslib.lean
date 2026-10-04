@@ -148,6 +148,7 @@ public import Cslib.Computability.PolynomialTime.Machine.Bounds
 public import Cslib.Computability.PolynomialTime.Machine.Replay
 public import Cslib.Computability.PolynomialTime.Machine.Size
 public import Cslib.Computability.PolynomialTime.Machine.Step
+public import Cslib.Computability.PolynomialTime.Monoid
 public import Cslib.Computability.PolynomialTime.Option
 public import Cslib.Computability.PolynomialTime.Probabilistic
 public import Cslib.Computability.PolynomialTime.Realization.Iteration
@@ -156,6 +157,7 @@ public import Cslib.Computability.PolynomialTime.Realization.Transducer
 public import Cslib.Computability.PolynomialTime.Rejection
 public import Cslib.Computability.PolynomialTime.Sampling
 public import Cslib.Computability.PolynomialTime.Sampling.Rejection
+public import Cslib.Computability.PolynomialTime.Sigma
 public import Cslib.Computability.PolynomialTime.Support
 public import Cslib.Computability.PolynomialTime.Tape
 public import Cslib.Computability.URM.Basic
@@ -170,6 +172,7 @@ public import Cslib.Crypto.Negligible
 public import Cslib.Crypto.Primitives.ElGamal
 public import Cslib.Crypto.Primitives.ElGamal.Oracle
 public import Cslib.Crypto.Primitives.ElGamal.PFunctor
+public import Cslib.Crypto.Primitives.ElGamal.PolynomialTime
 public import Cslib.Crypto.Primitives.ElGamal.Resumption
 public import Cslib.Crypto.Primitives.PRG.Asymptotic
 public import Cslib.Crypto.Primitives.PRG.Basic

@@ -64,6 +64,9 @@ def pairEncoding (left : α ↪ Word) (right : β ↪ Word) : (α × β) ↪ Wor
     obtain ⟨hl, hr⟩ := List.BitPair.encode_inj.mp h
     exact Prod.ext (left.injective hl) (right.injective hr)
 
+theorem pairEncoding_apply (left : α ↪ Word) (right : β ↪ Word) (pair : α × β) :
+    pairEncoding left right pair = List.BitPair.encode (left pair.1) (right pair.2) := rfl
+
 @[simp] theorem length_pairEncoding (left : α ↪ Word) (right : β ↪ Word) (pair : α × β) :
     (pairEncoding left right pair).length = 2 * (left pair.1).length + (right pair.2).length + 1 :=
   List.BitPair.length_encode _ _
