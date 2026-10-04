@@ -88,4 +88,18 @@ theorem decrypt_encrypt (g message : G) (x r : Fin n) :
     decrypt x (g ^ r.val, message * (g ^ x.val) ^ r.val) = message := by
   simp [decrypt, ← pow_mul, Nat.mul_comm]
 
+/-- Honest key generation, encryption, and decryption return the original message. Both
+samples remain in the program, so this also preserves their state, cost, and possible failure. -/
+theorem decrypt_keygen_encrypt {m : Type → Type*} [Monad m] [LawfulMonad m]
+    (sample : m (Fin n)) (g message : G) :
+    (do
+      let (pk, secret) ← keygen sample g
+      let ciphertext ← encrypt sample g pk message
+      pure (decrypt secret ciphertext)) =
+    (do
+      let _ ← sample
+      let _ ← sample
+      pure message) := by
+  simp [keygen, encrypt]
+
 end Cslib.Crypto.ElGamal

@@ -130,5 +130,26 @@ theorem runKernel_liftM {X : Type uB} [MeasurableSpace X]
       rw [runKernel_bind]
       exact Measure.bind_congr_right (Filter.Eventually.of_forall fun out => ih out.1 out.2)
 
+/-- Inlining a `StateT` handler and then interpreting its remaining effects preserves the joint
+result-and-state kernel. The hypothesis is local to each operation and initial state. -/
+theorem denote_liftM_stateT {T X : Type uB} [MeasurableSpace T]
+    [MeasurableSpace X] (μ : (a : Q.A) → Measure (Q.B a))
+    (handler : (a : P.A) → StateT T Q.FreeM (P.B a))
+    (impl : (a : P.A) → Kernel T (P.B a × T))
+    (h : ∀ a state, denote μ (handler a state) = impl a state)
+    (program : P.FreeM X) (state : T) :
+    denote μ ((program.liftM handler) state) = runKernel impl program state := by
+  induction program generalizing state with
+  | pure x => rfl
+  | lift_bind a next ih =>
+    change denote μ ((handler a state).bind
+      (fun out => ((next out.1).liftM handler) out.2)) =
+        (impl a state).bind (fun out => runKernel impl (next out.1) out.2)
+    have hm : Measurable fun out : P.B a × T =>
+        denote μ (((next out.1).liftM handler) out.2) := by
+      simpa only [ih] using measurable_runKernel_continuation impl next
+    rw [denote_bind μ _ _ hm, h]
+    exact Measure.bind_congr_right (Filter.Eventually.of_forall fun out => ih out.1 out.2)
+
 end FreeM
 end PFunctor

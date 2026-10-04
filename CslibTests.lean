@@ -10,6 +10,7 @@ import CslibTests.Circuits
 import CslibTests.Commitment
 import CslibTests.Complexity.Combinators
 import CslibTests.Congruence
+import CslibTests.CryptoSampling
 import CslibTests.DFA
 import CslibTests.FreeMonad
 import CslibTests.GrindLint
@@ -32,7 +33,9 @@ import CslibTests.PFunctor
 import CslibTests.PFunctorCrypto
 import CslibTests.PFunctorFree
 import CslibTests.PFunctorProbability
+import CslibTests.PFunctorSampling
 import CslibTests.PRG
 import CslibTests.Reduction
+import CslibTests.Schnorr
 import CslibTests.StatefulProcesses
 import CslibTests.Synthesis

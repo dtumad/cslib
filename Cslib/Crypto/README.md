@@ -53,26 +53,47 @@ Theorem 10.20, and Proposition 10.5. It does not assume that arbitrary Lean func
 
 `PFunctor.Resumption` permits infinitely many visible operations. Its returned-output measure
 loses mass on divergence, and finite truncations retain a separate `none` outcome for timeout.
-The rejection-sampling example proves exact uniform output, geometric timeout probability, and
-finite expected operation count. Inlining that sampler into the small ElGamal test preserves
-the security identity, including the sampler's infinite rejected paths.
+The rejection sampler proves exact uniform output in every nonempty finite range, geometric
+timeout probability, and expected proposal count `m / n`. `FreeM.sampleFin` implements bounded
+rejection using individual fair bits. With `ceil(log₂ n)` bits per proposal and `t` attempts,
+it uses at most `t * ceil(log₂ n)` coin operations and fails with probability at most `2⁻ᵗ`.
+Failure is an explicit `none`, with exact probabilities for every successful output.
+`ElGamal.Resumption` preserves the full oracle-DDH identity when inlining almost-surely
+terminating effect implementations, including their infinite rejected paths.
 The structural `Std.WP` interpretation and an explicit
 expectation interpretation share the same free programs; the quantitative `vcgen` test currently
 requires a local operation specification.
 
+[`Schnorr`](Primitives/Schnorr.lean) uses Mathlib's `Module F G` for scalar multiplication.
+It supplies signing, verification, special-soundness extraction, and a perfect honest-verifier
+zero-knowledge proof as equality of whole transcript measures. `Schnorr.Oracle` defines EUF-CMA
+with a shared cached random oracle and a signed-message log. Honest signing followed by
+verification is a program equality that retains the final cache. Both honest schemes are also
+tested through `OptionT` with the bounded binary sampler, including exhaustion.
+
+[`Schnorr.Extraction`](Primitives/Schnorr/Extraction.lean) proves the concrete identification
+bound `ε² - ε / |F|` for an extractor that saves the commitment and private state and samples
+two independent continuations. Every successful extraction returns a discrete logarithm.
+`FreeM.trace` and `FreeM.replay` record dependent operation/response pairs and prove exact replay
+of both complete traces and prefixes. `FreeM.denote_liftM_stateT` connects inlined stateful
+handlers to their joint result-and-state kernels; `Game.advantage_le_disagreement` gives the
+native-measure coupling bound for game hops.
+
 Machine realizability still needs encodings, a compiler that preserves the joint result and
 state measure, and clocks charging local work and handler implementation. In particular, a
-uniform exponent is not a unit-cost machine instruction: binary rejection sampling and efficient
-group operations must be certified in the bit length of the group order. Exact sampling may be
-expected polynomial time; strict polynomial time requires a cutoff and an explicit failure
-budget. Computational and asymptotic ElGamal security additionally require the reduction to
+uniform exponent is not a unit-cost machine instruction: the binary sampler's operation bound
+must be combined with costs for bit arithmetic and group operations. The per-sample cutoff
+failure must also be accumulated over the game's sampling calls. Computational and asymptotic
+ElGamal security additionally require the reduction to
 preserve the chosen admissibility predicate for a parameterized group family.
 Silent machine steps can be made visible by adjoining `PFunctor.y` as a deterministic tick
 operation; certifying the transition compiler and its cost remains a separate obligation.
 
-Schnorr and a forking lemma remain future work. They need a consistent random-oracle cache and
-replay of the same adversary coins and shared state up to the fork, followed by fresh suffix
-randomness. Equality of marginal output measures alone does not supply that replay property.
+Full Schnorr signature security still needs the adaptive random-oracle occurrence selector,
+the signing simulator and its programming-collision bound, and their composition with extraction.
+The fixed-commitment identification bound does not establish EUF-CMA security. Those remaining
+reductions must retain the cache and adversary state at the selected hash query; equality of
+marginal output measures alone does not establish that property.
 
 ## Plans and notes
 

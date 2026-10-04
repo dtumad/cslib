@@ -28,7 +28,7 @@ The advantage convention is the absolute difference of acceptance probabilities,
 namespace Cslib.Crypto
 
 open MeasureTheory ProbabilityTheory
-open scoped NNReal
+open scoped NNReal symmDiff
 
 /-- The distribution of the Boolean result of a security experiment. -/
 abbrev Game := Measure Bool
@@ -80,6 +80,21 @@ theorem winProbability_not_of_isFiniteMeasure (game : Game) [IsFiniteMeasure gam
 /-- The elementary game-hopping inequality. -/
 theorem advantage_triangle (first middle last : Game) :
     advantage first last ≤ advantage first middle + advantage middle last := abs_sub_le _ _ _
+
+/-- A joint execution bounds distinguishing advantage by the probability that its results
+disagree. The coupling is an ordinary finite measure with the two games as its marginals. -/
+theorem advantage_le_disagreement (joint : Measure (Bool × Bool)) [IsFiniteMeasure joint] :
+    advantage (joint.map Prod.fst) (joint.map Prod.snd) ≤ joint.real {p | p.1 ≠ p.2} := by
+  simp only [advantage, winProbability, measureReal_def,
+    Measure.map_apply measurable_fst (measurableSet_singleton _),
+    Measure.map_apply measurable_snd (measurableSet_singleton _)]
+  have hset : (Prod.fst ⁻¹' ({true} : Set Bool)) ∆ (Prod.snd ⁻¹' ({true} : Set Bool)) =
+      {p : Bool × Bool | p.1 ≠ p.2} := by
+    ext ⟨a, b⟩
+    cases a <;> cases b <;> simp [Set.mem_symmDiff]
+  rw [← hset]
+  exact abs_measureReal_sub_le_measureReal_symmDiff
+    MeasurableSet.of_discrete.nullMeasurableSet MeasurableSet.of_discrete.nullMeasurableSet
 
 /-- Subprobability experiments have distinguishing advantage at most one. -/
 theorem advantage_le_one (real ideal : Game)
