@@ -105,6 +105,17 @@ theorem runKernel_bind [Countable α] [MeasurableSingletonClass α]
         (measurable_runKernel_continuation impl next).aemeasurable]
       exact Measure.bind_congr_right (Filter.Eventually.of_forall fun out => ih out.1 out.2)
 
+/-- Mapping a countable result preserves the final private state. -/
+theorem runKernel_map [Countable α] [MeasurableSingletonClass α]
+    (impl : (a : P.A) → Kernel S (P.B a × S)) (f : α → β)
+    (program : FreeM P α) (state : S) :
+    runKernel impl (program.map f) state =
+      (runKernel impl program state).map (fun out => (f out.1, out.2)) := by
+  rw [← FreeM.bind_pure_comp, runKernel_bind]
+  simp only [Function.comp_apply, runKernel_pure]
+  exact Measure.bind_dirac_eq_map _
+    (((measurable_of_countable f).comp measurable_fst).prodMk measurable_snd)
+
 /-- Semantically equal continuations on reachable results give the same joint kernel.
 The intermediate type needs no measurable structure, so this also applies to machine tapes. -/
 theorem runKernel_bind_congr_of_canReturn {X : Type uB}

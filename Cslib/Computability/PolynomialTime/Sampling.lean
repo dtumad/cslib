@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger, Devon Tuma
 module
 
 public import Cslib.Computability.PolynomialTime.Probabilistic
+public import Cslib.Computability.PolynomialTime.Capture
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.UniformBits
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Rename
 
@@ -53,5 +54,15 @@ theorem isPPT_sampleBits [Finite Oracle] :
   simpa only [wordEncoding, Function.Embedding.refl_apply, parameterEncoding_apply] using
     (runKernel_uniformBitsMachine (fun port : Fin 0 => oracle (Fin.elim0 port)) n input state).trans
       hrename.symm
+
+omit [DecidableEq Oracle] in
+/-- An efficiently computed unary length supplies a uniform polynomial-time bit sampler. -/
+theorem isPPT_sampleBits_of_isPolyTime {α : Type} [Finite Oracle]
+    {input : α ↪ Word} {count : α → ℕ}
+    (hcount : IsPolyTime input (fun a => unaryEncoding (count a))) :
+    IsPPT input wordEncoding
+      (fun a => (List.replicate (count a) ()).mapM (fun _ => coin (Oracle := Oracle))) := by
+  apply isPPT_sampleBits.comp (f := fun a => (count a, []))
+  exact hcount.append (isPolyTime_const input [false])
 
 end Turing.MultiTapePTM

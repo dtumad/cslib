@@ -5,6 +5,7 @@ Authors: Devon Tuma
 -/
 
 import Cslib.Computability.PolynomialTime.Sampling
+import Cslib.Computability.PolynomialTime.Sampling.Rejection
 import Cslib.Computability.PolynomialTime.Composition
 import Cslib.Computability.PolynomialTime.List
 import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Sequential
@@ -43,6 +44,21 @@ example : IsPPT (Oracle := Empty) parameterEncoding wordEncoding
 -- The loop certificate supplies one machine across unbounded input lengths.
 example : IsPolyTime wordEncoding (fun word => word.reverse ++ word) :=
   (isPolyTime_input wordEncoding).reverse.append (isPolyTime_input wordEncoding)
+
+-- One machine handles binary ranges of unbounded size and every unary retry budget.
+example : IsPPT (Oracle := Empty) (pairEncoding binaryEncoding unaryEncoding)
+    (optionEncoding binaryEncoding) (fun input => Option.map Fin.val <$>
+      FreeM.sampleFin ((fun b => (⟨b.toNat, Bool.toNat_lt b⟩ : Fin 2)) <$> coin)
+        input.1 input.1.size input.2) :=
+  isPPT_sampleFin_size (isPolyTime_fst _ _) (isPolyTime_snd _ _)
+
+-- Reject 3, then accept 1; proposal bits are read in sampling order.
+example : selectBelow 3 2 2 [true, true, false, true] = some 1 := by decide
+example : selectBelow 3 2 1 [true, true, false, true] = none := by decide
+-- Successful zero and exhausted rejection have different encodings.
+example : selectBelow 1 1 1 [false] = some 0 := by decide
+example : selectBelow 1 1 1 [true] = none := by decide
+example : optionEncoding binaryEncoding (some 0) ≠ optionEncoding binaryEncoding none := by decide
 
 -- Sampling followed by a bounded deterministic loop receives one uniform machine certificate.
 example : IsPPT (Oracle := Empty) parameterEncoding wordEncoding (fun input =>

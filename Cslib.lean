@@ -115,6 +115,7 @@ public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Extend
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.ExtendTapes
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.InputFromTape
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Measure
+public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.OutputPrefix
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.OutputToTape
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Rename
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Resumption
@@ -128,6 +129,8 @@ public import Cslib.Computability.Machines.Turing.SingleTape.Deterministic
 public import Cslib.Computability.Machines.Turing.SingleTape.NonDeterministic
 public import Cslib.Computability.PolynomialTime.Arithmetic
 public import Cslib.Computability.PolynomialTime.Basic
+public import Cslib.Computability.PolynomialTime.Binary
+public import Cslib.Computability.PolynomialTime.Capture
 public import Cslib.Computability.PolynomialTime.Composition
 public import Cslib.Computability.PolynomialTime.Defs
 public import Cslib.Computability.PolynomialTime.Deterministic
@@ -135,11 +138,14 @@ public import Cslib.Computability.PolynomialTime.Encoding
 public import Cslib.Computability.PolynomialTime.Fold
 public import Cslib.Computability.PolynomialTime.Iteration
 public import Cslib.Computability.PolynomialTime.List
+public import Cslib.Computability.PolynomialTime.Option
 public import Cslib.Computability.PolynomialTime.Probabilistic
 public import Cslib.Computability.PolynomialTime.Realization.Iteration
 public import Cslib.Computability.PolynomialTime.Realization.PolynomialTime
 public import Cslib.Computability.PolynomialTime.Realization.Transducer
+public import Cslib.Computability.PolynomialTime.Rejection
 public import Cslib.Computability.PolynomialTime.Sampling
+public import Cslib.Computability.PolynomialTime.Sampling.Rejection
 public import Cslib.Computability.PolynomialTime.Support
 public import Cslib.Computability.URM.Basic
 public import Cslib.Computability.URM.Computable
@@ -201,6 +207,7 @@ public import Cslib.Foundations.Data.HasFresh
 public import Cslib.Foundations.Data.List.BitPair
 public import Cslib.Foundations.Data.List.IsChainFromTo
 public import Cslib.Foundations.Data.Nat.Asymptotics
+public import Cslib.Foundations.Data.Nat.Bits
 public import Cslib.Foundations.Data.Nat.Factorial
 public import Cslib.Foundations.Data.Nat.PolynomialBound
 public import Cslib.Foundations.Data.Nat.Segment

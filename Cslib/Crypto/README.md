@@ -113,9 +113,14 @@ deterministic pre- and postprocessing. Subroutines have separate communication b
 the oracle's hidden state. Kernel correctness also identifies exactly the reachable encoded outputs,
 so sequencing needs no assumed decoder. Association-list lookup has a uniform machine certificate
 using the ordinary `List.lookup` API and charging for key comparisons and cache traversal.
+Captured continuations retain the original input and charge for its copying. Binary normalization
+and comparison, and the bounded `FreeM.sampleFin` sampler, now have uniform machine certificates.
+The sampler is polynomial in the range's bit length, unary proposal width, and unary attempt budget;
+it preserves the exact joint kernel and distinguishes rejection failure from machine timeout.
+Using the range's binary length as the proposal width still gives failure at most `2⁻ᵗ`.
 
-Crypto machine realizability still needs the stateful handler compiler, binary rejection-sampling
-machine, and encoded replay machinery, followed by the scheme and reduction certificates. Only
+Crypto machine realizability still needs the stateful handler compiler and encoded replay
+machinery, followed by the scheme and reduction certificates. Only
 group and field operations may be assumed through explicit uniform primitive certificates.
 In particular, a
 uniform exponent is not a unit-cost machine instruction: the binary sampler's operation bound

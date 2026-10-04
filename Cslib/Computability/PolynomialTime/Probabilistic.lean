@@ -65,4 +65,20 @@ theorem Realizes.mono {k : ℕ} {State Ports α : Type} [DecidableEq Ports]
   intro S _ _ _ oracle state
   simpa only [run, runFrom, hhalt.runConfigFrom_add] using h S oracle state
 
+/-- Replacing a program by the same joint result-and-state kernels preserves its certificate. -/
+theorem IsPPT.congr {α β : Type} [MeasurableSpace β] [DiscreteMeasurableSpace β]
+    {input : α ↪ Word} {output : β ↪ Word} {first second : α → (effects Oracle).FreeM β}
+    (hfirst : IsPPT input output first)
+    (h : ∀ a (S : Type) [MeasurableSpace S] [DiscreteMeasurableSpace S] [Countable S]
+      (oracle : Oracle → Word → Kernel S (Word × S)) (state : S),
+      FreeM.runKernel (effectKernel oracle) (first a) state =
+        FreeM.runKernel (effectKernel oracle) (second a) state) :
+    IsPPT input output second := by
+  let : Countable β := output.injective.countable
+  obtain ⟨hf, k, ports, State, hs, machine, dispatch, c, d, hm⟩ := hfirst
+  refine ⟨hf, k, ports, State, hs, machine, dispatch, c, d, fun a => ⟨(hm a).1, ?_⟩⟩
+  intro S _ _ _ oracle state
+  rw [(hm a).2 S oracle state]
+  simp only [← FreeM.map_eq_map, FreeM.runKernel_map, h a S oracle state]
+
 end Turing.MultiTapePTM
