@@ -6,10 +6,9 @@ Authors: Devon Tuma
 
 import Cslib.Foundations.Data.PFunctor.Resumption.Repeat
 import Cslib.Foundations.Data.PFunctor.Resumption.Measure.Cost
-import Cslib.Foundations.Data.PFunctor.Free.Measure.PMF
 import Cslib.Foundations.Data.PFunctor.Free.Measure.WP
 import Mathlib.MeasureTheory.MeasurableSpace.Instances
-import Mathlib.Probability.Distributions.Uniform
+import Mathlib.Probability.UniformOn
 import Mathlib.Analysis.SpecificLimits.Basic
 import Std.WP.Triple
 import Std.Tactic.Do
@@ -17,7 +16,7 @@ import Std.Tactic.Do
 /-! An exact, nondyadic sampler with an infinite rejected branch. Adapted from VCVio's
 `Examples.ResumptionRejection`. This checks the returned-output limit, including zero fuel. -/
 
-open MeasureTheory PFunctor
+open MeasureTheory ProbabilityTheory PFunctor
 open scoped ENNReal
 
 namespace PFunctorProbability
@@ -30,7 +29,7 @@ def accept (x : Fin 4) : Option (Fin 3) :=
 def sample : Resumption four (Fin 3) := Resumption.repeatUntil () accept
 
 noncomputable def answers (_ : four.A) : Measure (Fin 4) :=
-  (PMF.uniformOfFintype (Fin 4)).toMeasure
+  uniformOn Set.univ
 
 instance (op : four.A) : IsProbabilityMeasure (answers op) := by
   unfold answers
@@ -43,8 +42,7 @@ theorem output_succ (k : ℕ) (s : Set (Fin 3)) :
   rw [sample, Resumption.outputMeasure_repeatUntil_succ (P := four),
     Measure.bind_apply (Set.to_countable s).measurableSet Measurable.of_discrete.aemeasurable,
     lintegral_fintype]
-  simp [answers, PMF.toMeasure_apply_singleton _ _ (measurableSet_singleton _),
-    PMF.uniformOfFintype_apply, Fin.sum_univ_succ, accept, ← add_mul, add_assoc]
+  simp [answers, uniformOn_univ, Fin.sum_univ_succ, accept, ← add_mul, add_assoc]
 
 theorem output_singleton (k : ℕ) (x : Fin 3) :
     Resumption.outputMeasure answers k sample {x} =
@@ -61,13 +59,13 @@ theorem output_singleton (k : ℕ) (x : Fin 3) :
     exact add_comm _ _
 
 theorem returned_uniform : Resumption.returnedMeasure answers sample =
-    (PMF.uniformOfFintype (Fin 3)).toMeasure := by
+    uniformOn Set.univ := by
   apply Measure.ext_of_singleton
   intro x
   rw [Resumption.returnedMeasure_apply (P := four) _ _ _ (measurableSet_singleton _)]
   simp_rw [output_singleton]
   rw [← ENNReal.tsum_eq_iSup_nat, ENNReal.tsum_geometric_add_one,
-    PMF.toMeasure_apply_singleton _ _ (measurableSet_singleton _), PMF.uniformOfFintype_apply]
+    uniformOn_univ, Measure.count_singleton]
   norm_num
   change ((4 : NNReal) : ℝ≥0∞)⁻¹ *
     ((1 : NNReal) - ((4 : NNReal) : ℝ≥0∞)⁻¹)⁻¹ = ((3 : NNReal) : ℝ≥0∞)⁻¹
@@ -95,8 +93,7 @@ theorem timeout_succ (k : ℕ) :
   rw [FreeM.denote_lift_bind (P := four) answers () _ Measurable.of_discrete.aemeasurable,
     Measure.bind_apply Option.measurableSet_none Measurable.of_discrete.aemeasurable,
     lintegral_fintype]
-  simp [answers, PMF.toMeasure_apply_singleton _ _ (measurableSet_singleton _),
-    PMF.uniformOfFintype_apply, Fin.sum_univ_succ, accept,
+  simp [answers, uniformOn_univ, Fin.sum_univ_succ, accept,
     Measure.dirac_apply' _ Option.measurableSet_none]
 
 theorem timeout (k : ℕ) :
@@ -131,8 +128,7 @@ example : ⦃(3 / 4 : ℝ≥0∞)⦄ accepted ⦃fun b => if b then 1 else 0⦄ 
   vcgen [accepted]
   change (3 / 4 : ℝ≥0∞) ≤ ∫⁻ x : Fin 4, (if decide (x.val < 3) then 1 else 0) ∂answers ()
   norm_num [answers, lintegral_fintype,
-    PMF.toMeasure_apply_singleton _ _ (measurableSet_singleton _),
-    PMF.uniformOfFintype_apply, Fin.sum_univ_succ]
+    uniformOn_univ, Measure.count_singleton, Fin.sum_univ_succ]
   simp [show (3 : ℝ≥0∞) = 1 + 1 + 1 by norm_num, div_eq_mul_inv, add_mul, add_assoc]
 
 end Quantitative

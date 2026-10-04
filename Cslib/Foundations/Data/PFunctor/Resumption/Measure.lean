@@ -119,6 +119,10 @@ theorem returnedMeasure_apply_univ_le_one [∀ op, IsProbabilityMeasure (μ op)]
   rw [returnedMeasure_apply μ x Set.univ MeasurableSet.univ]
   exact iSup_le fun k => outputMeasure_apply_univ_le_one μ k x
 
+instance [∀ op, IsProbabilityMeasure (μ op)] (x : Resumption P α) :
+    IsFiniteMeasure (returnedMeasure μ x) :=
+  ⟨(returnedMeasure_apply_univ_le_one μ x).trans_lt ENNReal.one_lt_top⟩
+
 /-- Every well-founded free program has exactly its original denotation in the resumption model. -/
 @[simp]
 theorem returnedMeasure_toResumption (x : P.FreeM α) :
@@ -195,5 +199,21 @@ theorem returnedMeasure_map (x : Resumption P α) (f : α → β) (hf : Measurab
   · simp only [returnedMeasure_pure]
     exact Measure.bind_dirac_eq_map _ hf
   · simpa only [returnedMeasure_pure, Function.comp_def] using Measure.measurable_dirac.comp hf
+
+universe uQ
+
+/-- Inlining possibly infinite handlers into a free program preserves measure semantics. -/
+theorem returnedMeasure_liftM {Q : PFunctor.{uQ, v}}
+    [∀ op, MeasurableSpace (Q.B op)] [∀ op, DiscreteMeasurableSpace (Q.B op)]
+    (handler : (op : Q.A) → Resumption P (Q.B op)) (x : Q.FreeM α) :
+    returnedMeasure μ (x.liftM handler) =
+      FreeM.denote (fun op => returnedMeasure μ (handler op)) x := by
+  induction x with
+  | pure a => exact returnedMeasure_pure μ a
+  | lift_bind op cont ih =>
+    change returnedMeasure μ ((handler op).bind fun b => (cont b).liftM handler) = _
+    rw [returnedMeasure_bind μ _ _ Measurable.of_discrete,
+      FreeM.denote_lift_bind _ _ _ Measurable.of_discrete.aemeasurable]
+    exact Measure.bind_congr_right (Filter.Eventually.of_forall ih)
 
 end PFunctor.Resumption

@@ -4,31 +4,12 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import Cslib.Crypto.Primitives.PRG.Statistical
+import Cslib.Crypto.Primitives.PRG.Asymptotic
 
 open Cslib.Crypto.PRG Filter
 open scoped NNReal Topology
 
 namespace CslibTests.PRG
-
-open Cslib.Crypto Cslib.Probability.PMF
-
--- Statistical distance and its security consequences need no finite ambient type.
-example : dist (PMF.pure (0 : ℕ)) (PMF.pure 1) = 1 := by
-  apply dist_eq_one_of_disjoint_support
-  simp
-
-example (p q : PMF ℕ) {ε : ℝ≥0} (h : StatisticallyClose p q ε) :
-    (Generator.mk (id : ℕ → ℕ)).Secure (fun _ => True) ε p q := by
-  apply Generator.secure_of_statisticallyClose
-  simpa [Generator.outputDist, PMF.map_id] using h
-
--- The same asymptotic theorem handles sample spaces depending on the parameter.
-example (samples : ∀ n : ℕ, PMF (Fin (n + 1))) :
-    Family.Secure (fun n => Generator.mk (id : Fin (n + 1) → Fin (n + 1)))
-      (fun _ => True) samples samples := by
-  apply Family.secure_of_statisticallyIndistinguishable
-  simpa [Generator.outputDist, PMF.map_id] using StatisticallyIndistinguishable.refl samples
 
 -- Generators support ordinary function application and extensionality.
 example {Seed Output : Type*} (G H : Generator Seed Output)
@@ -39,17 +20,11 @@ example : (Generator.mk (id : Bool → Bool)).Secure (fun _ => True) 0 := by
   apply Generator.secure_zero_of_outputDist_eq
   exact PMF.map_id _
 
--- Explicit distributions allow infinite ambient types and need not agree.
-example : (Generator.mk (id : ℕ → ℕ)).advantage (fun n => PMF.pure (decide (n = 0)))
-    (seed := PMF.pure 0) (ideal := PMF.pure 1) = 1 := by
-  simp [Generator.advantage, Generator.realExperiment, Generator.idealExperiment,
-    Generator.outputDist, Cslib.Crypto.Game.advantage, Cslib.Crypto.Game.winProbability]
-
 -- Zero-error security implies uniform output.
 example {Seed Output : Type*} [Fintype Seed] [Nonempty Seed]
     [Fintype Output] [Nonempty Output] (G : Generator Seed Output)
     (h : G.Secure (fun _ => True) 0) : G.outputDist = PMF.uniformOfFintype Output :=
-  G.secure_zero_iff_outputDist_eq.mp h
+  G.secure_zero_iff_outputDist_eq_uniform.mp h
 
 example (G : Generator Bool (Bool × Bool)) (Admissible : Adversary (Bool × Bool) → Prop)
     {ε δ : ℝ≥0} (hεδ : ε ≤ δ) (h : G.Secure Admissible ε) : G.Secure Admissible δ :=
@@ -89,7 +64,7 @@ example : Family.Secure (fun n => Generator.mk (id : (Fin n → Bool) → (Fin n
       (fun n => Generator.mk (id : (Fin n → Bool) → (Fin n → Bool)))
       (fun _ => True) (fun _ => 0) := by
     intro adversary_family _ n
-    simp [Generator.realExperiment, Generator.idealExperiment,
+    simp [Generator.advantage, Generator.realExperiment, Generator.idealExperiment,
       Generator.outputDist, PMF.map_id]
   exact h.secure (Asymptotics.superpolynomialDecay_zero _ _)
 
@@ -121,19 +96,19 @@ example (G : Family (fun n => Fin (n + 1)) (fun n => Fin (n + 2))) :
 -- A stretching bitstring generator is insecure against its range test.
 example (G : Family (fun n => Fin n → Bool) (fun n => Fin (n + 1) → Bool)) :
     ¬ G.Secure (fun adversary_family => adversary_family = fun n => (G n).rangeAdversary) :=
-  G.not_secure_of_bitstring_stretch rfl (Eventually.of_forall (by lia))
+  G.not_secure_of_bitstring_stretch rfl (Eventually.of_forall (by omega))
 
 example (G : Family BitVec (fun n => BitVec (n + 1))) :
     ¬ G.Secure (fun adversary_family => adversary_family = fun n => (G n).rangeAdversary) :=
-  G.not_secure_of_bitVec_stretch rfl (Eventually.of_forall (by lia))
+  G.not_secure_of_bitVec_stretch rfl (Eventually.of_forall (by omega))
 
 -- No n-to-(n+1)-bit generator resists arbitrary adversary families.
 example : ¬ ∃ G : Family (fun n => Fin n → Bool) (fun n => Fin (n + 1) → Bool),
     G.Secure (fun _ => True) :=
-  Family.not_exists_secure_bitstring_stretch (Filter.Eventually.of_forall (by lia))
+  Family.not_exists_secure_bitstring_stretch (Filter.Eventually.of_forall (by omega))
 
 -- No n-to-(n+1)-bit BitVec family is secure against all adversaries.
 example : ¬ ∃ G : Family BitVec (fun n => BitVec (n + 1)), G.Secure (fun _ => True) :=
-  Family.not_exists_secure_bitVec_stretch (Filter.Eventually.of_forall (by lia))
+  Family.not_exists_secure_bitVec_stretch (Filter.Eventually.of_forall (by omega))
 
 end CslibTests.PRG

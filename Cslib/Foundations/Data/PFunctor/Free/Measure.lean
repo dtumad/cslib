@@ -105,9 +105,10 @@ theorem denote_bind [MeasurableSpace α] [MeasurableSpace β]
     rw [Measure.bind_bind Measurable.of_discrete.aemeasurable hf.aemeasurable]
     exact Measure.bind_congr_right (Filter.Eventually.of_forall ih)
 
-theorem denote_bind_of_discrete [MeasurableSpace α] [DiscreteMeasurableSpace α]
+theorem denote_bind_of_discrete {α β : Type v}
+    [MeasurableSpace α] [DiscreteMeasurableSpace α]
     [MeasurableSpace β] (x : P.FreeM α) (f : α → P.FreeM β) :
-    denote μ (x.bind f) = (denote μ x).bind fun a => denote μ (f a) :=
+    denote μ (x >>= f) = (denote μ x).bind fun a => denote μ (f a) :=
   denote_bind μ x f Measurable.of_discrete
 
 theorem denote_map [MeasurableSpace α] [MeasurableSpace β]
@@ -122,7 +123,7 @@ theorem denote_bind_bind_prod_mk [MeasurableSpace α] [DiscreteMeasurableSpace �
     [MeasurableSpace β] (x : P.FreeM α) (y : P.FreeM β) :
     denote μ (x.bind fun a => y.bind fun b => pure (a, b)) =
       (denote μ x).prod (denote μ y) := by
-  rw [denote_bind_of_discrete, Measure.prod]
+  rw [denote_bind μ x _ Measurable.of_discrete, Measure.prod]
   apply Measure.bind_congr_right
   filter_upwards [] with a
   simpa only [← bind_pure_comp, Function.comp_def] using
@@ -137,7 +138,7 @@ theorem denote_liftM {Q : PFunctor.{uQ, uB}} [∀ op, MeasurableSpace (Q.B op)]
   | pure a => rfl
   | lift_bind op cont ih =>
     change denote μ ((handler op).bind fun b => (cont b).liftM handler) = _
-    rw [denote_bind_of_discrete,
+    rw [denote_bind μ (handler op) _ Measurable.of_discrete,
       denote_lift_bind _ _ _ Measurable.of_discrete.aemeasurable]
     exact Measure.bind_congr_right (Filter.Eventually.of_forall ih)
 

@@ -4,63 +4,118 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Devon Tuma
 -/
 
-import Cslib.Computability.Probabilistic.Sampling
-import Cslib.Computability.Probabilistic.CoinTape
 import Cslib.Crypto.Primitives.ElGamal.Oracle
-import Cslib.Foundations.Control.Monad.Free.PFunctor
+import CslibTests.PFunctorProbability
+import Mathlib.MeasureTheory.MeasurableSpace.Instances
 
-/-! Compatibility checks against Samuel Schlesinger's probabilistic programs and machines. -/
+/-! These examples check native measure semantics, dependent sampling operations, and the
+encryption-oracle reduction for a small cyclic group. The group is an API test, not a security
+assumption or an efficient implementation of ElGamal. -/
 
-namespace CslibTests.PFunctorCrypto
+open Cslib.Crypto PFunctor MeasureTheory ProbabilityTheory
+open scoped ENNReal
 
-open Cslib Cslib.Probability
+namespace PFunctorCrypto
 
-abbrev coins : PFunctor := ⟨Unit, fun _ => Bool⟩
+abbrev G := Multiplicative (ZMod 3)
 
-def bits : ℕ → coins.FreeM Word
-  | 0 => pure []
-  | n + 1 => do
-    let bit ← PFunctor.FreeM.lift ()
-    pure (bit :: (← bits n))
+instance : MeasurableSpace G := ⊤
+instance : MeasurableSingletonClass G := ⟨fun _ => trivial⟩
 
-theorem compile_bits (n : ℕ) :
-    (bits n).liftM (fun _ => (OracleComp.uniform Bool : ProbComp Bool)) =
-      OracleComp.sampleBits n := by
-  induction n with
-  | zero => rfl
-  | succ n ih =>
-    have hcoin := PFunctor.FreeM.liftM_lift (P := coins)
-      (fun _ => (OracleComp.uniform Bool : ProbComp Bool)) ()
-    simp [bits, OracleComp.sampleBits, PFunctor.FreeM.liftM_bind, hcoin, ih]
+def generator : G := Multiplicative.ofAdd 1
 
-/-- Native polynomial bit sampling inherits an actual finite-machine PPT certificate. -/
-example : IsPPT wordEncoding (fun n _ =>
-    (bits n).liftM (fun _ => (OracleComp.uniform Bool : ProbComp Bool))) := by
-  simpa only [compile_bits] using isPPT_sampleBits
+theorem generator_bijective : Function.Bijective (fun x : Fin 3 => generator ^ x.val) := by
+  decide
 
-/-- The syntax conversion preserves the whole stateful interpretation, including private state. -/
-example {Query : Type} {Response : Query → Type} {α State : Type}
-    (oracle : (q : Query) → StateT State PMF (Response q))
-    (program : OracleComp Query Response α) (s : State) :
-    ((program.toPFunctor).liftM (fun op : (PFunctor.ofFamily (ProbEffect Query Response)).A =>
-      OracleComp.stateEffect oracle op.2)) s =
-      OracleComp.runState oracle program s := by
-  rw [FreeM.liftM_toPFunctor (OracleComp.stateEffect oracle) program]
-  rfl
+abbrev randomness : PFunctor := ⟨Bool, fun | false => Fin 3 | true => Bool⟩
 
-/-- A saved-coin realization transports to polynomial syntax with the same machine and clock. -/
-example {α β : Type} {input : α → Word} {output : β ↪ Word} {program : α → ProbComp β}
-    (h : IsPPTOn input output program) :
-    ∃ (k states : ℕ) (machine : Turing.OracleTM k (Fin states)) (c d : ℕ),
-      ∀ a, (((program a).toPFunctor).liftM
-        (fun op : (PFunctor.ofFamily (ProbEffect PEmpty (fun _ => PEmpty))).A =>
-          OracleComp.evalEffect (fun q : PEmpty => q.elim) op.2)).map output =
-          (uniformBits (c * ((input a).length + 1) ^ d)).map
-            (fun tape => Turing.MultiTapePTM.runCoins (m := Id) machine (fun _ _ => [])
-              tape (input a)) := by
-  obtain ⟨k, states, machine, c, d, hmachine⟩ := h.exists_coin_machine
-  refine ⟨k, states, machine, c, d, fun a => ?_⟩
-  rw [FreeM.liftM_toPFunctor (OracleComp.evalEffect (fun q : PEmpty => q.elim)) (program a)]
-  exact hmachine a
+instance (op : randomness.A) : MeasurableSpace (randomness.B op) := by
+  cases op <;> infer_instance
 
-end CslibTests.PFunctorCrypto
+instance (op : randomness.A) : DiscreteMeasurableSpace (randomness.B op) := by
+  cases op <;> infer_instance
+
+noncomputable def answers : (op : randomness.A) → Measure (randomness.B op)
+  | false => uniformOn Set.univ
+  | true => uniformOn Set.univ
+
+instance (op : randomness.A) : IsProbabilityMeasure (answers op) := by
+  cases op <;> unfold answers <;> infer_instance
+
+def sample : randomness.FreeM (Fin 3) := FreeM.lift (P := randomness) false
+def coin : randomness.FreeM Bool := FreeM.lift (P := randomness) true
+
+def challengeBit : PFunctorProbability.four.FreeM Bool :=
+  FreeM.map (fun x : Fin 4 => decide (x.val < 2)) (FreeM.lift ())
+
+theorem challengeBit_uniform :
+    FreeM.denote PFunctorProbability.answers challengeBit = uniformOn Set.univ := by
+  classical
+  rw [challengeBit, FreeM.denote_map (P := PFunctorProbability.four)
+    PFunctorProbability.answers _ _ Measurable.of_discrete]
+  rw [FreeM.denote_lift (P := PFunctorProbability.four)]
+  apply Measure.ext_of_singleton
+  intro bit
+  rw [Measure.map_apply Measurable.of_discrete (measurableSet_singleton _)]
+  have hfiber : (fun x : Fin 4 => decide (x.val < 2)) ⁻¹' {bit} =
+      if bit then {0, 1} else {2, 3} := by
+    ext x
+    fin_cases x <;> cases bit <;> norm_num
+  rw [hfiber, uniformOn_univ (Ω := Bool), Measure.count_singleton]
+  cases bit <;> norm_num [PFunctorProbability.answers, uniformOn_univ, Measure.count_apply,
+    Set.encard_insert_of_notMem, Set.encard_singleton]
+  all_goals
+    change ((2 : NNReal) : ℝ≥0∞) / ((4 : NNReal) : ℝ≥0∞) = ((2 : NNReal) : ℝ≥0∞)⁻¹
+    rw [← ENNReal.coe_div (by norm_num), ← ENNReal.coe_inv (by norm_num)]
+    norm_num
+
+/-- Each exponent request uses exact rejection sampling; challenge bits use a fresh draw. -/
+def concreteHandler : (op : randomness.A) →
+    Resumption PFunctorProbability.four (randomness.B op)
+  | false => PFunctorProbability.sample
+  | true => challengeBit.toResumption
+
+theorem concreteHandler_correct (op : randomness.A) :
+    Resumption.returnedMeasure PFunctorProbability.answers (concreteHandler op) = answers op := by
+  cases op with
+  | false => exact PFunctorProbability.returned_uniform
+  | true =>
+    change Resumption.returnedMeasure _ challengeBit.toResumption = _
+    rw [Resumption.returnedMeasure_toResumption (P := PFunctorProbability.four)]
+    exact challengeBit_uniform
+
+-- The actual experiment below runs rejection samplers, including their infinite rejected paths.
+example
+    (choose : G → (randomness + PFunctor.mk G (fun _ => G × G)).FreeM (G × G × ℕ))
+    (guess : ℕ → G × G → (randomness + PFunctor.mk G (fun _ => G × G)).FreeM Bool) :
+    |Game.winProbability (Resumption.returnedMeasure PFunctorProbability.answers
+        ((ElGamal.cpaOracleExperiment sample coin generator choose guess).liftM concreteHandler)) -
+          1 / 2| =
+      Game.advantage
+        (Resumption.returnedMeasure PFunctorProbability.answers
+          ((ElGamal.ddhReal sample generator
+            (ElGamal.ddhOracleReduction sample coin generator choose guess)).liftM concreteHandler))
+        (Resumption.returnedMeasure PFunctorProbability.answers
+          ((ElGamal.ddhRandom sample generator
+            (ElGamal.ddhOracleReduction sample coin generator choose guess)).liftM
+              concreteHandler)) := by
+  have hhandler : (fun op => Resumption.returnedMeasure
+      PFunctorProbability.answers (concreteHandler op)) = answers := by
+    funext op
+    exact concreteHandler_correct op
+  simp only [Resumption.returnedMeasure_liftM, hhandler]
+  exact ElGamal.advantage_oracle_eq_ddh sample coin generator choose guess answers
+    generator_bijective (FreeM.denote_lift (P := randomness) answers false)
+      (FreeM.denote_lift (P := randomness) answers true)
+
+-- Losing half the mass does not turn complement into `1 - p`.
+example : Game.winProbability
+    (((1 / 2 : ℝ≥0∞) • Measure.dirac true).map Bool.not) = 0 := by
+  rw [Game.winProbability,
+    map_measureReal_apply Measurable.of_discrete (measurableSet_singleton _)]
+  simp [measureReal_def]
+
+example : Game.advantage ((1 / 2 : ℝ≥0∞) • Measure.dirac true) (Measure.dirac false) = 1 / 2 := by
+  simp [Game.winProbability, measureReal_def]
+
+end PFunctorCrypto

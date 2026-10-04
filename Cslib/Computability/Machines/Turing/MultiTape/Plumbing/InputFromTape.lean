@@ -6,9 +6,8 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 
 module
 
-public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.WordsCfg
-public import Cslib.Computability.Machines.Turing.MultiTape.TapeLemmas
-public import Mathlib.Data.Fin.VecNotation
+public import Mathlib.Algebra.BigOperators.Fin
+public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.TransformsTapes
 
 /-!
 # Reading the input from a work tape

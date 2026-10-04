@@ -25,7 +25,7 @@ efficient implementation of the inlined handler is a separate computational obli
 
 namespace Cslib.Crypto.ElGamal
 
-open PFunctor
+open PFunctor MeasureTheory ProbabilityTheory
 
 universe uA
 
@@ -60,14 +60,20 @@ def ddhOracleReduction (pk head mask : G) : P.FreeM Bool := do
   pure (bit == answer)
 
 /-- Allowing encryption queries before and after the challenge preserves the exact DDH bound. -/
-theorem advantage_oracle_eq_ddh [NeZero n] (interp : (op : P.A) → PMF (P.B op))
+theorem advantage_oracle_eq_ddh [NeZero n]
+    [∀ op, MeasurableSpace (P.B op)] [∀ op, DiscreteMeasurableSpace (P.B op)]
+    [MeasurableSpace G] [MeasurableSingletonClass G]
+    [MeasurableSpace State] [MeasurableSingletonClass State] [Countable State]
+    (μ : (op : P.A) → Measure (P.B op)) [∀ op, IsProbabilityMeasure (μ op)]
     (hg : Function.Bijective (fun x : Fin n => g ^ x.val))
-    (hsample : sample.liftM interp = PMF.uniformOfFintype (Fin n))
-    (hcoin : coin.liftM interp = PMF.uniformOfFintype Bool) :
-    |Game.winProbability ((cpaOracleExperiment sample coin g choose guess).liftM interp) - 1 / 2| =
+    (hsample : FreeM.denote μ sample = uniformOn Set.univ)
+    (hcoin : FreeM.denote μ coin = uniformOn Set.univ) :
+    |Game.winProbability
+        (FreeM.denote μ (cpaOracleExperiment sample coin g choose guess)) - 1 / 2| =
       Game.advantage
-        ((ddhReal sample g (ddhOracleReduction sample coin g choose guess)).liftM interp)
-        ((ddhRandom sample g (ddhOracleReduction sample coin g choose guess)).liftM interp) := by
+        (FreeM.denote μ (ddhReal sample g (ddhOracleReduction sample coin g choose guess)))
+        (FreeM.denote μ (ddhRandom sample g (ddhOracleReduction sample coin g choose guess))) := by
+  let : Fintype G := Fintype.ofEquiv (Fin n) (Equiv.ofBijective _ hg)
   let choose' (pk : G) : P.FreeM (G × G × (G × State)) := do
     let (m₀, m₁, state) ← (choose pk).liftM (encryptHandler sample g pk)
     pure (m₀, m₁, (pk, state))
@@ -81,6 +87,6 @@ theorem advantage_oracle_eq_ddh [NeZero n] (interp : (op : P.A) → PMF (P.B op)
     funext pk head mask
     simp [ddhReduction, ddhOracleReduction, choose', guess']
   simpa only [hcpa, hreduce] using
-    advantage_liftM_eq_ddh sample coin g choose' guess' interp hg hsample hcoin
+    advantage_eq_ddh μ sample coin g choose' guess' hg hsample hcoin
 
 end Cslib.Crypto.ElGamal

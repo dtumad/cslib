@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 
 public import Cslib.Crypto.Primitives.PRG.Basic
+public import Mathlib.Analysis.Asymptotics.SuperpolynomialDecay
 public import Mathlib.Data.FinEnum
 
 /-!
@@ -18,8 +19,6 @@ adversary family, following [BonehShoup2023], Definition 3.1. Negligibility uses
 family, so a downstream computational model can express a uniform resource restriction.
 This model has a natural-number security parameter and no sampled public system parameters.
 Efficiency of generation and sampling is not asserted by these semantic definitions.
-Seed and ideal distributions can be supplied explicitly; their defaults are uniform on finite
-types. Both finite families and word programs instantiate `Game.Secure`.
 
 `SecureWithError` bounds every admissible family's advantage at parameter `n` by `ε n`.
 A negligible bound implies `Secure`.
@@ -42,44 +41,45 @@ abbrev Family (Seed Output : ℕ → Type*) := ∀ n, Generator (Seed n) (Output
 namespace Family
 
 variable {Seed Output : ℕ → Type*}
+variable [∀ n, Fintype (Seed n)] [∀ n, Nonempty (Seed n)]
+variable [∀ n, Fintype (Output n)] [∀ n, Nonempty (Output n)]
 
 /-- Every admissible adversary family has negligible distinguishing advantage.
 The predicate can encode computational restrictions; `fun _ => True` permits all families. -/
 def Secure (G : Family Seed Output)
-    (Admissible : (∀ n, Adversary (Output n)) → Prop)
-    (seed : ∀ n, PMF (Seed n) := by intro n; exact PMF.uniformOfFintype _)
-    (ideal : ∀ n, PMF (Output n) := by intro n; exact PMF.uniformOfFintype _) : Prop :=
-  Game.Secure (fun adversary n => (G n).realExperiment (adversary n) (seed := seed n))
-    (fun adversary n => Generator.idealExperiment (adversary n) (ideal := ideal n)) Admissible
+    (Admissible : (∀ n, Adversary (Output n)) → Prop) : Prop :=
+  ∀ adversary_family, Admissible adversary_family →
+    Asymptotics.SuperpolynomialDecay atTop (fun n : ℕ => (n : ℝ))
+      (fun n => (G n).advantage (adversary_family n))
 
 /-- Restricting the admissible adversary families preserves asymptotic security. -/
 theorem Secure.of_admissible {G : Family Seed Output}
     {Admissible Restricted : (∀ n, Adversary (Output n)) → Prop}
-    {seed : ∀ n, PMF (Seed n)} {ideal : ∀ n, PMF (Output n)}
-    (h : G.Secure Admissible (seed := seed) (ideal := ideal))
+    (h : G.Secure Admissible)
     (hsub : ∀ adversary_family, Restricted adversary_family → Admissible adversary_family) :
-    G.Secure Restricted (seed := seed) (ideal := ideal) := Game.Secure.of_admissible h hsub
+    G.Secure Restricted := fun adversary_family ha =>
+      h adversary_family (hsub adversary_family ha)
 
 /-- Every admissible adversary family has advantage at most `ε n` at each parameter `n`. -/
 def SecureWithError (G : Family Seed Output)
-    (Admissible : (∀ n, Adversary (Output n)) → Prop) (ε : ℕ → ℝ≥0)
-    (seed : ∀ n, PMF (Seed n) := by intro n; exact PMF.uniformOfFintype _)
-    (ideal : ∀ n, PMF (Output n) := by intro n; exact PMF.uniformOfFintype _) : Prop :=
-  Game.SecureWithError (fun adversary n => (G n).realExperiment (adversary n) (seed := seed n))
-    (fun adversary n => Generator.idealExperiment (adversary n) (ideal := ideal n)) Admissible ε
+    (Admissible : (∀ n, Adversary (Output n)) → Prop) (ε : ℕ → ℝ≥0) : Prop :=
+  ∀ adversary_family, Admissible adversary_family →
+    ∀ n, (G n).advantage (adversary_family n) ≤ ε n
 
 /-- A negligible error bound implies asymptotic security. -/
 theorem SecureWithError.secure {G : Family Seed Output}
     {Admissible : (∀ n, Adversary (Output n)) → Prop} {ε : ℕ → ℝ≥0}
-    {seed : ∀ n, PMF (Seed n)} {ideal : ∀ n, PMF (Output n)}
-    (h : G.SecureWithError Admissible ε (seed := seed) (ideal := ideal))
-    (hε : Negligible (fun n => (ε n : ℝ))) : G.Secure Admissible (seed := seed) (ideal := ideal) :=
-  Game.SecureWithError.secure h hε
+    (h : G.SecureWithError Admissible ε)
+    (hε : Asymptotics.SuperpolynomialDecay atTop (fun n : ℕ => (n : ℝ))
+      (fun n => (ε n : ℝ))) : G.Secure Admissible := by
+  intro adversary_family ha
+  apply hε.trans_abs_le
+  intro n
+  simpa only [abs_of_nonneg ((G n).advantage_nonneg (adversary_family n)),
+    abs_of_nonneg (ε n).coe_nonneg] using h adversary_family ha n
 
 section RangeTests
 
-variable [∀ n, Fintype (Seed n)] [∀ n, Nonempty (Seed n)]
-variable [∀ n, Fintype (Output n)] [∀ n, Nonempty (Output n)]
 variable [∀ n, DecidableEq (Output n)]
 
 /-- A non-negligible lower bound on the fraction of outputs outside the image rules out
@@ -96,11 +96,8 @@ theorem not_secure_of_rangeAdversary (G : Family Seed Output)
   apply hδ
   apply (h _ ha).trans_eventually_abs_le
   filter_upwards [hgap] with n hn
-  change |(δ n : ℝ)| ≤ |(G n).advantage (G n).rangeAdversary
-    (seed := PMF.uniformOfFintype (Seed n)) (ideal := PMF.uniformOfFintype (Output n))|
-  rw [abs_of_nonneg (δ n).coe_nonneg,
-    abs_of_nonneg ((G n).advantage_nonneg _ (seed := PMF.uniformOfFintype (Seed n))
-      (ideal := PMF.uniformOfFintype (Output n))),
+  change |(δ n : ℝ)| ≤ |(G n).advantage (G n).rangeAdversary|
+  rw [abs_of_nonneg (δ n).coe_nonneg, abs_of_nonneg ((G n).advantage_nonneg _),
     Generator.advantage_rangeAdversary]
   exact hn
 

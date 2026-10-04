@@ -6,8 +6,8 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 
 module
 
-public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.WordsCfg
-public import Cslib.Computability.Machines.Turing.MultiTape.TapeLemmas
+public import Mathlib.Algebra.BigOperators.Fin
+public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.TransformsTapes
 
 /-!
 # Redirecting the output to a work tape

@@ -120,11 +120,6 @@ lemma leftCfg_of_halt {cfg : Cfg k Symbol State₀ input} (h : cfg.state = none)
 
 end Sequential
 
-/-- Sequential execution starts in the first machine's initial configuration. -/
-lemma initCfg_seq (tm₀ : MultiTapeTM k Symbol State₀) (tm₁ : MultiTapeTM k Symbol State₁)
-    (input : List Symbol) :
-    (tm₀.seq tm₁).initCfg input = Sequential.leftCfg tm₁ (tm₀.initCfg input) := rfl
-
 open Sequential in
 /-- If `tm₀` halts at step `u`, then from step `u` on `seq` mirrors `tm₁`, started where `tm₀`
 halted. -/
@@ -155,20 +150,6 @@ theorem runFrom_seq {cfg mid : Cfg k Symbol State₀ input} {fin : Cfg k Symbol 
     simp only [hrun, Cfg.Halted] at hfin ⊢
     simp [rightCfg, hfin]
   rw [runFrom_eq_of_halt _ _ (by omega) hhalt, hrun]
-
-/-- Sequential composition on word configurations, with all state remapping hidden. -/
-theorem runFrom_seq_words (first : MultiTapeTM k Symbol State₀)
-    (second : MultiTapeTM k Symbol State₀₁)
-    (words middle final : Fin k → List Symbol) (output middleOutput finalOutput : List Symbol)
-    (firstTime secondTime : ℕ)
-    (hfirst : first.runFrom (wordsCfg input (some first.q₀) words output) firstTime =
-      wordsCfg input none middle middleOutput)
-    (hsecond : second.runFrom (wordsCfg input (some second.q₀) middle middleOutput) secondTime =
-      wordsCfg input none final finalOutput) :
-    (first.seq second).runFrom (wordsCfg input (some (first.seq second).q₀) words output)
-      (firstTime + secondTime) = wordsCfg input none final finalOutput := by
-  simpa [Sequential.leftCfg, Sequential.rightCfg, seq] using
-    runFrom_seq hfirst rfl hsecond rfl
 
 open Sequential in
 /-- **Sequential composition of transformations.** If the postcondition of the first

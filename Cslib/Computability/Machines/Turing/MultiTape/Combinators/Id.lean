@@ -21,8 +21,6 @@ outputs `w` after `w.length + 1` steps, and having no work tapes it uses zero sp
   input symbol and zero space.
 -/
 
-@[expose] public section
-
 namespace Turing.MultiTapeTM
 
 variable {Symbol : Type*} {input : List Symbol}
@@ -89,7 +87,7 @@ end Copy
 variable {α : Type*}
 
 /-- The identity function is computable in one step per input symbol and zero space. -/
-theorem computableInTimeAndSpace_id {enc : α ↪ List Bool} :
+public theorem computableInTimeAndSpace_id {enc : α ↪ List Bool} :
     ComputableInTimeAndSpace (id : α → α) enc enc
       (fun a => (enc a).length + 1) (fun _ => 0) :=
   ⟨0, Unit, inferInstance, copy, fun a =>

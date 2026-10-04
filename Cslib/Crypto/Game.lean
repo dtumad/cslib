@@ -1,19 +1,21 @@
 /-
 Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Samuel Schlesinger, Devon Tuma
 -/
 
 module
 
 public import Cslib.Crypto.Negligible
-public import Cslib.Probability.PMF
+public import Mathlib.Probability.UniformOn
+public import Mathlib.MeasureTheory.Measure.Real
 
 /-!
 # Security of Boolean experiments
 
-A `Game` is the distribution of a Boolean experiment. Its acceptance probability, distinguishing
-advantage, and asymptotic security are independent of the language used to write the experiment.
+A `Game` is a measure on Boolean outcomes. It may lose mass through nontermination.
+Normalization is explicit where required. Acceptance probability, distinguishing advantage, and
+asymptotic security are independent of the language used to write the experiment.
 `Game.Secure` restricts whole adversaries, which may themselves be families of tests. This lets
 finite cryptographic primitives and uniform PPT programs share the same security definitions.
 
@@ -25,15 +27,16 @@ The advantage convention is the absolute difference of acceptance probabilities,
 
 namespace Cslib.Crypto
 
+open MeasureTheory ProbabilityTheory
 open scoped NNReal
 
 /-- The distribution of the Boolean result of a security experiment. -/
-abbrev Game := PMF Bool
+abbrev Game := Measure Bool
 
 namespace Game
 
 /-- The probability that an experiment accepts. -/
-noncomputable abbrev winProbability (game : Game) : ℝ := (game true).toReal
+noncomputable abbrev winProbability (game : Game) : ℝ := game.real {true}
 
 /-- The absolute difference of two experiments' acceptance probabilities. -/
 noncomputable abbrev advantage (real ideal : Game) : ℝ :=
@@ -50,15 +53,24 @@ theorem advantage_nonneg (real ideal : Game) : 0 ≤ advantage real ideal := abs
 theorem advantage_comm (real ideal : Game) : advantage real ideal = advantage ideal real :=
   abs_sub_comm _ _
 
-/-- Complementing a game's answer exchanges acceptance and rejection. -/
-@[simp] theorem winProbability_not (game : Game) :
-    winProbability (game.map Bool.not) = 1 - winProbability game := by
-  have hsum := Probability.PMF.sum_toReal game
-  simp [winProbability, PMF.map_apply, tsum_fintype] at *
-  linarith
+/-- Complementing an answer preserves missing mass from nontermination. -/
+theorem winProbability_not_of_isFiniteMeasure (game : Game) [IsFiniteMeasure game] :
+    winProbability (game.map Bool.not) = game.real Set.univ - winProbability game := by
+  have hpre : Bool.not ⁻¹' {true} = ({true} : Set Bool)ᶜ := by
+    ext b
+    cases b <;> simp
+  simp only [winProbability, measureReal_def,
+    Measure.map_apply Measurable.of_discrete (measurableSet_singleton _), hpre]
+  exact measureReal_compl (measurableSet_singleton _)
 
-/-- Complementing both answers preserves advantage. -/
-@[simp] theorem advantage_not (real ideal : Game) :
+/-- Complementing a lossless game's answer exchanges acceptance and rejection. -/
+@[simp] theorem winProbability_not (game : Game) [IsProbabilityMeasure game] :
+    winProbability (game.map Bool.not) = 1 - winProbability game := by
+  rw [winProbability_not_of_isFiniteMeasure, probReal_univ]
+
+/-- Complementing both lossless answers preserves advantage. -/
+@[simp] theorem advantage_not (real ideal : Game)
+    [IsProbabilityMeasure real] [IsProbabilityMeasure ideal] :
     advantage (real.map Bool.not) (ideal.map Bool.not) = advantage real ideal := by
   simp only [advantage, winProbability_not]
   convert abs_sub_comm (winProbability ideal) (winProbability real) using 1
@@ -69,24 +81,31 @@ theorem advantage_comm (real ideal : Game) : advantage real ideal = advantage id
 theorem advantage_triangle (first middle last : Game) :
     advantage first last ≤ advantage first middle + advantage middle last := abs_sub_le _ _ _
 
-/-- Distinguishing advantage is at most one. -/
-theorem advantage_le_one (real ideal : Game) : advantage real ideal ≤ 1 := by
-  have hreal := ENNReal.toReal_mono ENNReal.one_ne_top (PMF.coe_le_one real true)
-  have hideal := ENNReal.toReal_mono ENNReal.one_ne_top (PMF.coe_le_one ideal true)
-  simp only [ENNReal.toReal_one] at hreal hideal
+/-- Subprobability experiments have distinguishing advantage at most one. -/
+theorem advantage_le_one (real ideal : Game)
+    (hreal : real Set.univ ≤ 1) (hideal : ideal Set.univ ≤ 1) :
+    advantage real ideal ≤ 1 := by
+  have hr := ENNReal.toReal_mono ENNReal.one_ne_top
+    ((measure_mono (Set.subset_univ {true})).trans hreal)
+  have hi := ENNReal.toReal_mono ENNReal.one_ne_top
+    ((measure_mono (Set.subset_univ {true})).trans hideal)
+  simp only [ENNReal.toReal_one] at hr hi
+  change |(real {true}).toReal - (ideal {true}).toReal| ≤ 1
   apply abs_sub_le_iff.mpr
-  constructor <;> linarith [@ENNReal.toReal_nonneg (real true),
-    @ENNReal.toReal_nonneg (ideal true)]
+  constructor <;> linarith [@ENNReal.toReal_nonneg (real {true}),
+    @ENNReal.toReal_nonneg (ideal {true})]
 
 /-- Comparing with certain rejection measures the probability of winning. -/
-@[simp] theorem advantage_pure_false (game : Game) :
-    advantage game (PMF.pure false) = winProbability game := by
-  simp [advantage, winProbability]
+@[simp] theorem advantage_dirac_false (game : Game) :
+    advantage game (Measure.dirac false) = winProbability game := by
+  simp [advantage, winProbability, measureReal_def]
 
 /-- Comparing with a fair coin measures absolute prediction bias. -/
-@[simp] theorem advantage_uniform_bool (game : Game) :
-    advantage game (PMF.uniformOfFintype Bool) = |winProbability game - 1 / 2| := by
-  simp [advantage, winProbability, PMF.uniformOfFintype_apply]
+theorem advantage_uniform_bool (game : Game) :
+    advantage game (uniformOn Set.univ) = |winProbability game - 1 / 2| := by
+  simp only [advantage, winProbability, measureReal_def, uniformOn_univ,
+    Measure.count_singleton, Fintype.card_bool]
+  norm_num
 
 /-- Each admissible adversary has negligible advantage. The admissibility predicate applies
 before the security parameter is supplied, so it can require one uniform algorithm. -/

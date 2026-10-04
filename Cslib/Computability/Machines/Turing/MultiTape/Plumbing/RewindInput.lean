@@ -46,16 +46,21 @@ public inductive RewindState : Type
 
 public instance : Fintype RewindState := ⟨{.start, .walk}, fun q => by cases q <;> simp⟩
 
+/-- The only kind of action the rewinding machine takes: move the input head by `m` and enter
+`state`, without output. -/
+abbrev inputAction (m : SignType) (state : Option RewindState) : Action 0 Symbol RewindState :=
+  ⟨m, nofun, none, state⟩
+
 /-- The rewinding machine. In state `start` it moves the input head left, unconditionally, and
 enters `walk`. In state `walk` it moves left over a symbol; on the first blank it moves right and
 halts. The machine has no work tapes and nothing is output. -/
-@[expose] public def rewindInput (Symbol : Type*) : MultiTapeTM 0 Symbol RewindState where
+public def rewindInput (Symbol : Type*) : MultiTapeTM 0 Symbol RewindState where
   q₀ := .start
   tr q inp _ :=
     match q, inp with
-    | .start, _ => ⟨-1, nofun, none, some .walk⟩
-    | .walk, some _ => ⟨-1, nofun, none, some .walk⟩
-    | .walk, none => ⟨1, nofun, none, none⟩
+    | .start, _ => inputAction (-1) (some .walk)
+    | .walk, some _ => inputAction (-1) (some .walk)
+    | .walk, none => inputAction 1 none
 
 namespace Rewind
 
@@ -97,13 +102,5 @@ public theorem runFrom_rewindInput (p : Fin (input.length + 2))
   have h : (moveInputPos p .neg).val = p.val - 1 := by grind [SignType.cast]
   rw [runFrom, Function.iterate_succ_apply, Rewind.step_eq rfl, ← runFrom, ← h]
   exact Rewind.runFrom_walk (moveInputPos p .neg) (by omega)
-
-/-- Rewinding the input head in a machine with work tapes preserves all of those tapes. -/
-public theorem runFrom_rewindInput_noTapes {k : ℕ} (p : Fin (input.length + 2))
-    (tapes : Fin k → ℤ → Option Symbol) (heads : Fin k → ℤ) (out : List Symbol) :
-    ((rewindInput Symbol).extendTapes (noTapes k)).runFrom
-        ⟨some ((rewindInput Symbol).extendTapes (noTapes k)).q₀, p, tapes, heads, out⟩
-        (p.val - 1 + 2) = ⟨none, 1, tapes, heads, out⟩ := by
-  simp only [extendTapes_q₀, runFrom_noTapes, noTapesCfg, runFrom_rewindInput]
 
 end Turing.MultiTapeTM
