@@ -4,7 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Devon Tuma
 -/
 
-import Cslib.Foundations.Data.PFunctor.Free.Fork.Measure
+import Cslib.Foundations.Data.PFunctor.Free.Fork.Probability
+import Cslib.Foundations.MeasureTheory.Uniform
 import Cslib.Crypto.RandomOracle
 
 set_option linter.hashCommand false
@@ -56,5 +57,58 @@ def forkedCache : StateM ℕ
 -- Each branch has its own fresh entry; both retain and reuse the saved entry without a new draw.
 #guard (forkedCache.run 0).run ==
   ((((0, 1, 0), [(true, 1), (false, 0)]), some ((0, 2, 0), [(true, 2), (false, 0)])), 3)
+
+open MeasureTheory ProbabilityTheory
+open scoped ENNReal
+
+abbrev four : PFunctor := ⟨Unit, fun _ => Fin 4⟩
+
+local instance : MeasurableSpace (Fin 4) := ⊤
+local instance : MeasurableSingletonClass (Fin 4) := ⟨fun _ => trivial⟩
+
+noncomputable def uniformAnswers (_ : four.A) : Measure (Fin 4) := uniformOn Set.univ
+
+local instance (op : four.A) : IsProbabilityMeasure (uniformAnswers op) := by
+  unfold uniformAnswers
+  infer_instance
+
+def twoDraws : four.FreeM (Fin 4) := do
+  let _ ← FreeM.lift ()
+  FreeM.lift ()
+
+def adaptive (last : Fin 4) : Option ℕ := if last.val < 2 then some 0 else some 1
+
+-- The selector depends on the final draw, even when it chooses the earlier query.
+-- This checks a positive numerical bound, including the challenge-collision subtraction.
+example : (1 / 4 : ℝ≥0∞) ≤
+    FreeM.denote uniformAnswers (FreeM.fork (fun _ => true) adaptive twoDraws)
+      (⋃ n, FreeM.forkSuccess adaptive n) := by
+  have hbound := FreeM.le_denote_fork uniformAnswers (fun _ => true) adaptive twoDraws 2
+    (1 / 4) (fun _ _ _ => by simp [uniformAnswers, uniformOn_univ]) (by
+      intro a events htrace n hn
+      obtain ⟨first, rest, hrest, rfl⟩ :=
+        (FreeM.canReturn_trace_lift_bind (P := four) () _ _ _).mp htrace
+      obtain ⟨last, tail, htail, rfl⟩ :=
+        (FreeM.canReturn_trace_lift_bind (P := four) () _ _ _).mp hrest
+      have htail : (a, tail) = (last, []) := htail
+      cases htail
+      simp only [List.countP_cons, List.countP_nil, ↓reduceIte] at *
+      unfold adaptive at hn
+      split at hn <;> simp only [Option.some.injEq] at hn <;> omega)
+  have hsuccess : {a : Fin 4 | ∃ n < 2, adaptive a = some n} = Set.univ := by
+    ext a
+    simp only [Set.mem_ofPred_eq, Set.mem_univ, iff_true]
+    unfold adaptive
+    split <;> simp
+  dsimp only at hbound
+  rw [hsuccess, measure_univ] at hbound
+  have harith : (1 : ℝ≥0∞) * (1 / 2 - 1 / 4) = 1 / 4 := by
+    rw [one_mul]
+    have hhalf : (1 / 2 : ℝ≥0∞) / 2 = 1 / 4 := by
+      simp only [div_eq_mul_inv, one_mul]
+      rw [← ENNReal.mul_inv (a := 2) (b := 2) (by simp) (by simp)]
+      norm_num
+    simpa only [hhalf] using ENNReal.sub_half (a := (1 / 2 : ℝ≥0∞)) (by norm_num)
+  exact harith ▸ hbound
 
 end PFunctorFork

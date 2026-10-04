@@ -57,6 +57,12 @@ theorem query_query [LawfulMonad m] (sample : m Y) (input : X) (cache : List (X 
 
 variable {P : PFunctor.{0, 0}}
 
+/-- Changing the ambient monad preserves caching and only changes the sampling computation. -/
+theorem map_query {n : Type → Type*} [Monad n] {φ : ∀ {α}, m α → n α}
+    (hφ : Cslib.IsMonadHom m n φ) (sample : m Y) (input : X) (cache : List (X × Y)) :
+    φ (query sample input cache) = query (φ sample) input cache := by
+  cases h : cache.lookup input <;> simp [query, h, hφ.map_bind, hφ.map_pure]
+
 /-- Every reachable answer is recorded in the resulting cache. -/
 theorem lookup_of_canReturn (sample : P.FreeM Y) (input : X) (cache : List (X × Y))
     {out : Y × List (X × Y)} (h : MonadAttach.CanReturn (query sample input cache) out) :
@@ -70,6 +76,20 @@ theorem lookup_of_canReturn (sample : P.FreeM Y) (input : X) (cache : List (X ×
     rw [query, hx] at h
     obtain ⟨answer, _, rfl⟩ := (PFunctor.FreeM.canReturn_bind _ _ _).mp h
     simp
+
+/-- A query adds at most one cache entry. -/
+theorem length_le_of_canReturn (sample : P.FreeM Y) (input : X) (cache : List (X × Y))
+    {out : Y × List (X × Y)} (h : MonadAttach.CanReturn (query sample input cache) out) :
+    out.2.length ≤ cache.length + 1 := by
+  cases hx : cache.lookup input with
+  | some answer =>
+    simp only [query, hx, PFunctor.FreeM.canReturn_pure] at h
+    subst out
+    exact Nat.le_succ _
+  | none =>
+    rw [query, hx] at h
+    obtain ⟨answer, _, rfl⟩ := (PFunctor.FreeM.canReturn_bind _ _ _).mp h
+    exact le_rfl
 
 /-- A random-oracle query never changes an existing answer. -/
 theorem lookup_preserved (sample : P.FreeM Y) (input : X) (cache : List (X × Y))

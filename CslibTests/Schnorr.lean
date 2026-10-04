@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Devon Tuma
 -/
 
-import Cslib.Crypto.Primitives.Schnorr.Fork
+import Cslib.Crypto.Primitives.Schnorr.Security
 import Cslib.Foundations.Data.PFunctor.Free.Trace
 import Mathlib.Algebra.Field.ZMod
 
@@ -91,6 +91,9 @@ def knowledgeable (_pk : F) :
 #guard ((((Schnorr.signatureExtractor sample (1 : F) (7 : F) knowledgeable).liftM
   forkAnswers).run 0).run == (some (7 : F), 4))
 
+#guard ((((Schnorr.dlogReduction sample (1 : F) knowledgeable (7 : F)).liftM
+  counted).run 0).run == (some (7 : F), 4))
+
 -- A signing-oracle reply loses freshness and cannot become an extraction target.
 #guard ((((Schnorr.signatureExtractor sample (1 : F) (7 : F) replaySignature).liftM
   forkAnswers).run 0).run == (none, 2))
@@ -122,6 +125,9 @@ local instance : MeasurableSpace (List ((Unit × F) × F)) := ⊤
 
 noncomputable def answers (_ : random.A) : Measure F := uniformOn Set.univ
 
+local instance (op : random.A) : IsProbabilityMeasure (answers op) :=
+  inferInstanceAs (IsProbabilityMeasure (uniformOn (Set.univ : Set F)))
+
 -- Instantiate the joint-state collision theorem with the concrete scalar cardinality.
 example (cache : List ((Unit × F) × F)) :
     FreeM.denote answers ((Schnorr.simulateSign sample (1 : F) (7 : F) ()).run cache).run
@@ -134,5 +140,38 @@ example (cache : List ((Unit × F) × F)) :
       exact ⟨x, by simp⟩
   simpa [Nat.card_eq_fintype_card] using Schnorr.denote_simulateSign_none_le
     answers sample (1 : F) (7 : F) () cache hg (FreeM.denote_lift (P := random) answers ())
+
+-- The verifier-only fork has one query, and two uniform challenges differ with probability 100/101.
+-- This pins the zero-adversary-query boundary of the quantitative theorem.
+def noQuery (_pk : F) : (Schnorr.signatureEffects random Unit F F).FreeM (Unit × F × F) :=
+  pure ((), 1, 1)
+
+example : (100 / 101 : ℝ≥0∞) ≤
+    FreeM.denote answers (Schnorr.dlogReduction sample (1 : F) noQuery 0)
+      {result : Option F | result.isSome} := by
+  have hbound := Schnorr.le_denote_dlogReduction answers sample (1 : F) 0 noQuery 0
+    (FreeM.denote_lift (P := random) answers ()) (by simp [noQuery])
+  have hprogram :
+      (Schnorr.simulatedForgery FreeM.lift sample (fun _ => sample)
+        (1 : F) 0 noQuery).run = (fun _ : F => some ((), (1 : F), (1 : F))) <$> sample := by
+    simp only [Schnorr.simulatedForgery, noQuery, FreeM.liftM_pure, StateT.run_pure,
+      pure_bind, OptionT.run, Schnorr.verify, StateT.run_bind, StateT.run_pure,
+      monadLift, MonadLift.monadLift, OptionT.lift, OptionT.mk, bind_assoc, pure_bind]
+    simp only [StateT.run, RandomOracle.query, List.lookup_nil, bind_assoc, pure_bind]
+    change (do let challenge ← sample; pure (some ((), (1 : F), (1 : F)))) = _
+    simp only [map_eq_pure_bind]
+  dsimp only at hbound
+  rw [hprogram, ← FreeM.map_eq_map, FreeM.denote_map (P := random) _ _ _ Measurable.of_discrete,
+    Measure.map_apply Measurable.of_discrete MeasurableSet.of_discrete] at hbound
+  simp only [Set.preimage, Set.mem_ofPred_eq, Option.isSome_some, Set.ofPred_true, measure_univ,
+    Nat.cast_zero, zero_add, div_one, one_mul, Nat.card_eq_fintype_card, ZMod.card] at hbound
+  have harith : (1 - 1 / 101 : ℝ≥0∞) = 100 / 101 := by
+    have h := ENNReal.sub_div (a := 101) (b := 1) (c := 101) (by intros; norm_num)
+    norm_num [ENNReal.div_self (by norm_num : (101 : ℝ≥0∞) ≠ 0) (by simp)] at h
+    have hsub : (101 : ℝ≥0∞) - 1 = 100 := by
+      simpa using (ENNReal.natCast_sub 101 1).symm
+    rw [hsub] at h
+    simpa only [one_div] using h.symm
+  exact harith ▸ hbound
 
 end SchnorrTests

@@ -18,8 +18,9 @@ selects its accepting hash occurrence from the recorded execution. Forking at th
 retains the inlined cache and adversary state and supplies a fresh hash answer.
 
 `signatureExtractor` composes the signing simulator, final verification, adaptive forking,
-and checked special-soundness extraction. Soundness is structural. A probability bound still
-requires the adaptive forking inequality and the accumulated signing-simulation error.
+and checked special-soundness extraction. Soundness is structural. `Schnorr.Fork.Measure`
+proves its adaptive probability bound, and `Schnorr.Security` connects the closed reduction to
+the honest EUF-CMA experiment, including the accumulated signing-simulation error.
 -/
 
 @[expose] public section
@@ -48,16 +49,19 @@ def forkPoint (g pk : G) (candidate : Option (M × G × F))
 the same hash input. The program must inline its mutable state before calling this function. -/
 def forkExtractor (g pk : G)
     (program : (P + PFunctor.mk (M × G) (fun _ => F)).FreeM (Option (M × G × F))) :
-    (P + PFunctor.mk (M × G) (fun _ => F)).FreeM (Option F) := do
-  let (first, event) ← FreeM.fork (fun op => op.isRight)
+    (P + PFunctor.mk (M × G) (fun _ => F)).FreeM (Option F) :=
+  finish <$> FreeM.fork (fun op => op.isRight)
     (fun out => forkPoint g pk out.1 out.2) (FreeM.trace program)
-  match first.1, event with
-  | some (message, commitment, response),
-      some ⟨.inr input, challenge, challenge', some (message', commitment', response'), _⟩ =>
-    if (message, commitment) = input ∧ (message', commitment') = input then
-      pure (extract? g pk input.2 (challenge, response) (challenge', response'))
-    else pure none
-  | _, _ => pure none
+where
+  /-- Check the two returned transcripts before special-soundness extraction. -/
+  finish out :=
+    match out.1.1, out.2 with
+    | some (message, commitment, response),
+        some ⟨.inr input, challenge, challenge', some (message', commitment', response'), _⟩ =>
+      if (message, commitment) = input ∧ (message', commitment') = input then
+        extract? g pk input.2 (challenge, response) (challenge', response')
+      else none
+    | _, _ => none
 
 /-- Every successful adaptive extraction is a discrete logarithm of the supplied public key. -/
 theorem forkExtractor_sound (g pk : G)
@@ -65,7 +69,8 @@ theorem forkExtractor_sound (g pk : G)
     {secret : F} (h : MonadAttach.CanReturn (forkExtractor g pk program) (some secret)) :
     secret • g = pk := by
   unfold forkExtractor at h
-  obtain ⟨⟨⟨candidate, events⟩, fork⟩, _, h⟩ := (FreeM.canReturn_bind _ _ _).mp h
+  obtain ⟨⟨⟨candidate, events⟩, fork⟩, _, h⟩ := (FreeM.canReturn_map _ _ _).mp h
+  unfold forkExtractor.finish at h
   dsimp only at h
   cases candidate with
   | none => cases h
@@ -84,7 +89,7 @@ theorem forkExtractor_sound (g pk : G)
           rcases second with ⟨message', commitment', response'⟩
           dsimp only at h
           split at h
-          · exact extract?_sound g pk input.2 _ _ h.symm
+          · exact extract?_sound g pk input.2 _ _ h
           · cases h
 
 /-- Simulate signing, retain each fresh hash input as a visible operation, and fork the

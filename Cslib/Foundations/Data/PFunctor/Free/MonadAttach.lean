@@ -95,6 +95,17 @@ instance : LawfulMonadAttach P.FreeM where
     obtain ⟨b, _, rfl⟩ := (canReturn_map Subtype.val x a).mp h
     exact b.2
 
+/-- Inlining effects can only remove structurally reachable return values. -/
+theorem canReturn_of_liftM {Q : PFunctor.{w, uB}} {α : Type uB}
+    (interp : (op : P.A) → Q.FreeM (P.B op)) (x : P.FreeM α) {a : α}
+    (h : MonadAttach.CanReturn (x.liftM interp) a) : MonadAttach.CanReturn x a := by
+  induction x with
+  | pure value => exact h
+  | lift_bind op cont ih =>
+    rw [bind_eq_bind, liftM_lift_bind] at h
+    obtain ⟨answer, _, h⟩ := (canReturn_bind _ _ _).mp h
+    exact ⟨answer, ih answer h⟩
+
 /-- A free program has a possible result when each operation has a response. -/
 theorem exists_canReturn [∀ op, Nonempty (P.B op)] (x : P.FreeM α) :
     ∃ a, MonadAttach.CanReturn x a := by

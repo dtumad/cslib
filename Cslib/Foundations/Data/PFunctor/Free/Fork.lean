@@ -48,6 +48,27 @@ def fork (select : P.A → Bool) (choose : α → Option ℕ) :
 theorem fork_pure (select : P.A → Bool) (choose : α → Option ℕ) (a : α) :
     fork select choose (pure a) = pure (a, none) := rfl
 
+/-- Successful forks whose two executions select occurrence `n` and give distinct answers. -/
+def forkSuccess (choose : α → Option ℕ) (n : ℕ) :
+    Set (α × Option ((op : P.A) × P.B op × P.B op × α)) :=
+  {out | ∃ event, out.2 = some event ∧ choose out.1 = some n ∧
+    choose event.2.2.2 = some n ∧ event.2.1 ≠ event.2.2.1}
+
+@[simp]
+theorem not_mem_forkSuccess_none (choose : α → Option ℕ) (n : ℕ) (a : α) :
+    (a, none) ∉ forkSuccess (P := P) choose n := by simp [forkSuccess]
+
+@[simp]
+theorem mem_forkSuccess_some (choose : α → Option ℕ) (n : ℕ) (a : α)
+    (event : (op : P.A) × P.B op × P.B op × α) :
+    (a, some event) ∈ forkSuccess choose n ↔
+      choose a = some n ∧ choose event.2.2.2 = some n ∧ event.2.1 ≠ event.2.2.1 := by
+  constructor
+  · rintro ⟨_, heq, h⟩
+    cases heq
+    exact h
+  · exact fun h => ⟨event, rfl, h⟩
+
 /-- The recorded first result belongs to the original program for every choice of responses. -/
 theorem canReturn_fst_fork (select : P.A → Bool) (choose : α → Option ℕ) (x : P.FreeM α)
     {out : α × Option ((op : P.A) × P.B op × P.B op × α)}
@@ -127,5 +148,28 @@ theorem fork_sound [DecidableEq P.A] (select : P.A → Bool) (choose : α → Op
       · cases hs : select op <;> simp [hcount, hs]
       · change replay (⟨op, answer⟩ :: before) (.liftBind op cont) = _
         simpa only [replay, dite_true] using hreplay
+
+/-- Both recorded executions contain the selected operation immediately after their shared
+prefix. Their responses at that operation may differ. -/
+theorem fork_trace_prefix (select : P.A → Bool)
+    (choose : α × List (Sigma P.B) → Option ℕ) (x : P.FreeM α)
+    {first : α × List (Sigma P.B)}
+    {event : (op : P.A) × P.B op × P.B op × (α × List (Sigma P.B))}
+    (h : MonadAttach.CanReturn (fork select choose (trace x)) (first, some event)) :
+    ∃ before n, choose first = some n ∧
+      before.countP (fun e : Sigma P.B => select e.1) = n ∧ select event.1 = true ∧
+      before ++ [⟨event.1, event.2.1⟩] <+: first.2 ∧
+      before ++ [⟨event.1, event.2.2.1⟩] <+: event.2.2.2.2 := by
+  classical
+  obtain ⟨before, cont, n, hchoose, hcount, hselect, hreplay, hfirst, hsecond⟩ :=
+    fork_sound select choose (trace x) h
+  have extend (answer : P.B event.1) :
+      replay (before ++ [⟨event.1, answer⟩]) (trace x) = some (cont answer) := by
+    rw [replay_append, hreplay]
+    change replay [⟨event.1, answer⟩] (.liftBind event.1 cont) = _
+    rw [replay, dite_eq_left rfl, replay_nil]
+  exact ⟨before, n, hchoose, hcount, hselect,
+    trace_prefix_of_replay _ x _ (extend _) hfirst,
+    trace_prefix_of_replay _ x _ (extend _) hsecond⟩
 
 end PFunctor.FreeM

@@ -8,6 +8,7 @@ module
 
 public import Cslib.Init
 public import Mathlib.MeasureTheory.Integral.MeanInequalities
+public import Mathlib.MeasureTheory.Integral.Lebesgue.Countable
 public import Mathlib.MeasureTheory.Integral.Lebesgue.Sub
 public import Mathlib.MeasureTheory.Measure.ProbabilityMeasure
 
@@ -45,5 +46,68 @@ theorem sq_lintegral_sub_mul_le [IsProbabilityMeasure μ] {f : α → ℝ≥0∞
     _ = (∫⁻ a, f a ^ 2 ∂μ) - ∫⁻ a, f a * r ∂μ := by
       rw [lintegral_mul_const'' _ hf]
     _ ≤ _ := lintegral_sub_le' _ _ (hf.mul_const r)
+
+/-- Averaging a bounded success probability preserves the divided quadratic forking bound. -/
+theorem mul_sub_lintegral_le [IsProbabilityMeasure μ] {f : α → ℝ≥0∞}
+    (hf : AEMeasurable f μ) (hf_one : ∀ a, f a ≤ 1) (q r : ℝ≥0∞) :
+    (∫⁻ a, f a ∂μ) * ((∫⁻ a, f a ∂μ) / q - r) ≤
+      ∫⁻ a, f a * (f a / q - r) ∂μ := by
+  have hfin : (∫⁻ a, f a ∂μ) ≠ ⊤ := ne_top_of_le_ne_top (by simp)
+    (lintegral_le_const (Filter.Eventually.of_forall hf_one))
+  calc
+    _ = (∫⁻ a, f a ∂μ) ^ 2 / q - (∫⁻ a, f a ∂μ) * r := by
+      rw [ENNReal.mul_sub (fun _ _ => hfin)]
+      simp only [pow_two, div_eq_mul_inv, mul_assoc]
+    _ ≤ (∫⁻ a, f a ^ 2 ∂μ) / q - (∫⁻ a, f a ∂μ) * r := by
+      gcongr
+      simpa using sq_lintegral_le_lintegral_sq_mul hf
+    _ = (∫⁻ a, f a ^ 2 / q ∂μ) - ∫⁻ a, f a * r ∂μ := by
+      simp only [div_eq_mul_inv, lintegral_mul_const'' _ (hf.pow_const 2),
+        lintegral_mul_const'' _ hf]
+    _ ≤ ∫⁻ a, f a ^ 2 / q - f a * r ∂μ :=
+      lintegral_sub_le' _ _ (hf.mul_const r)
+    _ = _ := by
+      apply lintegral_congr
+      intro a
+      rw [ENNReal.mul_sub (fun _ _ => ne_top_of_le_ne_top (by simp) (hf_one a))]
+      simp only [pow_two, div_eq_mul_inv, mul_assoc]
+
+/-- Finite Cauchy--Schwarz for extended nonnegative reals, including infinite summands. -/
+theorem sq_sum_le_card_mul_sum_sq {ι : Type*} (s : Finset ι) (f : ι → ℝ≥0∞) :
+    (∑ i ∈ s, f i) ^ 2 ≤ s.card * ∑ i ∈ s, f i ^ 2 := by
+  let : MeasurableSpace ι := ⊤
+  simpa [lintegral_finsetSum_measure, lintegral_dirac, Measure.finsetSum_apply, mul_comm] using
+    (sq_lintegral_le_lintegral_sq_mul (μ := ∑ i ∈ s, Measure.dirac i)
+      (f := f) Measurable.of_discrete.aemeasurable)
+
+/-- Divided Cauchy--Schwarz, also valid for the empty sum since `0 / 0 = 0`. -/
+theorem sq_sum_div_card_le_sum_sq {ι : Type*} (s : Finset ι) (f : ι → ℝ≥0∞) :
+    (∑ i ∈ s, f i) ^ 2 / (s.card : ℝ≥0∞) ≤ ∑ i ∈ s, f i ^ 2 := by
+  rcases s.eq_empty_or_nonempty with rfl | hs
+  · simp
+  · have hcard : (s.card : ℝ≥0∞) ≠ 0 := by exact_mod_cast hs.card_ne_zero
+    calc
+      _ ≤ (s.card * ∑ i ∈ s, f i ^ 2) / s.card := by
+        gcongr
+        exact sq_sum_le_card_mul_sum_sq s f
+      _ = _ := by
+        rw [mul_comm, div_eq_mul_inv, mul_assoc, ENNReal.mul_inv_cancel hcard (by simp), mul_one]
+
+/-- Aggregate quadratic bounds over finitely many disjoint success classes. -/
+theorem mul_sub_le_sum_sq_sub_mul {ι : Type*} (s : Finset ι) (f : ι → ℝ≥0∞) (r : ℝ≥0∞)
+    (hsum : (∑ i ∈ s, f i) ≠ ⊤) :
+    (∑ i ∈ s, f i) * ((∑ i ∈ s, f i) / (s.card : ℝ≥0∞) - r) ≤
+      ∑ i ∈ s, (f i ^ 2 - f i * r) := by
+  calc
+    _ = (∑ i ∈ s, f i) ^ 2 / s.card - (∑ i ∈ s, f i) * r := by
+      rw [ENNReal.mul_sub (fun _ _ => hsum)]
+      simp only [pow_two, div_eq_mul_inv, mul_assoc]
+    _ ≤ (∑ i ∈ s, f i ^ 2) - (∑ i ∈ s, f i) * r := by
+      gcongr
+      exact sq_sum_div_card_le_sum_sq s f
+    _ = (∑ i ∈ s, f i ^ 2) - ∑ i ∈ s, f i * r := by rw [Finset.sum_mul]
+    _ ≤ _ := by
+      rw [tsub_le_iff_right, ← Finset.sum_add_distrib]
+      exact Finset.sum_le_sum fun _ _ => le_tsub_add
 
 end ENNReal

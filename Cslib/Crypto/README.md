@@ -88,6 +88,17 @@ at the selected occurrence; its structural theorem identifies the common replay 
 its measure theorem preserves the first execution's distribution. Tests exercise the full
 extractor, including identity public keys, repeated challenges, and signed-message freshness.
 
+[`Schnorr.Security`](Primitives/Schnorr/Security.lean) proves the full concrete EUF-CMA reduction.
+If honest forgery succeeds with probability `ε`, set
+`ε' = ε - qS * (qH + qS) / |F|`, using truncated nonnegative subtraction.
+The actual discrete-logarithm reduction succeeds with probability at least
+`ε' * (ε' / (qH + 1) - 1 / |F|)`. Here `qS` and `qH` bound the adversary's signing and hash
+requests; ambient operations do not count toward either bound. The extra hash position comes
+from final verification, which also covers forgeries whose hash was never requested by the
+adversary. The proof combines the joint-cache signing law, adaptive collision accounting,
+the general forking inequality, and checked special-soundness extraction. It averages over
+key generation and implements all fresh hash draws with the original sampler.
+
 Machine realizability still needs encodings, a compiler that preserves the joint result and
 state measure, and clocks charging local work and handler implementation. In particular, a
 uniform exponent is not a unit-cost machine instruction: the binary sampler's operation bound
@@ -98,10 +109,10 @@ preserve the chosen admissibility predicate for a parameterized group family.
 Silent machine steps can be made visible by adjoining `PFunctor.y` as a deterministic tick
 operation; certifying the transition compiler and its cost remains a separate obligation.
 
-Full Schnorr signature security still needs the adaptive forking probability inequality,
-coverage of every successful fresh forgery by the hash selector, and accumulation of the
-signing-collision error over adaptive requests. The extractor's soundness and the
-fixed-commitment identification bound do not yet establish a concrete EUF-CMA advantage bound.
+For Schnorr, the concrete theorem assumes a finite scalar field, countable effects and messages,
+a uniform sampler, and a bijective scalar-to-public-key map. Computational and asymptotic
+security still require implementing and costing the reduction, transporting the sampling
+cutoff error through the complete game, and proving admissibility for a group family.
 
 ## Plans and notes
 
