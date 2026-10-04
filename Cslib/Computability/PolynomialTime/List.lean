@@ -223,6 +223,13 @@ theorem IsPolyTime.list_head? {element : Value ↪ Word} {encode : α → Word}
   funext a
   cases values a <;> simp [pairEncoding]
 
+/-- Read a bit at a unary index, preserving the distinction between a blank and a zero bit. -/
+theorem IsPolyTime.get? {word : α → Word}
+    (hword : IsPolyTime encode word)
+    (hcount : IsPolyTime encode (fun a => unaryEncoding (count a))) :
+    IsPolyTime encode (fun a => optionEncoding boolEncoding ((word a)[count a]?)) := by
+  simpa only [List.head?_drop] using (hword.drop hcount).encode_list_bool.list_head?
+
 /-- Ordinary first-match association-list lookup charges for key comparison and scanning. -/
 theorem IsPolyTime.list_lookup [BEq Key] [LawfulBEq Key]
     {key : Key ↪ Word} {value : Value ↪ Word}

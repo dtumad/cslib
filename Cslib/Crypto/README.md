@@ -118,9 +118,14 @@ and comparison, and the bounded `FreeM.sampleFin` sampler, now have uniform mach
 The sampler is polynomial in the range's bit length, unary proposal width, and unary attempt budget;
 it preserves the exact joint kernel and distinguishes rejection failure from machine timeout.
 Using the range's binary length as the proposal width still gives failure at most `2⁻ᵗ`.
+Finite machine snapshots use lists around Mathlib tape heads and preserve the original machine's
+entire joint result-and-handler-state computation. Saved-coin replay now has a uniform machine
+certificate for certified deterministic handlers, with explicit bounds on reply lengths and
+per-call state growth. Request buffers grow by at most one bit per transition; the replay bound
+charges for copying complete snapshots, accumulated caches, and oracle replies.
 
-Crypto machine realizability still needs the stateful handler compiler and encoded replay
-machinery, followed by the scheme and reduction certificates. Only
+Crypto machine realizability still needs the randomized cache and signing handlers, machine-level
+forking, and the scheme and reduction certificates. Only
 group and field operations may be assumed through explicit uniform primitive certificates.
 In particular, a
 uniform exponent is not a unit-cost machine instruction: the binary sampler's operation bound
