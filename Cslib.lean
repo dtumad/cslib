@@ -139,6 +139,7 @@ public import Cslib.Computability.PolynomialTime.Composition
 public import Cslib.Computability.PolynomialTime.Defs
 public import Cslib.Computability.PolynomialTime.Deterministic
 public import Cslib.Computability.PolynomialTime.Encoding
+public import Cslib.Computability.PolynomialTime.Encoding.Finite
 public import Cslib.Computability.PolynomialTime.Finite
 public import Cslib.Computability.PolynomialTime.Fold
 public import Cslib.Computability.PolynomialTime.Iteration
@@ -185,6 +186,7 @@ public import Cslib.Crypto.Primitives.Schnorr.Fork.Measure
 public import Cslib.Crypto.Primitives.Schnorr.Fork.Trace
 public import Cslib.Crypto.Primitives.Schnorr.Oracle
 public import Cslib.Crypto.Primitives.Schnorr.PFunctor
+public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime
 public import Cslib.Crypto.Primitives.Schnorr.Reduction
 public import Cslib.Crypto.Primitives.Schnorr.Security
 public import Cslib.Crypto.Primitives.Schnorr.Simulation

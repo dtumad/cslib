@@ -128,9 +128,12 @@ Sampling the private tape before execution preserves the joint output-and-oracle
 across an indexed group family. It derives binary exponentiation from certified multiplication
 and polynomial bounds on element encodings. The parameter data and remaining group primitives
 have explicit uniform certificates; sampling exhaustion remains visible in `OptionT`.
+`Schnorr.PolynomialTime` gives uniform certificates for key generation, response arithmetic,
+transcript checking, and special-soundness extraction. Scalar decoding checks the binary range;
+the algebra certificates use independently supplied group and field encodings.
 
 Crypto machine realizability still needs the randomized cache and signing handlers, machine-level
-forking, Schnorr's algorithm certificates, and both security reductions' certificates.
+forking, Schnorr signing and hash-based verification, and both security reductions' certificates.
 Only group and field operations may be assumed through explicit uniform primitive certificates.
 The per-sample cutoff failure must also be accumulated over the game's sampling calls.
 Computational and asymptotic
