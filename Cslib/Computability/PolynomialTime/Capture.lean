@@ -8,6 +8,7 @@ module
 
 public import Cslib.Computability.PolynomialTime.Composition
 public import Cslib.Computability.PolynomialTime.Encoding
+public import Cslib.Computability.PolynomialTime.Sigma
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.OutputPrefix
 
 /-!
@@ -155,5 +156,15 @@ theorem IsPPT.map_with {input : α ↪ Word} {middle : β ↪ Word} {output : γ
     IsPPT input output (fun a => f a <$> program a) := by
   simpa only [← comp_map, Function.comp_def] using
     (hprogram.pair (isPolyTime_input input)).map hf
+
+/-- Retain the input when the result type and its representation depend on that input. -/
+theorem IsPPT.sigma {input : α ↪ Word} {β : α → Type} {output : ∀ a, β a ↪ Word}
+    {program : ∀ a, (effects Oracle).FreeM (β a)}
+    (hprogram : IsPPT input wordEncoding (fun a => output a <$> program a)) :
+    IsPPT input (sigmaEncoding input output) (fun a => Sigma.mk a <$> program a) := by
+  apply isPPT_map_encoding_iff.mp
+  have h := isPPT_map_encoding_iff.mpr (hprogram.pair (isPolyTime_input input))
+  simpa only [← comp_map, Function.comp_def, sigmaEncoding, pairEncoding,
+    Function.Embedding.coeFn_mk, wordEncoding, Function.Embedding.refl_apply] using h
 
 end Turing.MultiTapePTM

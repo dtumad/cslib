@@ -43,6 +43,14 @@ def optionEncoding (element : α ↪ Word) : Option α ↪ Word where
 @[simp] theorem optionEncoding_some (element : α ↪ Word) (value : α) :
     optionEncoding element (some value) = true :: element value := rfl
 
+/-- A representation-preserving map leaves an optional value's encoding unchanged. -/
+theorem optionEncoding_map (left : α ↪ Word) (right : β ↪ Word) (f : α → β)
+    (h : ∀ value, right (f value) = left value) (value : Option α) :
+    optionEncoding right (value.map f) = optionEncoding left value := by
+  cases value with
+  | none => rfl
+  | some value => exact congrArg (true :: ·) (h value)
+
 /-- Unary natural numbers charge their numerical value to the input or output length. -/
 def unaryEncoding : ℕ ↪ Word where
   toFun n := List.replicate n true
@@ -179,6 +187,17 @@ def listEncoding (element : α ↪ Word) : List α ↪ Word where
 @[simp] theorem listEncoding_cons (element : α ↪ Word) (value : α) (rest : List α) :
     listEncoding element (value :: rest) = pairEncoding element (listEncoding element)
       (value, rest) := rfl
+
+/-- A representation-preserving map leaves a collection's encoding unchanged. -/
+theorem listEncoding_map (left : α ↪ Word) (right : β ↪ Word) (f : α → β)
+    (h : ∀ value, right (f value) = left value) (values : List α) :
+    listEncoding right (values.map f) = listEncoding left values := by
+  induction values with
+  | nil => rfl
+  | cons value values ih =>
+    change List.BitPair.encode (right (f value)) (listEncoding right (values.map f)) =
+      List.BitPair.encode (left value) (listEncoding left values)
+    rw [h, ih]
 
 /-- Concatenation of lists is concatenation of their encoded words. -/
 @[simp] theorem listEncoding_append (element : α ↪ Word) (values others : List α) :

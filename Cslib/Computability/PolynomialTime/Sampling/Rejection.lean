@@ -27,19 +27,6 @@ open Cslib PFunctor MeasureTheory ProbabilityTheory MultiTapeTM
 variable {Oracle S α : Type} [MeasurableSpace Word] [DiscreteMeasurableSpace Word]
   [MeasurableSpace S] [DiscreteMeasurableSpace S] [Countable S] [MeasurableSpace α]
 
-private theorem runKernel_mapM_coin_const
-    (oracle : Oracle → Word → Kernel S (Word × S)) (bits : ℕ)
-    (program : (effects Oracle).FreeM α) (state : S) :
-    FreeM.runKernel (effectKernel oracle)
-      ((List.replicate bits ()).mapM (fun _ => coin) >>= fun _ => program) state =
-      FreeM.runKernel (effectKernel oracle) program state := by
-  induction bits with
-  | zero => simp
-  | succ bits ih =>
-    simp only [List.replicate_succ, List.mapM_cons, bind_assoc, pure_bind]
-    rw [runKernel_coin_bind]
-    simp only [ih, Measure.bind_const, measure_univ, one_smul]
-
 omit [MeasurableSpace Word] [DiscreteMeasurableSpace Word] in
 private theorem val_sampleFin_succ (coin : (effects Oracle).FreeM Bool)
     (bound bits attempts : ℕ) :
@@ -95,9 +82,25 @@ theorem runKernel_selectBelow
     simp only [selectBelow, htake, hdrop]
     by_cases h : Nat.ofBitsList word.reverse < bound
     · simp only [h, ↓reduceIte]
-      exact runKernel_mapM_coin_const oracle _ _ state
+      exact runKernel_sampleBits_const oracle _ _ state
     · simp only [h, ↓reduceIte]
       simpa only [← map_eq_pure_bind] using ih state
+
+/-- Discarding a bounded sample, including exhaustion, leaves the shared state unchanged. -/
+theorem runKernel_sampleFin_const
+    (oracle : Oracle → Word → Kernel S (Word × S)) (bound bits attempts : ℕ)
+    (program : (effects Oracle).FreeM α) (state : S) :
+    FreeM.runKernel (effectKernel oracle)
+      (FreeM.sampleFin ((fun b => (⟨b.toNat, Bool.toNat_lt b⟩ : Fin 2)) <$> coin)
+        bound bits attempts >>= fun _ => program) state =
+      FreeM.runKernel (effectKernel oracle) program state := by
+  have h := congrArg (fun measure => measure.bind
+      (fun out : Option ℕ × S => FreeM.runKernel (effectKernel oracle) program out.2))
+    (runKernel_selectBelow oracle bound bits attempts state)
+  rw [← FreeM.runKernel_bind _ _ (fun _ => program) state,
+    ← FreeM.runKernel_bind _ _ (fun _ => program) state] at h
+  simp only [FreeM.bind_eq_bind, bind_map_left] at h
+  exact h.symm.trans (runKernel_sampleBits_const oracle _ program state)
 
 variable [Finite Oracle]
 

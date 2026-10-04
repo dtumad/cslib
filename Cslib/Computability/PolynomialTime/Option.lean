@@ -14,36 +14,37 @@ public section
 
 namespace Turing.MultiTapeTM
 
-variable {α β : Type} {encode : α → Word} {element : β ↪ Word}
+variable {α : Type} {β : α → Type} {encode : α → Word} {element : ∀ a, β a ↪ Word}
 
 /-- Tag an efficiently computed value as present. -/
-theorem IsPolyTime.option_some {value : α → β}
-    (hvalue : IsPolyTime encode (fun a => element (value a))) :
-    IsPolyTime encode (fun a => optionEncoding element (some (value a))) :=
+theorem IsPolyTime.option_some {value : ∀ a, β a}
+    (hvalue : IsPolyTime encode (fun a => element a (value a))) :
+    IsPolyTime encode (fun a => optionEncoding (element a) (some (value a))) :=
   (isPolyTime_const encode [true]).append hvalue
 
 /-- Presence is read from the first bit of an optional value's encoding. -/
-theorem IsPolyTime.option_isSome {value : α → Option β}
-    (hvalue : IsPolyTime encode (fun a => optionEncoding element (value a))) :
+theorem IsPolyTime.option_isSome {value : ∀ a, Option (β a)}
+    (hvalue : IsPolyTime encode (fun a => optionEncoding (element a) (value a))) :
     IsPolyTime encode (fun a => [(value a).isSome]) := by
   convert hvalue.headD false using 1
   funext a
   cases value a <;> rfl
 
 /-- Read an optional value, with an efficiently computed default. -/
-theorem IsPolyTime.option_getD {value : α → Option β} {fallback : α → β}
-    (hvalue : IsPolyTime encode (fun a => optionEncoding element (value a)))
-    (hfallback : IsPolyTime encode (fun a => element (fallback a))) :
-    IsPolyTime encode (fun a => element ((value a).getD (fallback a))) := by
+theorem IsPolyTime.option_getD {value : ∀ a, Option (β a)} {fallback : ∀ a, β a}
+    (hvalue : IsPolyTime encode (fun a => optionEncoding (element a) (value a)))
+    (hfallback : IsPolyTime encode (fun a => element a (fallback a))) :
+    IsPolyTime encode (fun a => element a ((value a).getD (fallback a))) := by
   convert hvalue.option_isSome.cond hvalue.tail hfallback using 1
   funext a
   cases value a <;> rfl
 
 /-- Prefer the first present value; both computations have certified polynomial bounds. -/
-theorem IsPolyTime.option_orElse {left right : α → Option β}
-    (hleft : IsPolyTime encode (fun a => optionEncoding element (left a)))
-    (hright : IsPolyTime encode (fun a => optionEncoding element (right a))) :
-    IsPolyTime encode (fun a => optionEncoding element ((left a).orElse (fun _ => right a))) := by
+theorem IsPolyTime.option_orElse {left right : ∀ a, Option (β a)}
+    (hleft : IsPolyTime encode (fun a => optionEncoding (element a) (left a)))
+    (hright : IsPolyTime encode (fun a => optionEncoding (element a) (right a))) :
+    IsPolyTime encode
+      (fun a => optionEncoding (element a) ((left a).orElse (fun _ => right a))) := by
   convert hleft.option_isSome.cond hleft hright using 1
   funext a
   cases left a <;> rfl

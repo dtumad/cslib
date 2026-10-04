@@ -157,6 +157,7 @@ public import Cslib.Computability.PolynomialTime.Realization.PolynomialTime
 public import Cslib.Computability.PolynomialTime.Realization.Transducer
 public import Cslib.Computability.PolynomialTime.Rejection
 public import Cslib.Computability.PolynomialTime.Sampling
+public import Cslib.Computability.PolynomialTime.Sampling.Finite
 public import Cslib.Computability.PolynomialTime.Sampling.Rejection
 public import Cslib.Computability.PolynomialTime.Sigma
 public import Cslib.Computability.PolynomialTime.Support
@@ -187,6 +188,8 @@ public import Cslib.Crypto.Primitives.Schnorr.Fork.Trace
 public import Cslib.Crypto.Primitives.Schnorr.Oracle
 public import Cslib.Crypto.Primitives.Schnorr.PFunctor
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime
+public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Signing
+public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Verification
 public import Cslib.Crypto.Primitives.Schnorr.Reduction
 public import Cslib.Crypto.Primitives.Schnorr.Security
 public import Cslib.Crypto.Primitives.Schnorr.Simulation
@@ -206,6 +209,7 @@ public import Cslib.Crypto.Protocols.SecretSharing.Shamir.Polynomial
 public import Cslib.Crypto.RandomOracle
 public import Cslib.Crypto.RandomOracle.Cost
 public import Cslib.Crypto.RandomOracle.Measure
+public import Cslib.Crypto.RandomOracle.PolynomialTime
 public import Cslib.Foundations.Combinatorics.InfiniteGraphRamsey
 public import Cslib.Foundations.Control.Monad.Free
 public import Cslib.Foundations.Control.Monad.Free.Effects

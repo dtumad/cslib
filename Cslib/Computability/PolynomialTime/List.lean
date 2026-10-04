@@ -260,4 +260,49 @@ theorem IsPolyTime.list_lookup [BEq Key] [LawfulBEq Key]
       by_cases he : input = k <;> simp [List.lookup_cons, Bool.beq_eq_decide_eq, he, ih]
   exact heq _ _
 
+private theorem lookup_map_encoding [BEq Key] [LawfulBEq Key]
+    (key : Key ↪ Word) (value : Value ↪ Word) (entries : List (Key × Value)) (query : Key) :
+    (entries.map (fun pair => (key pair.1, value pair.2))).lookup (key query) =
+      (entries.lookup query).map value := by
+  classical
+  induction entries with
+  | nil => rfl
+  | cons pair entries ih =>
+    rcases pair with ⟨k, v⟩
+    by_cases he : query = k
+    · simp [he]
+    · simp [List.lookup_cons, Bool.beq_eq_decide_eq, key.injective.eq_iff, he, ih]
+
+/-- The same lookup machine works across an indexed family of key and value encodings. -/
+theorem IsPolyTime.list_lookup_indexed {ι : Type} {Key Value : ι → Type}
+    [∀ i, BEq (Key i)] [∀ i, LawfulBEq (Key i)]
+    {parameter : α → ι} {key : ∀ i, Key i ↪ Word} {value : ∀ i, Value i ↪ Word}
+    {keys : ∀ a, Key (parameter a)} {values : ∀ a, List (Key (parameter a) × Value (parameter a))}
+    (hkeys : IsPolyTime encode (fun a => key (parameter a) (keys a)))
+    (hvalues : IsPolyTime encode
+      (fun a => listEncoding (pairEncoding (key (parameter a)) (value (parameter a))) (values a))) :
+    IsPolyTime encode
+      (fun a => optionEncoding (value (parameter a)) ((values a).lookup (keys a))) := by
+  let words (a : α) := (values a).map
+    (fun pair => (key (parameter a) pair.1, value (parameter a) pair.2))
+  have heq (a : α) : listEncoding (pairEncoding wordEncoding wordEncoding) (words a) =
+      listEncoding (pairEncoding (key (parameter a)) (value (parameter a))) (values a) :=
+    listEncoding_map (pairEncoding (key (parameter a)) (value (parameter a)))
+      (pairEncoding wordEncoding wordEncoding)
+      (fun pair => (key (parameter a) pair.1, value (parameter a) pair.2))
+      (fun _ => rfl) (values a)
+  have hw : IsPolyTime encode
+      (fun a => listEncoding (pairEncoding wordEncoding wordEncoding) (words a)) := by
+    simpa only [heq] using hvalues
+  have h := hkeys.list_lookup (key := wordEncoding) hw
+  convert h using 1
+  funext a
+  change optionEncoding (value (parameter a)) ((values a).lookup (keys a)) =
+    optionEncoding wordEncoding ((words a).lookup (key (parameter a) (keys a)))
+  rw [show (words a).lookup (key (parameter a) (keys a)) =
+    ((values a).lookup (keys a)).map (value (parameter a)) from
+      lookup_map_encoding (key (parameter a)) (value (parameter a)) (values a) (keys a)]
+  exact (optionEncoding_map (value (parameter a)) wordEncoding (value (parameter a))
+    (fun _ => rfl) ((values a).lookup (keys a))).symm
+
 end Turing.MultiTapeTM

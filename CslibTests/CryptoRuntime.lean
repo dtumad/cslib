@@ -6,6 +6,9 @@ Authors: Devon Tuma
 
 import Cslib.Crypto.Primitives.ElGamal.PolynomialTime
 import Cslib.Crypto.Primitives.Schnorr.PolynomialTime
+import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Signing
+import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Verification
+import Cslib.Crypto.RandomOracle.PolynomialTime
 import Cslib.Computability.PolynomialTime.Finite
 import Mathlib.Algebra.Field.ZMod
 import Mathlib.Data.Fintype.Order
@@ -117,5 +120,97 @@ example : IsPolyTime (sigmaEncoding unaryEncoding (fun _ =>
         input.2.2.2.2.1 input.2.2.2.2.2))) :=
   Schnorr.isPolyTime_accepts (F := fun _ => F) (G := fun _ => F)
     (fun _ => scalarCode) (fun _ => scalarCode) (fieldOp_poly (· • ·)) (fieldOp_poly (· + ·))
+
+/- The key and value types grow with the parameter; lookup cannot use a fixed finite table. -/
+def cacheInput := sigmaEncoding unaryEncoding (fun n =>
+  pairEncoding (finBinaryEncoding (n + 1))
+    (pairEncoding (optionEncoding (finBinaryEncoding (n + 2)))
+      (listEncoding (pairEncoding (finBinaryEncoding (n + 1)) (finBinaryEncoding (n + 2))))))
+
+example : IsPolyTime cacheInput (fun arg =>
+    optionEncoding (pairEncoding (finBinaryEncoding (arg.1 + 2))
+      (listEncoding (pairEncoding (finBinaryEncoding (arg.1 + 1))
+        (finBinaryEncoding (arg.1 + 2)))))
+      (RandomOracle.query arg.2.2.1 arg.2.1 arg.2.2.2)) := by
+  have hd := (isPolyTime_input cacheInput).sigma_snd
+  apply RandomOracle.isPolyTime_query_option (parameter := Sigma.fst)
+    (key := fun n => finBinaryEncoding (n + 1)) (value := fun n => finBinaryEncoding (n + 2))
+  · simpa only [pairEncoding_apply, List.BitPair.fst_encode] using hd.bitPair_fst
+  · simpa only [pairEncoding_apply, List.BitPair.snd_encode] using hd.bitPair_snd.bitPair_snd
+  · simpa only [pairEncoding_apply, List.BitPair.snd_encode, List.BitPair.fst_encode] using
+      hd.bitPair_snd.bitPair_fst
+
+/- Exhaustion on a hit retains the first answer and all duplicate entries. -/
+example : RandomOracle.query (none : Option ℕ) 1 [(1, 4), (1, 5)] =
+    some (4, [(1, 4), (1, 5)]) := rfl
+
+example : RandomOracle.query (none : Option ℕ) 2 [(1, 4)] = none := rfl
+
+/- The range is supplied in binary, including zero and arbitrarily large finite types. -/
+example : IsPPT (Oracle := Empty) binaryEncoding
+    (sigmaEncoding binaryEncoding (fun n => optionEncoding
+      (finEquivEncoding (Equiv.refl (Fin n))))) (fun n =>
+      (fun result => ⟨n, result⟩) <$> FreeM.sampleFin
+        ((fun bit => (⟨bit.toNat, Bool.toNat_lt bit⟩ : Fin 2)) <$> coin) n n.size 2) := by
+  simpa only [Equiv.refl_symm, Equiv.coe_refl, Option.map_id, id_eq] using
+    isPPT_sampleFin_equiv (Oracle := Empty) (fun n => Equiv.refl (Fin n))
+      (isPolyTime_input binaryEncoding) (isPolyTime_const binaryEncoding [true, true])
+
+noncomputable def hashCacheCode :=
+  listEncoding (pairEncoding (pairEncoding wordEncoding scalarCode) scalarCode)
+
+noncomputable def signingInput := sigmaEncoding unaryEncoding
+  (fun _ => pairEncoding scalarCode (pairEncoding wordEncoding hashCacheCode))
+
+/- The message, secret, and complete cache are runtime inputs, with an unbounded retry budget. -/
+example : IsPPT (Oracle := Empty) signingInput wordEncoding (fun arg =>
+    let sample : OptionT (effects Empty).FreeM F := OptionT.mk
+      (Option.map scalar.symm <$> FreeM.sampleFin
+        ((fun bit => (⟨bit.toNat, Bool.toNat_lt bit⟩ : Fin 2)) <$> coin) 2 2 (arg.1 + 1))
+    optionEncoding (pairEncoding (pairEncoding scalarCode scalarCode) hashCacheCode) <$>
+      (Schnorr.sign (monadLift sample) (RandomOracle.query sample)
+        (1 : F) arg.2.1 arg.2.2.1 arg.2.2.2).run) := by
+  have hi := isPolyTime_input signingInput
+  apply Schnorr.isPPT_sign (F := fun _ => F) (G := fun _ => F) (M := fun _ => Word)
+    (parameter := Sigma.fst) (fun _ => scalarCode) (fun _ => wordEncoding)
+    (fun _ => 2) (fun arg => arg.1 + 1) (fun _ => scalar)
+  · exact hi.sigma_fst
+  · exact isPolyTime_const _ _
+  · exact hi.sigma_snd.fst
+  · exact hi.sigma_snd.snd.fst
+  · exact hi.sigma_snd.snd.snd
+  · exact isPolyTime_const _ _
+  · exact attempts_poly.comp_encoded hi.sigma_fst
+  · exact isPolyTime_const _ _
+  · exact fieldOp_poly (· • ·)
+  · exact fieldOp_poly (· + ·)
+  · exact fieldOp_poly (· * ·)
+
+noncomputable def verificationInput := sigmaEncoding unaryEncoding (fun _ =>
+  pairEncoding scalarCode (pairEncoding wordEncoding
+    (pairEncoding (pairEncoding scalarCode scalarCode) hashCacheCode)))
+
+example : IsPPT (Oracle := Empty) verificationInput wordEncoding (fun arg =>
+    let sample : OptionT (effects Empty).FreeM F := OptionT.mk
+      (Option.map scalar.symm <$> FreeM.sampleFin
+        ((fun bit => (⟨bit.toNat, Bool.toNat_lt bit⟩ : Fin 2)) <$> coin) 2 2 (arg.1 + 1))
+    optionEncoding (pairEncoding boolEncoding hashCacheCode) <$>
+      (Schnorr.verify (RandomOracle.query sample) (1 : F) arg.2.1
+        arg.2.2.1 arg.2.2.2.1 arg.2.2.2.2).run) := by
+  have hi := isPolyTime_input verificationInput
+  apply Schnorr.isPPT_verify (F := fun _ => F) (G := fun _ => F) (M := fun _ => Word)
+    (parameter := Sigma.fst) (fun _ => scalarCode) (fun _ => wordEncoding)
+    (fun _ => 2) (fun arg => arg.1 + 1) (fun _ => scalar)
+  · exact hi.sigma_fst
+  · exact isPolyTime_const _ _
+  · exact hi.sigma_snd.fst
+  · exact hi.sigma_snd.snd.fst
+  · exact hi.sigma_snd.snd.snd.fst
+  · exact hi.sigma_snd.snd.snd.snd
+  · exact isPolyTime_const _ _
+  · exact attempts_poly.comp_encoded hi.sigma_fst
+  · exact isPolyTime_const _ _
+  · exact fieldOp_poly (· • ·)
+  · exact fieldOp_poly (· + ·)
 
 end CryptoRuntime

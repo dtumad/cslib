@@ -131,10 +131,14 @@ have explicit uniform certificates; sampling exhaustion remains visible in `Opti
 `Schnorr.PolynomialTime` gives uniform certificates for key generation, response arithmetic,
 transcript checking, and special-soundness extraction. Scalar decoding checks the binary range;
 the algebra certificates use independently supplied group and field encodings.
+The cached hash query, Schnorr signing, and hash-based verification also have uniform machine
+certificates. They retain the complete cache and preserve sampling exhaustion explicitly;
+an exhausted unused hash draw cannot invalidate a cache hit. Indexed sampling retains its input
+in an ordinary dependent pair, so subsequent arithmetic uses the sampled scalar directly.
 
-Crypto machine realizability still needs the randomized cache and signing handlers, machine-level
-forking, Schnorr signing and hash-based verification, and both security reductions' certificates.
-Only group and field operations may be assumed through explicit uniform primitive certificates.
+The remaining runtime work connects these handlers to adversary execution, implements machine-level
+forking, and certifies both security reductions. Group and field primitives and family parameter
+data require explicit uniform certificates.
 The per-sample cutoff failure must also be accumulated over the game's sampling calls.
 Computational and asymptotic
 ElGamal security additionally require the reduction to

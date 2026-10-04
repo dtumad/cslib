@@ -42,6 +42,19 @@ theorem query_of_lookup_eq_none (sample : m Y) (input : X) (cache : List (X × Y
       let answer ← sample
       pure (answer, (input, answer) :: cache)) := by simp [query, h]
 
+/-- Sampling failure is propagated on a miss; a hit returns its stored answer without sampling. -/
+theorem run_query_optionT [LawfulMonad m] (sample : m (Option Y)) (input : X)
+    (cache : List (X × Y)) :
+    (query (OptionT.mk sample) input cache).run =
+      match cache.lookup input with
+      | some answer => pure (some (answer, cache))
+      | none => Option.map (fun answer => (answer, (input, answer) :: cache)) <$> sample := by
+  cases h : cache.lookup input with
+  | some answer => simp only [query, h, OptionT.run_pure]
+  | none =>
+    simp only [query, h, ← map_eq_pure_bind, OptionT.run_map]
+    rfl
+
 /-- Querying the same input twice reuses its answer and consumes no additional randomness. -/
 theorem query_query [LawfulMonad m] (sample : m Y) (input : X) (cache : List (X × Y)) :
     (do
