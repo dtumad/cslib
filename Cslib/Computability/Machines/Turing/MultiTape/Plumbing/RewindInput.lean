@@ -103,4 +103,12 @@ public theorem runFrom_rewindInput (p : Fin (input.length + 2))
   rw [runFrom, Function.iterate_succ_apply, Rewind.step_eq rfl, ← runFrom, ← h]
   exact Rewind.runFrom_walk (moveInputPos p .neg) (by omega)
 
+/-- Rewinding the input head in a machine with work tapes preserves all of those tapes. -/
+public theorem runFrom_rewindInput_noTapes {k : ℕ} (p : Fin (input.length + 2))
+    (tapes : Fin k → ℤ → Option Symbol) (heads : Fin k → ℤ) (out : List Symbol) :
+    ((rewindInput Symbol).extendTapes (noTapes k)).runFrom
+        ⟨some ((rewindInput Symbol).extendTapes (noTapes k)).q₀, p, tapes, heads, out⟩
+        (p.val - 1 + 2) = ⟨none, 1, tapes, heads, out⟩ := by
+  simp only [extendTapes_q₀, runFrom_noTapes, noTapesCfg, runFrom_rewindInput]
+
 end Turing.MultiTapeTM

@@ -23,6 +23,7 @@ import CslibTests.InferenceSystem
 import CslibTests.LTS
 import CslibTests.LambdaCalculus
 import CslibTests.MLL
+import CslibTests.MachineRuntime
 import CslibTests.Modal
 import CslibTests.Modal.Ideal
 import CslibTests.Modal.Stlc

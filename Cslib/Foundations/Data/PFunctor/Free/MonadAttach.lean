@@ -95,6 +95,17 @@ instance : LawfulMonadAttach P.FreeM where
     obtain ⟨b, _, rfl⟩ := (canReturn_map Subtype.val x a).mp h
     exact b.2
 
+/-- Binds agree when their continuations agree at every structurally reachable return value. -/
+theorem bind_congr_of_canReturn (x : P.FreeM α) {f g : α → P.FreeM β}
+    (h : ∀ a, MonadAttach.CanReturn x a → f a = g a) : x.bind f = x.bind g := by
+  induction x with
+  | pure a => exact h a rfl
+  | lift_bind op cont ih =>
+    simp only [liftBind_bind]
+    congr 1
+    funext answer
+    exact ih answer fun a ha => h a ⟨answer, ha⟩
+
 /-- Inlining effects can only remove structurally reachable return values. -/
 theorem canReturn_of_liftM {Q : PFunctor.{w, uB}} {α : Type uB}
     (interp : (op : P.A) → Q.FreeM (P.B op)) (x : P.FreeM α) {a : α}

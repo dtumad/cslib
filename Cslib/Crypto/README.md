@@ -99,15 +99,27 @@ adversary. The proof combines the joint-cache signing law, adaptive collision ac
 the general forking inequality, and checked special-soundness extraction. It averages over
 key generation and implements all fresh hash draws with the original sampler.
 
-Machine realizability still needs encodings, a compiler that preserves the joint result and
-state measure, and clocks charging local work and handler implementation. In particular, a
+The runtime candidate in `Computability/PolynomialTime` recovers the deterministic machine
+constructions from Samuel's branch without probabilistic dependencies. Certificates include one
+finite binary machine and one polynomial clock for all encoded inputs, with a bridge to the
+existing `ComputableInTimeAndSpace` predicate. Composition, bounded iteration, and encoded list
+operations charge for copying and restoring scratch storage. The native `MultiTapePTM` execution
+uses `FreeM`, keeps timeout separate from successful output, and preserves shared named-oracle
+state through `Measure` kernels. Uniform binary-word sampling has a fixed one-state machine and
+an `n + 1` transition bound. Saved-coin execution preserves the exact calls across a pause, and
+pathwise halting identifies bounded execution with its unbounded `Resumption`.
+
+Crypto machine realizability still needs the stateful handler compiler, binary rejection-sampling
+machine, and encoded replay machinery, followed by the scheme and reduction certificates. Only
+group and field operations may be assumed through explicit uniform primitive certificates.
+In particular, a
 uniform exponent is not a unit-cost machine instruction: the binary sampler's operation bound
 must be combined with costs for bit arithmetic and group operations. The per-sample cutoff
 failure must also be accumulated over the game's sampling calls. Computational and asymptotic
 ElGamal security additionally require the reduction to
 preserve the chosen admissibility predicate for a parameterized group family.
-Silent machine steps can be made visible by adjoining `PFunctor.y` as a deterministic tick
-operation; certifying the transition compiler and its cost remains a separate obligation.
+The machine resumption exposes one coin per transition and an additional operation per oracle
+submission; ordinary effect truncation therefore differs from a transition clock.
 
 For Schnorr, the concrete theorem assumes a finite scalar field, countable effects and messages,
 a uniform sampler, and a bijective scalar-to-public-key map. Computational and asymptotic
