@@ -42,6 +42,22 @@ def choose (out : ℕ × ℕ × ℕ) : Option ℕ := if out.2.2 % 2 = 0 then som
 #guard ((runFork (fun _ => none)).run 0).run == (((0, 1, 2), none), 3)
 #guard ((runFork (fun _ => some 2)).run 0).run == (((0, 1, 2), none), 3)
 
+def fixedTape (tape : List ℕ) : effects.FreeM (ℕ × ℕ) := do
+  let challenge ← FreeM.lift true
+  pure (challenge, tape.headD 0)
+
+-- Private randomness is sampled once, although the program reads it after the fork point.
+-- Both runs retain that sample while receiving different challenges.
+example : FreeM.fork id (fun _ => some 0)
+      ([()].mapM (fun _ => FreeM.lift false) >>= fixedTape) =
+    ([()].mapM (fun _ => FreeM.lift false) >>= fun tape =>
+      FreeM.fork id (fun _ => some 0) (fixedTape tape)) :=
+  FreeM.fork_mapM_bind_of_not_select _ _ _ _ _ rfl
+
+#guard (((FreeM.fork id (fun _ => some 0)
+    ([()].mapM (fun _ => FreeM.lift false) >>= fixedTape)).liftM counted).run 0).run ==
+      (((1, 0), some ⟨true, 1, 2, (2, 0)⟩), 3)
+
 def cached : effects.FreeM ((ℕ × ℕ × ℕ) × List (Bool × ℕ)) :=
   (do
     let saved ← RandomOracle.query (FreeM.lift true : effects.FreeM ℕ) false

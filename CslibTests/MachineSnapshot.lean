@@ -5,7 +5,9 @@ Authors: Devon Tuma
 -/
 
 import Cslib.Computability.PolynomialTime.Machine.Replay
+import Cslib.Computability.PolynomialTime.Machine.Rewind
 import CslibTests.MachineRuntime
+import Cslib.Tactic.PolyTime
 
 /-! Checks for finite snapshots, joint-state replay, and its uniform machine certificate. -/
 
@@ -59,14 +61,47 @@ example : (pending.receive true () [false, true]).answerSymbols true = some fals
 example : (pending.receive true () [false, true]).channels false = pending.channels false := rfl
 example : (pending.receive true () [false, true]).output = [true] := by decide
 
+/-- The last output combines a fresh oracle answer with a private bit read after the fork. -/
+def rewindMachine : MultiTapePTM 0 Bool (Fin 4) Bool where
+  initial := 0
+  tr state _ _ answers bit := match state.val with
+    | 0 => .query false 1
+    | 1 => .step ⟨0, Fin.elim0, some bit, some 2⟩ (fun _ => answers false) (fun _ => 0)
+    | 2 => .query true 3
+    | _ => .step ⟨0, Fin.elim0, some (bit != (answers true).getD false), none⟩
+      (fun _ => none) (fun _ => 0)
+
+def seeded (_ : Bool) (request : Word) : Word × Cache → Word × (Word × Cache) := fun state =>
+  match state.2.lookup request with
+  | some answer => ([answer], state)
+  | none =>
+    let answer := state.1.headD false
+    ([answer], (state.1.tail, (request, answer) :: state.2))
+
+def rewound (coins : Word) : (Word × Cache) × (Word × Cache) :=
+  let result := rewindMachine.rewindSnapshotFromCoins [] seeded coins
+    (Snapshot.initial rewindMachine.initial) ([false, false], [])
+    (fun first => first.1.output.length) (fun saved => ([true], saved.2))
+  ((result.1.1.output, result.1.2.2), (result.2.1.output, result.2.2.2))
+
+-- The selected prefix cache is retained, the first suffix's cache entry is discarded, and
+-- the private bit at the last transition is reused despite the changed oracle answer.
+example : rewound [false, true, false, true] =
+    (([true, true], [([false], false), ([], false)]),
+      ([true, false], [([false], true), ([], false)])) := by decide
+example : rewound [false, true, false, false] =
+    (([true, false], [([false], false), ([], false)]),
+      ([true, true], [([false], true), ([], false)])) := by decide
+
 abbrev logEncoding : List Word ↪ Word := listEncoding wordEncoding
 
 def echoLog (_ : Fin 1) (request : Word) (log : List Word) : Word × List Word :=
   (request, request :: log)
 
 theorem echoLog_poly (port : Fin 1) : IsPolyTime (pairEncoding wordEncoding logEncoding)
-    (fun pair => pairEncoding wordEncoding logEncoding (echoLog port pair.1 pair.2)) :=
-  (isPolyTime_fst _ _).pair ((isPolyTime_fst _ _).list_cons (isPolyTime_snd _ _))
+    (fun pair => pairEncoding wordEncoding logEncoding (echoLog port pair.1 pair.2)) := by
+  unfold echoLog logEncoding
+  polytime
 
 -- A single certified replay machine handles arbitrarily long coin words and growing call logs.
 -- The proof derives its space bound from request lengths; it assumes no simulation clock.

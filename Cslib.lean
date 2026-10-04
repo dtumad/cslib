@@ -120,10 +120,12 @@ public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Output
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.OutputToTape
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Rename
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Resumption
+public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Rewind
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Sequential
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Simulation
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Snapshot
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.UniformBits
+public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.WP
 public import Cslib.Computability.Machines.Turing.MultiTape.Relabel
 public import Cslib.Computability.Machines.Turing.MultiTape.Snapshot
 public import Cslib.Computability.Machines.Turing.MultiTape.TapeLemmas
@@ -147,10 +149,12 @@ public import Cslib.Computability.PolynomialTime.List
 public import Cslib.Computability.PolynomialTime.Machine
 public import Cslib.Computability.PolynomialTime.Machine.Bounds
 public import Cslib.Computability.PolynomialTime.Machine.Replay
+public import Cslib.Computability.PolynomialTime.Machine.Rewind
 public import Cslib.Computability.PolynomialTime.Machine.Size
 public import Cslib.Computability.PolynomialTime.Machine.Step
 public import Cslib.Computability.PolynomialTime.Monoid
 public import Cslib.Computability.PolynomialTime.Option
+public import Cslib.Computability.PolynomialTime.Parameter
 public import Cslib.Computability.PolynomialTime.Probabilistic
 public import Cslib.Computability.PolynomialTime.Realization.Iteration
 public import Cslib.Computability.PolynomialTime.Realization.PolynomialTime
@@ -395,3 +399,6 @@ public import Cslib.MachineLearning.PACLearning.VersionSpaceLattice
 public import Cslib.Probability.PMF
 public import Cslib.Probability.StatisticalDistance
 public import Cslib.Tactic.GrindAttrs
+public import Cslib.Tactic.PPT
+public import Cslib.Tactic.PolyTime
+public import Cslib.Tactic.PolyTime.Init

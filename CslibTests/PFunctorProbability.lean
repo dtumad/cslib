@@ -116,10 +116,6 @@ set_option experimental.vcgen true
 noncomputable local instance : Lean.Order.CompleteLattice ℝ≥0∞ := .ofMathlib _
 noncomputable local instance : WPMonad four.FreeM ℝ≥0∞ EStack⟨⟩ := FreeM.expectationWP answers
 
-@[local spec]
-theorem four_spec (op : four.A) (post : four.B op → ℝ≥0∞) (epost : EStack⟨⟩) :
-    ⦃∫⁻ b, post b ∂answers op⦄ (FreeM.lift (P := four) op) ⦃post; epost⦄ := ⟨le_rfl⟩
-
 def accepted : four.FreeM Bool := do
   let x ← FreeM.lift ()
   pure (decide (x.val < 3))

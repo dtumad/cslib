@@ -8,6 +8,8 @@ module
 
 public import Cslib.Foundations.Data.PFunctor.Free.MonadAttach
 public import Std.WP.Monad.Basic
+public import Std.WP.EStack
+public import Std.WP.Triple.Basic
 
 /-!
 # Weakest preconditions for polynomial free programs
@@ -103,5 +105,26 @@ theorem liftM_forall_iff (x : P.FreeM α) (post : α → Prop) :
     change (∀ b, _) ↔ _
     simp only [pure_bind, ih, canReturn_lift_bind]
     exact ⟨fun h a ⟨b, hb⟩ => h b a hb, fun h b a hb => h a ⟨b, hb⟩⟩
+
+/-- Structural correctness: the postcondition holds for every sequence of operation responses.
+Install this reading locally to use core `vcgen` on native free programs. -/
+@[instance_reducible]
+def forallWP : WPMonad P.FreeM Prop EStack⟨⟩ :=
+  wpMonad (fun _ => ⟨fun post _ => ∀ value, post value⟩)
+    (fun _ _ _ _ _ _ h hp value => h value (hp value))
+
+/-- The structural reading is exactly the free program's reachable-output predicate. -/
+theorem forallWP_iff (x : P.FreeM α) (post : α → Prop) :
+    ((forallWP (P := P)).toWP α).wp x post () ↔
+      ∀ a, MonadAttach.CanReturn x a → post a :=
+  liftM_forall_iff x post
+
+/-- Structural `vcgen` treats each operation response universally, without unfolding `FreeM`. -/
+@[spec]
+theorem forallWP_lift_spec (op : P.A) (post : P.B op → Prop) (epost : EStack⟨⟩) :
+    letI : WPMonad P.FreeM Prop EStack⟨⟩ := forallWP
+    ⦃∀ value, post value⦄ lift op ⦃post; epost⦄ := by
+  let : WPMonad P.FreeM Prop EStack⟨⟩ := forallWP
+  exact ⟨fun h => h⟩
 
 end PFunctor.FreeM

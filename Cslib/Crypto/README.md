@@ -60,9 +60,9 @@ it uses at most `t * ceil(log₂ n)` coin operations and fails with probability 
 Failure is an explicit `none`, with exact probabilities for every successful output.
 `ElGamal.Resumption` preserves the full oracle-DDH identity when inlining almost-surely
 terminating effect implementations, including their infinite rejected paths.
-The structural `Std.WP` interpretation and an explicit
-expectation interpretation share the same free programs; the quantitative `vcgen` test currently
-requires a local operation specification.
+The structural `Std.WP` interpretation and an explicit expectation interpretation share the same
+free programs. Their operation specifications let core `vcgen` handle monadic sequencing;
+probability arithmetic, couplings, and machine-runtime bounds remain separate obligations.
 
 [`Schnorr`](Primitives/Schnorr.lean) uses Mathlib's `Module F G` for scalar multiplication.
 It supplies signing, verification, special-soundness extraction, and a perfect honest-verifier
@@ -124,6 +124,12 @@ certificate for certified deterministic handlers, with explicit bounds on reply 
 per-call state growth. Request buffers grow by at most one bit per transition; the replay bound
 charges for copying complete snapshots, accumulated caches, and oracle replies.
 Sampling the private tape before execution preserves the joint output-and-oracle-state measure.
+Adaptive rewinding now has a uniform certificate using prefix replay. It restores both the
+finite snapshot and handler state and reuses the same private-coin suffix. A restart operation can
+replace the remaining oracle-answer tape while retaining the prefix cache. The private-tape
+convention agrees with Bellare and Neven's general forking lemma; connecting this construction to
+the Schnorr selector and its full reduction is still required. Single-run measure equality alone
+does not preserve the coupling of a fork.
 `ElGamal.PolynomialTime` certifies honest key generation, encryption, and decryption uniformly
 across an indexed group family. It derives binary exponentiation from certified multiplication
 and polynomial bounds on element encodings. The parameter data and remaining group primitives
@@ -136,9 +142,16 @@ certificates. They retain the complete cache and preserve sampling exhaustion ex
 an exhausted unused hash draw cannot invalidate a cache hit. Indexed sampling retains its input
 in an ordinary dependent pair, so subsequent arithmetic uses the sampled scalar directly.
 
-The remaining runtime work connects these handlers to adversary execution, implements machine-level
-forking, and certifies both security reductions. Group and field primitives and family parameter
-data require explicit uniform certificates.
+Samuel's `polytime` and `ppt` tactics have been adapted to these native certificates. Tests cover
+data-dependent sampling, captured continuations, calls to certified subprograms, and the ordinary
+Schnorr key generator and response arithmetic. Core `vcgen` also proves the structural correctness
+of an honest Schnorr transcript, leaving its algebraic identity as the final obligation.
+Reachability reflection transfers that postcondition to every completed path of a realizing machine.
+The tactics do not infer efficiency for arbitrary Lean functions or supply loop-size invariants.
+
+The remaining runtime work connects these handlers to adversary execution, connects machine-level
+rewinding to the semantic fork, and certifies both security reductions. Group and field primitives
+and family parameter data require explicit uniform certificates.
 The per-sample cutoff failure must also be accumulated over the game's sampling calls.
 Computational and asymptotic
 ElGamal security additionally require the reduction to

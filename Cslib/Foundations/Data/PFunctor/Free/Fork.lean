@@ -18,6 +18,11 @@ is counted from zero; `none` or an index beyond the execution causes no second r
 Mutable state must be inlined before forking: the saved continuation then contains the exact
 cache and private state at the selected operation. Interpreting the remaining operations with
 measures supplies independent randomness to the two suffixes.
+
+To share a private random tape across both suffixes, sample it before the first selected operation
+and pass its bits explicitly to the program. `fork_lift_bind_of_not_select` moves such sampling
+outside the fork. Random effects left inside the continuation are resampled, so moving private
+randomness outside is a choice of coupling, not merely a change of implementation.
 -/
 
 @[expose] public section
@@ -47,6 +52,31 @@ def fork (select : P.A → Bool) (choose : α → Option ℕ) :
 @[simp]
 theorem fork_pure (select : P.A → Bool) (choose : α → Option ℕ) (a : α) :
     fork select choose (pure a) = pure (a, none) := rfl
+
+/-- An unselected operation is performed once, and its response is shared by both continuations.
+In particular, private randomness sampled here is retained even if it is used after the fork. -/
+theorem fork_lift_bind_of_not_select (select : P.A → Bool) (choose : α → Option ℕ)
+    (op : P.A) (cont : P.B op → P.FreeM α) (hselect : select op = false) :
+    fork select choose (lift op >>= cont) =
+      (lift op >>= fun answer => fork select choose (cont answer)) := by
+  change fork select choose (.liftBind op cont) = _
+  simp only [fork, hselect, Bool.false_eq_true, ↓reduceIte, Bool.false_and, _root_.bind_pure]
+
+/-- Sampling a fixed number of responses to an unselected operation before the program shares
+the entire sampled tape across the two runs, including entries read after the fork point. -/
+theorem fork_mapM_bind_of_not_select {ι : Type u} (select : P.A → Bool)
+    (choose : α → Option ℕ) (op : P.A) (inputs : List ι)
+    (cont : List (P.B op) → P.FreeM α) (hselect : select op = false) :
+    fork select choose (inputs.mapM (fun _ => lift op) >>= cont) =
+      (inputs.mapM (fun _ => lift op) >>= fun tape => fork select choose (cont tape)) := by
+  induction inputs generalizing cont with
+  | nil => simp
+  | cons value inputs ih =>
+    simp only [List.mapM_cons, LawfulMonad.bind_assoc, LawfulMonad.pure_bind]
+    rw [fork_lift_bind_of_not_select _ _ _ _ hselect]
+    congr 1
+    funext answer
+    exact ih (fun tape => cont (answer :: tape))
 
 /-- Successful forks whose two executions select occurrence `n` and give distinct answers. -/
 def forkSuccess (choose : α → Option ℕ) (n : ℕ) :

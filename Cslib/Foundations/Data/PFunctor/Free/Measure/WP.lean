@@ -40,6 +40,14 @@ noncomputable def expectationWP : WPMonad P.FreeM ℝ≥0∞ EStack⟨⟩ :=
   wpMonad (fun op => ⟨fun post _ => ∫⁻ b, post b ∂μ op⟩)
     (fun _ _ _ _ _ _ h => lintegral_mono h)
 
+/-- Quantitative `vcgen` reduces an operation to integration against its answer measure. -/
+@[spec]
+theorem expectationWP_lift_spec (op : P.A) (post : P.B op → ℝ≥0∞) (epost : EStack⟨⟩) :
+    letI : WPMonad P.FreeM ℝ≥0∞ EStack⟨⟩ := expectationWP μ
+    ⦃∫⁻ value, post value ∂μ op⦄ lift op ⦃post; epost⦄ := by
+  let : WPMonad P.FreeM ℝ≥0∞ EStack⟨⟩ := expectationWP μ
+  exact ⟨le_rfl⟩
+
 /-- The quantitative WP equals integration against the native measure semantics. -/
 theorem expectationWP_eq_lintegral [∀ op, DiscreteMeasurableSpace (P.B op)]
     {α : Type uB} [MeasurableSpace α] (x : P.FreeM α) (post : α → ℝ≥0∞)
