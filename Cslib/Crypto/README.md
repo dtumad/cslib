@@ -108,6 +108,11 @@ uses `FreeM`, keeps timeout separate from successful output, and preserves share
 state through `Measure` kernels. Uniform binary-word sampling has a fixed one-state machine and
 an `n + 1` transition bound. Saved-coin execution preserves the exact calls across a pause, and
 pathwise halting identifies bounded execution with its unbounded `Resumption`.
+Probabilistic certificates compose through a physical buffered-input machine, including efficient
+deterministic pre- and postprocessing. Subroutines have separate communication buffers and share
+the oracle's hidden state. Kernel correctness also identifies exactly the reachable encoded outputs,
+so sequencing needs no assumed decoder. Association-list lookup has a uniform machine certificate
+using the ordinary `List.lookup` API and charging for key comparisons and cache traversal.
 
 Crypto machine realizability still needs the stateful handler compiler, binary rejection-sampling
 machine, and encoded replay machinery, followed by the scheme and reduction certificates. Only

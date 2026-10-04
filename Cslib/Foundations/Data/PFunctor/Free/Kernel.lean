@@ -6,6 +6,7 @@ Authors: Devon Tuma
 
 module
 public import Cslib.Foundations.Data.PFunctor.Free.Measure
+public import Cslib.Foundations.Data.PFunctor.Free.MonadAttach
 public import Mathlib.Probability.Kernel.Basic
 
 /-!
@@ -103,6 +104,24 @@ theorem runKernel_bind [Countable α] [MeasurableSingletonClass α]
       rw [Measure.bind_bind (measurable_runKernel_continuation impl rest).aemeasurable
         (measurable_runKernel_continuation impl next).aemeasurable]
       exact Measure.bind_congr_right (Filter.Eventually.of_forall fun out => ih out.1 out.2)
+
+/-- Semantically equal continuations on reachable results give the same joint kernel.
+The intermediate type needs no measurable structure, so this also applies to machine tapes. -/
+theorem runKernel_bind_congr_of_canReturn {X : Type uB}
+    (impl : (a : P.A) → Kernel S (P.B a × S)) (program : FreeM P X)
+    (left right : X → FreeM P β)
+    (h : ∀ x, MonadAttach.CanReturn program x → ∀ state,
+      runKernel impl (left x) state = runKernel impl (right x) state) (state : S) :
+    runKernel impl (program.bind left) state = runKernel impl (program.bind right) state := by
+  induction program generalizing state with
+  | pure x => exact h x rfl state
+  | lift_bind op cont ih =>
+    change (impl op state).bind (fun out => runKernel impl ((cont out.1).bind left) out.2) =
+      (impl op state).bind (fun out => runKernel impl ((cont out.1).bind right) out.2)
+    apply Measure.bind_congr_right
+    refine Filter.Eventually.of_forall fun out => ih out.1 ?_ out.2
+    intro x hx
+    exact h x ⟨out.1, hx⟩
 
 /-- An isolated query has exactly its supplied answer-and-state kernel. -/
 @[simp]

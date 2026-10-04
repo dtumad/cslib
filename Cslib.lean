@@ -109,10 +109,17 @@ public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.UnaryRepeat
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.WordsCfg
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape
+public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Composition
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Deterministic
+public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.ExtendChannels
+public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.ExtendTapes
+public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.InputFromTape
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Measure
+public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.OutputToTape
+public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Rename
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Resumption
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Sequential
+public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Simulation
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.UniformBits
 public import Cslib.Computability.Machines.Turing.MultiTape.Relabel
 public import Cslib.Computability.Machines.Turing.MultiTape.TapeLemmas
@@ -121,6 +128,7 @@ public import Cslib.Computability.Machines.Turing.SingleTape.Deterministic
 public import Cslib.Computability.Machines.Turing.SingleTape.NonDeterministic
 public import Cslib.Computability.PolynomialTime.Arithmetic
 public import Cslib.Computability.PolynomialTime.Basic
+public import Cslib.Computability.PolynomialTime.Composition
 public import Cslib.Computability.PolynomialTime.Defs
 public import Cslib.Computability.PolynomialTime.Deterministic
 public import Cslib.Computability.PolynomialTime.Encoding
@@ -132,6 +140,7 @@ public import Cslib.Computability.PolynomialTime.Realization.Iteration
 public import Cslib.Computability.PolynomialTime.Realization.PolynomialTime
 public import Cslib.Computability.PolynomialTime.Realization.Transducer
 public import Cslib.Computability.PolynomialTime.Sampling
+public import Cslib.Computability.PolynomialTime.Support
 public import Cslib.Computability.URM.Basic
 public import Cslib.Computability.URM.Computable
 public import Cslib.Computability.URM.Defs
@@ -211,6 +220,7 @@ public import Cslib.Foundations.Data.PFunctor.Free.Fork
 public import Cslib.Foundations.Data.PFunctor.Free.Fork.Measure
 public import Cslib.Foundations.Data.PFunctor.Free.Fork.Probability
 public import Cslib.Foundations.Data.PFunctor.Free.Kernel
+public import Cslib.Foundations.Data.PFunctor.Free.Kernel.Support
 public import Cslib.Foundations.Data.PFunctor.Free.Measure
 public import Cslib.Foundations.Data.PFunctor.Free.Measure.PMF
 public import Cslib.Foundations.Data.PFunctor.Free.Measure.StateT

@@ -5,8 +5,10 @@ Authors: Devon Tuma
 -/
 
 import Cslib.Computability.PolynomialTime.Sampling
+import Cslib.Computability.PolynomialTime.Composition
 import Cslib.Computability.PolynomialTime.List
 import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Sequential
+import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Composition
 import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape
 import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Resumption
 import Cslib.Crypto.RandomOracle
@@ -41,6 +43,13 @@ example : IsPPT (Oracle := Empty) parameterEncoding wordEncoding
 -- The loop certificate supplies one machine across unbounded input lengths.
 example : IsPolyTime wordEncoding (fun word => word.reverse ++ word) :=
   (isPolyTime_input wordEncoding).reverse.append (isPolyTime_input wordEncoding)
+
+-- Sampling followed by a bounded deterministic loop receives one uniform machine certificate.
+example : IsPPT (Oracle := Empty) parameterEncoding wordEncoding (fun input =>
+    (fun bits : Word => bits.reverse ++ bits) <$>
+      (List.replicate input.1 ()).mapM (fun _ => coin)) :=
+  isPPT_sampleBits.map
+    ((isPolyTime_input wordEncoding).reverse.append (isPolyTime_input wordEncoding))
 
 /-- The first answer chooses the payload of the next two calls, through distinct operation names. -/
 def adaptiveMachine : MultiTapePTM 0 Bool (Fin 5) Bool where
@@ -81,5 +90,44 @@ example (before after : Word) :
       (adaptiveMachine.runConfigFromCoins cached before (adaptiveMachine.initialConfig []) >>=
         adaptiveMachine.runConfigFromCoins cached after) :=
   runConfigFromCoins_append _ _ _ _ _
+
+-- Lookup is certified across unbounded encoded caches, including keys with empty encodings.
+example : IsPolyTime
+    (pairEncoding wordEncoding (listEncoding (pairEncoding wordEncoding boolEncoding)))
+    (fun pair => optionEncoding boolEncoding (pair.2.lookup pair.1)) :=
+  (isPolyTime_fst _ _).list_lookup (isPolyTime_snd _ _)
+
+-- The source deliberately leaves a pending request when it halts. That buffer must remain
+-- separate from the continuation's fresh port, while both calls still share one cache.
+def bufferedSource : MultiTapePTM 0 Bool (Fin 2) (Fin 1) where
+  initial := 0
+  tr state _ _ answer _ := if state = 0 then .query 0 1 else
+    .step ⟨0, Fin.elim0, some ((answer 0).getD false), none⟩
+      (fun _ => some true) (fun _ => 0)
+
+def bufferedConsumer : MultiTapePTM 0 Bool (Fin 3) (Fin 1) where
+  initial := 0
+  tr state symbol _ answer _ := match state.val with
+    | 0 => .step ⟨0, Fin.elim0, none, some 1⟩ (fun _ => symbol) (fun _ => 0)
+    | 1 => .query 0 2
+    | _ => .step ⟨0, Fin.elim0, some ((answer 0).getD false), none⟩
+      (fun _ => none) (fun _ => 0)
+
+def composedResult (fuel : ℕ) : Option Word × (Cache × Log) :=
+  let machine := bufferedSource.comp bufferedConsumer
+  let (cfg, state) := (machine.runConfigFromCoins (fun port => cached (port.val == 1))
+    (List.replicate fuel false) (machine.initialConfig [])).run ([], [])
+  (output? cfg, state)
+
+section
+
+set_option linter.hashCommand false
+
+#guard composedResult 9 ==
+  (none, ([([false], true), ([], false)], [(false, []), (true, [false])]))
+#guard composedResult 10 ==
+  (some [true], ([([false], true), ([], false)], [(false, []), (true, [false])]))
+
+end
 
 end MachineRuntime

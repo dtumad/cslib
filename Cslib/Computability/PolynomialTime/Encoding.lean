@@ -30,6 +30,19 @@ open Automata
 
 variable {α β γ : Type}
 
+/-- An absent value has an empty code; a present value has a leading tag bit. -/
+def optionEncoding (element : α ↪ Word) : Option α ↪ Word where
+  toFun value := match value with
+    | none => []
+    | some value => true :: element value
+  inj' := by
+    intro x y h
+    cases x <;> cases y <;> simp_all [element.injective.eq_iff]
+
+@[simp] theorem optionEncoding_none (element : α ↪ Word) : optionEncoding element none = [] := rfl
+@[simp] theorem optionEncoding_some (element : α ↪ Word) (value : α) :
+    optionEncoding element (some value) = true :: element value := rfl
+
 /-- Unary natural numbers charge their numerical value to the input or output length. -/
 def unaryEncoding : ℕ ↪ Word where
   toFun n := List.replicate n true

@@ -25,7 +25,7 @@ namespace Turing.MultiTapeTM
 
 open Cslib
 
-variable {α Item : Type} {encode : α → Word}
+variable {α Item Key Value : Type} {encode : α → Word}
 
 /-- Count occurrences of an efficiently computed bit in an efficiently computed word. -/
 theorem IsPolyTime.count {word : α → Word} {bit : α → Bool}
@@ -210,5 +210,47 @@ theorem isPolyTime_range : IsPolyTime unaryEncoding
 theorem IsPolyTime.range (hcount : IsPolyTime encode (fun a => List.replicate (count a) true)) :
     IsPolyTime encode (fun a => listEncoding unaryEncoding (List.range (count a))) :=
   isPolyTime_range.comp_encoded (encodeArg := unaryEncoding) hcount
+
+/-- Read an optional head without assuming that the element type is inhabited. -/
+theorem IsPolyTime.list_head? {element : Value ↪ Word} {encode : α → Word}
+    {values : α → List Value}
+    (hvalues : IsPolyTime encode (fun a => listEncoding element (values a))) :
+    IsPolyTime encode (fun a => optionEncoding element (values a).head?) := by
+  have hnone := hvalues.list_unaryLength.unary_eq (g := fun _ => 0) (isPolyTime_const encode [])
+  have hsome := (isPolyTime_const encode [true]).append hvalues.bitPair_fst
+  have h := hnone.ite (isPolyTime_const encode []) hsome
+  convert h using 1
+  funext a
+  cases values a <;> simp [pairEncoding]
+
+/-- Ordinary first-match association-list lookup charges for key comparison and scanning. -/
+theorem IsPolyTime.list_lookup [BEq Key] [LawfulBEq Key]
+    {key : Key ↪ Word} {value : Value ↪ Word}
+    {encode : α → Word} {keys : α → Key} {values : α → List (Key × Value)}
+    (hkeys : IsPolyTime encode (fun a => key (keys a)))
+    (hvalues : IsPolyTime encode (fun a => listEncoding (pairEncoding key value) (values a))) :
+    IsPolyTime encode (fun a => optionEncoding value ((values a).lookup (keys a))) := by
+  classical
+  let item := pairEncoding key value
+  have hpred : IsPolyTime (pairEncoding key item)
+      (fun p => [decide (p.1 = p.2.1)]) := by
+    have h := (isPolyTime_fst key item).beq (isPolyTime_snd key item).fst
+    simpa only [Bool.beq_eq_decide_eq, key.injective.eq_iff] using h
+  have hfiltered := hvalues.list_filter_with
+    (predicate := fun k pair => decide (k = pair.1)) hkeys hpred
+  have hmapped := hfiltered.list_map (isPolyTime_snd key value)
+  have hhead := hmapped.list_head?
+  convert hhead using 1
+  funext a
+  congr 1
+  have heq (input : Key) (entries : List (Key × Value)) :
+      entries.lookup input =
+        ((entries.filter (fun pair => decide (input = pair.1))).map Prod.snd).head? := by
+    induction entries with
+    | nil => rfl
+    | cons entry entries ih =>
+      rcases entry with ⟨k, v⟩
+      by_cases he : input = k <;> simp [List.lookup_cons, Bool.beq_eq_decide_eq, he, ih]
+  exact heq _ _
 
 end Turing.MultiTapeTM

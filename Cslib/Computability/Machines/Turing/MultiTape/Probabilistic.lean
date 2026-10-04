@@ -203,6 +203,19 @@ theorem length_output_runConfigFrom_le (machine : MultiTapePTM k Bool State Orac
     have := ih mid hrun
     omega
 
+/-- Every completed output fits within the transition budget used to write it. -/
+theorem length_of_canReturn_run (machine : MultiTapePTM k Bool State Oracle)
+    (fuel : ℕ) (input word : List Bool)
+    (h : MonadAttach.CanReturn (machine.run fuel input) (some word)) : word.length ≤ fuel := by
+  obtain ⟨final, hfinal, houtput⟩ := (FreeM.canReturn_map _ _ _).mp h
+  cases hs : final.tapes.state with
+  | none =>
+    have heq : final.tapes.output = word := by simpa [output?, hs] using houtput
+    rw [← heq]
+    simpa [initialConfig, Cfg.init] using
+      length_output_runConfigFrom_le machine fuel (machine.initialConfig input) final hfinal
+  | some state => simp [output?, hs] at houtput
+
 end MultiTapePTM
 
 end Turing

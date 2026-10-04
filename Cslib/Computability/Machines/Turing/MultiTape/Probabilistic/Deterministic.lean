@@ -72,14 +72,17 @@ variable [MeasurableSpace (List Bool)] [DiscreteMeasurableSpace (List Bool)]
   {S α : Type} [MeasurableSpace S] [DiscreteMeasurableSpace S] [Countable S]
   [MeasurableSpace α]
 
-/-- Discarded coins leave the deterministic result and the external state unchanged. -/
-theorem runKernel_ofDeterministic (machine : MultiTapeTM k Bool State)
+/-- A deterministic subroutine passes its reached tapes to the continuation without changing
+the shared oracle state. Complete machine configurations need no measurable structure. -/
+theorem runKernel_bind_ofDeterministic (machine : MultiTapeTM k Bool State)
     (oracle : Oracle → List Bool → Kernel S (List Bool × S)) (fuel : ℕ)
-    (cfg : Config k Bool State Oracle input) (post : Config k Bool State Oracle input → α)
+    (cfg : Config k Bool State Oracle input)
+    (next : Config k Bool State Oracle input → (effects Oracle).FreeM α)
     (state : S) :
     FreeM.runKernel (effectKernel oracle)
-      (post <$> (ofDeterministic machine).runConfigFrom fuel cfg) state =
-      Measure.dirac (post { cfg with tapes := machine.runFrom cfg.tapes fuel }, state) := by
+      ((ofDeterministic machine).runConfigFrom fuel cfg >>= next) state =
+      FreeM.runKernel (effectKernel oracle)
+        (next { cfg with tapes := machine.runFrom cfg.tapes fuel }) state := by
   induction fuel generalizing cfg with
   | zero => simp
   | succ fuel ih =>
@@ -93,8 +96,18 @@ theorem runKernel_ofDeterministic (machine : MultiTapeTM k Bool State)
       simp only [hrun]
     | some control =>
       simp only [Option.isNone_some, Bool.false_eq_true, ↓reduceIte, bind_assoc,
-        pure_bind, map_bind]
+        pure_bind]
       rw [runKernel_coin_const, ih]
       rw [show fuel + 1 = 1 + fuel by omega, machine.runFrom_add, machine.runFrom_one]
+
+/-- Discarded coins leave the deterministic result and the external state unchanged. -/
+theorem runKernel_ofDeterministic (machine : MultiTapeTM k Bool State)
+    (oracle : Oracle → List Bool → Kernel S (List Bool × S)) (fuel : ℕ)
+    (cfg : Config k Bool State Oracle input) (post : Config k Bool State Oracle input → α)
+    (state : S) :
+    FreeM.runKernel (effectKernel oracle)
+      (post <$> (ofDeterministic machine).runConfigFrom fuel cfg) state =
+      Measure.dirac (post { cfg with tapes := machine.runFrom cfg.tapes fuel }, state) := by
+  rw [map_eq_pure_bind, runKernel_bind_ofDeterministic, FreeM.runKernel_pure]
 
 end Turing.MultiTapePTM

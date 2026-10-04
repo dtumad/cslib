@@ -71,6 +71,10 @@ theorem left_halted (second : MultiTapePTM k Bool State₁ Oracle)
 @[simp] theorem right_state (cfg : Config k Bool State₁ Oracle input) :
     (right (State₀ := State₀) cfg).tapes.state = cfg.tapes.state.map .inr := rfl
 
+@[simp] theorem output?_right (cfg : Config k Bool State₁ Oracle input) :
+    output? (right (State₀ := State₀) cfg) = output? cfg := by
+  simp [output?, right, Cfg.mapState]
+
 @[simp] theorem left_inputSymbol (second : MultiTapePTM k Bool State₁ Oracle)
     (cfg : Config k Bool State₀ Oracle input) :
     (left second cfg).tapes.inputSymbol = cfg.tapes.inputSymbol := rfl
