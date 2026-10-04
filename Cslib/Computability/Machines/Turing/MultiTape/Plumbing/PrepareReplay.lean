@@ -216,9 +216,9 @@ abbrev ReadyControl := ParseState ⊕ (RewindWorkState ⊕ (RewindWorkState ⊕ 
 
 /-- Parse the pair, rewind both words, mark the virtual input boundary, and restore the input. -/
 def prepare (k : ℕ) : MultiTapeTM (k + 3) Bool ReadyControl :=
-  (parser k).seq ((rewindWork Bool (Fin.natAdd k 0)).seq
-    ((rewindWork Bool (Fin.natAdd k 1)).seq
-      ((PrepareInput.markBoundary (k + 2)).seq (rewindInput (k + 3) Bool))))
+  (parser k).seq (((rewindWork Bool).extendTapes (tapeEmb (Fin.natAdd k 0))).seq
+    (((rewindWork Bool).extendTapes (tapeEmb (Fin.natAdd k 1))).seq
+      ((PrepareInput.markBoundary (k + 2)).seq ((rewindInput Bool).extendTapes (noTapes (k + 3))))))
 
 /-- The ready layout: blank source work tapes, coins, input, and its boundary flag. -/
 def prepared {State : Type} (k : ℕ) (left right : List Bool) (q : Option State) :
@@ -258,37 +258,38 @@ theorem runFrom_prepare (k : ℕ) (left right : List Bool) :
     simp only [Fin.val_castAdd, Fin.val_natAdd] at hv
     omega
   have hparse := runFrom_parser k left right
-  have hfirst : (rewindWork Bool (Fin.natAdd k 0)).runFrom
+  have hfirst : ((rewindWork Bool).extendTapes (tapeEmb (Fin.natAdd k 0))).runFrom
       (parsed.withState (some .start)) (left.length + 2) = first := by
     have hpos : parsed.workTapePos (Fin.natAdd k 0) = (left.length : ℤ) := by
       simp [parsed, config]
     have hheads : Function.update parsed.workTapePos (Fin.natAdd k 0) (left.length : ℤ) =
         parsed.workTapePos := by rw [← hpos, Function.update_eq_self]
-    simpa only [hheads, first, Cfg.withState, rewindWork] using
-      (runFrom_rewindWork_none (i := Fin.natAdd k 0) parsed.inputPos parsed.workTapes
+    simpa only [hheads, first, Cfg.withState, extendTapes_q₀, rewindWork] using
+      (runFrom_rewindWork_none_tapeEmb (i := Fin.natAdd k 0) parsed.inputPos parsed.workTapes
         parsed.workTapePos parsed.output (w := left) (by simp [parsed, config])
         (p := left.length) le_rfl)
-  have hsecond : (rewindWork Bool (Fin.natAdd k 1)).runFrom
+  have hsecond : ((rewindWork Bool).extendTapes (tapeEmb (Fin.natAdd k 1))).runFrom
       (first.withState (some .start)) (right.length + 2) = second := by
     have hpos : first.workTapePos (Fin.natAdd k 1) = (right.length : ℤ) := by
       simp [first, parsed, config]
     have hheads : Function.update first.workTapePos (Fin.natAdd k 1) (right.length : ℤ) =
         first.workTapePos := by rw [← hpos, Function.update_eq_self]
-    simpa only [hheads, second, Cfg.withState, rewindWork] using
-      (runFrom_rewindWork_none (i := Fin.natAdd k 1) first.inputPos first.workTapes
+    simpa only [hheads, second, Cfg.withState, extendTapes_q₀, rewindWork] using
+      (runFrom_rewindWork_none_tapeEmb (i := Fin.natAdd k 1) first.inputPos first.workTapes
         first.workTapePos first.output (w := right) (by simp [first, parsed, config, Cfg.withState])
         (p := right.length) le_rfl)
   have hmark : (PrepareInput.markBoundary (k + 2)).runFrom
       (second.withState (some false)) 2 = marked := by
     apply PrepareInput.runFrom_markBoundary second
     simp [second, first, parsed, config, hlast]
-  have hrewind : (rewindInput (k + 3) Bool).runFrom
-      (marked.withState (some (rewindInput (k + 3) Bool).q₀))
+  have hrewind : ((rewindInput Bool).extendTapes (noTapes (k + 3))).runFrom
+      (marked.withState (some ((rewindInput Bool).extendTapes (noTapes (k + 3))).q₀))
         ((encode left right).length + 2) =
       prepared k left right (none : Option RewindState) := by
-    have h := runFrom_rewindInput marked.inputPos marked.workTapes marked.workTapePos marked.output
-    change (rewindInput (k + 3) Bool).runFrom
-      (marked.withState (some (rewindInput (k + 3) Bool).q₀)) _ = _ at h
+    have h := runFrom_rewindInput_noTapes marked.inputPos marked.workTapes
+      marked.workTapePos marked.output
+    change ((rewindInput Bool).extendTapes (noTapes (k + 3))).runFrom
+      (marked.withState (some ((rewindInput Bool).extendTapes (noTapes (k + 3))).q₀)) _ = _ at h
     have hpos : marked.inputPos.val - 1 + 2 = (encode left right).length + 2 := rfl
     rw [hpos] at h
     rw [h]
@@ -308,9 +309,10 @@ theorem runFrom_prepare (k : ℕ) (left right : List Bool) :
     (by simpa [Sequential.leftCfg, Cfg.mapState, Cfg.withState, seq, rewindWork,
       PrepareInput.markBoundary, parsed] using hmiddle)
     (by rfl)
-  have hall := runFrom_seq (tm₁ := (rewindWork Bool (Fin.natAdd k 0)).seq
-      ((rewindWork Bool (Fin.natAdd k 1)).seq
-        ((PrepareInput.markBoundary (k + 2)).seq (rewindInput (k + 3) Bool)))) hparse rfl
+  have hall := runFrom_seq (tm₁ := ((rewindWork Bool).extendTapes (tapeEmb (Fin.natAdd k 0))).seq
+      (((rewindWork Bool).extendTapes (tapeEmb (Fin.natAdd k 1))).seq
+        ((PrepareInput.markBoundary (k + 2)).seq
+          ((rewindInput Bool).extendTapes (noTapes (k + 3)))))) hparse rfl
     (by simpa [Sequential.leftCfg, Cfg.mapState, Cfg.withState, seq, rewindWork,
       PrepareInput.markBoundary, parsed] using hcoins)
     (by rfl)

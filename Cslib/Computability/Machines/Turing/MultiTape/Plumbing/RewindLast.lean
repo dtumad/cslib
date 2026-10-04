@@ -23,7 +23,7 @@ namespace Turing.MultiTapeTM
 
 /-- Rewind the last work tape without writing to it. -/
 abbrev rewindLast (k : ℕ) : MultiTapeTM (k + 1) Bool RewindWorkState :=
-  rewindWork Bool (Fin.last k)
+  (rewindWork Bool).extendTapes (tapeEmb (Fin.last k))
 
 /-- Only the control state and the last head's position change during rewinding. -/
 def RewindLast.config {k : ℕ} {State : Type} {input : List Bool}
@@ -39,7 +39,7 @@ theorem runFrom_rewindLast {k : ℕ} {State : Type} {input : List Bool}
     (rewindLast k).runFrom (cfg.withState (some .start)) (word.length + 2) =
       RewindLast.config cfg none 0 := by
   simpa [rewindLast, rewindWork, RewindLast.config, Cfg.withState, ← hposition] using
-    runFrom_rewindWork_none cfg.inputPos cfg.workTapes cfg.workTapePos cfg.output
+    runFrom_rewindWork_none_tapeEmb cfg.inputPos cfg.workTapes cfg.workTapePos cfg.output
       hword (p := word.length) le_rfl
 
 end Turing.MultiTapeTM

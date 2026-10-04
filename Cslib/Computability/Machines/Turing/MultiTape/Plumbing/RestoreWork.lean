@@ -67,7 +67,8 @@ end RestoreWork
 def restoreWork (tm : MultiTapeTM k Bool State) :
     MultiTapeTM (k + k) Bool
       (Option (State ⊕ Option State) ⊕ ((Fin k → Option (Fin 3)) ⊕ RewindState)) :=
-  (TrackWork.machine tm).seq ((ClearWork.parallel k).seq (rewindInput (k + k) Bool))
+  (TrackWork.machine tm).seq
+    ((ClearWork.parallel k).seq ((rewindInput Bool).extendTapes (noTapes (k + k))))
 
 /-- The complete computation, cleanup, and input rewind have linear overhead. -/
 theorem runFrom_restoreWork (tm : MultiTapeTM k Bool State) (time : ℕ)
@@ -84,22 +85,24 @@ theorem runFrom_restoreWork (tm : MultiTapeTM k Bool State) (time : ℕ)
   have hclear : (ClearWork.parallel k).runFrom
       (mid.withState (some (ClearWork.parallel k).q₀)) (5 * time + 6) = clean :=
     RestoreWork.runFrom_cleanup source lo hi time hvalid
-  have hrewind : (rewindInput (k + k) Bool).runFrom
-      (clean.withState (some (rewindInput (k + k) Bool).q₀)) (input.length + 2) =
+  have hrewind : ((rewindInput Bool).extendTapes (noTapes (k + k))).runFrom
+      (clean.withState (some ((rewindInput Bool).extendTapes (noTapes (k + k))).q₀))
+        (input.length + 2) =
         wordsCfg input none (fun _ => []) source.output := by
-    have hr := runFrom_rewindInput source.inputPos (fun _ : Fin (k + k) => fun _ => none)
+    have hr := runFrom_rewindInput_noTapes source.inputPos (fun _ : Fin (k + k) => fun _ => none)
       (fun _ => 0) source.output
     have hbound : source.inputPos.val - 1 + 2 ≤ input.length + 2 := by
       have := source.inputPos.isLt
       lia
-    change (rewindInput (k + k) Bool).runFrom
-      ⟨some (rewindInput (k + k) Bool).q₀, source.inputPos, fun _ _ => none, fun _ => 0,
-        source.output⟩ _ = _
+    change ((rewindInput Bool).extendTapes (noTapes (k + k))).runFrom
+      ⟨some ((rewindInput Bool).extendTapes (noTapes (k + k))).q₀, source.inputPos,
+        fun _ _ => none, fun _ => 0, source.output⟩ _ = _
     rw [runFrom_eq_of_halt _ _ hbound (by rw [hr]), hr]
     simp [wordsCfg]
   have htail :
-      ((ClearWork.parallel k).seq (rewindInput (k + k) Bool)).runFrom
-        (mid.withState (some ((ClearWork.parallel k).seq (rewindInput (k + k) Bool)).q₀))
+      ((ClearWork.parallel k).seq ((rewindInput Bool).extendTapes (noTapes (k + k)))).runFrom
+        (mid.withState
+          (some ((ClearWork.parallel k).seq ((rewindInput Bool).extendTapes (noTapes (k + k)))).q₀))
         ((5 * time + 6) + (input.length + 2)) =
       wordsCfg input none (fun _ => []) source.output := by
     simpa [Sequential.leftCfg, Sequential.rightCfg, Cfg.mapState, Cfg.withState, wordsCfg, seq]

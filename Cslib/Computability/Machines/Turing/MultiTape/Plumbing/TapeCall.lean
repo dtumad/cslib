@@ -97,9 +97,9 @@ private theorem runFrom_setBoundary (input result output : List Bool) (state : O
 
 private theorem runFrom_rewind (input result output : List Bool) (state : Option State)
     (flag : Option Bool) :
-    (rewindWork Bool (outputTape k)).runFrom
+    ((rewindWork Bool).extendTapes (tapeEmb (outputTape k))).runFrom
       ((config (k := k) input outerInput state result result.length flag output).withState
-        (some (rewindWork Bool (outputTape k)).q₀)) (result.length + 2) =
+        (some ((rewindWork Bool).extendTapes (tapeEmb (outputTape k))).q₀)) (result.length + 2) =
       config input outerInput none result 0 flag output := by
   have hhead (position : ℤ) :
       (config (k := k) input outerInput state result position flag output).workTapePos =
@@ -118,7 +118,7 @@ private theorem runFrom_rewind (input result output : List Bool) (state : Option
   have htape :
       (config (k := k) input outerInput state result result.length flag output).workTapes
         (outputTape k) = tapeOfList result := by simp [config, outputTape]
-  have hrun := runFrom_rewindWork_none (1 : Fin (outerInput.length + 2))
+  have hrun := runFrom_rewindWork_none_tapeEmb (1 : Fin (outerInput.length + 2))
     (config (k := k) input outerInput state result result.length flag output).workTapes
     (fun _ => 0) output htape (p := result.length) le_rfl
   rw [← hhead] at hrun
@@ -150,7 +150,8 @@ def tapeCall (tm : MultiTapeTM k Bool State) :
     MultiTapeTM (k + 3) Bool (Bool ⊕ (State ⊕ (RewindWorkState ⊕ Bool))) :=
   (PrepareInput.setBoundary (k + 2) (some true)).seq
     (tm.outputToTape.inputFromTape.seq
-      ((rewindWork Bool (TapeCall.outputTape k)).seq (PrepareInput.setBoundary (k + 2) none)))
+      (((rewindWork Bool).extendTapes (tapeEmb (TapeCall.outputTape k))).seq
+        (PrepareInput.setBoundary (k + 2) none)))
 
 /-- A restoring subroutine produces a buffered result with every head reset, preserving the
 external output. -/
@@ -173,11 +174,11 @@ theorem runFrom_tapeCall (tm : MultiTapeTM k Bool State) (input result output : 
   have htail := runFrom_seq hrewind rfl hclear rfl
   have hmiddle :=
     runFrom_seq hsimulate rfl
-      (show ((rewindWork Bool (TapeCall.outputTape k)).seq
+      (show (((rewindWork Bool).extendTapes (tapeEmb (TapeCall.outputTape k))).seq
           (PrepareInput.setBoundary (k + 2) none)).runFrom
         ((TapeCall.config (k := k) input outerInput (none : Option State) result result.length
           (some true) output).withState
-            (some ((rewindWork Bool (TapeCall.outputTape k)).seq
+            (some (((rewindWork Bool).extendTapes (tapeEmb (TapeCall.outputTape k))).seq
               (PrepareInput.setBoundary (k + 2) none)).q₀)) (result.length + 2 + 2) =
         TapeCall.config input outerInput none result 0 none output from by
           simpa [Sequential.leftCfg, Sequential.rightCfg, Cfg.mapState, Cfg.withState,
@@ -185,11 +186,11 @@ theorem runFrom_tapeCall (tm : MultiTapeTM k Bool State) (input result output : 
   have hmain :=
     runFrom_seq hprepare rfl
       (show (tm.outputToTape.inputFromTape.seq
-          ((rewindWork Bool (TapeCall.outputTape k)).seq
+          (((rewindWork Bool).extendTapes (tapeEmb (TapeCall.outputTape k))).seq
             (PrepareInput.setBoundary (k + 2) none))).runFrom
         ((TapeCall.config (k := k) input outerInput (none : Option Bool) [] 0 (some true)
           output).withState (some (tm.outputToTape.inputFromTape.seq
-          ((rewindWork Bool (TapeCall.outputTape k)).seq
+          (((rewindWork Bool).extendTapes (tapeEmb (TapeCall.outputTape k))).seq
             (PrepareInput.setBoundary (k + 2) none))).q₀))
         (cost + (result.length + 2 + 2)) =
         TapeCall.config input outerInput none result 0 none output from by

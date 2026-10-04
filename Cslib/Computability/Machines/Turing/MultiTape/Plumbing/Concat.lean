@@ -51,7 +51,8 @@ lemma concatTapeRight_notMem_range_left (j : Fin k₁) :
 /-- Run the first machine on its work tapes and restore the input head to its initial position. -/
 def concatPrefix (k₁ : ℕ) (tm₀ : MultiTapeTM k₀ Symbol State₀) :
     MultiTapeTM (k₀ + k₁) Symbol (State₀ ⊕ RewindState) :=
-  (tm₀.extendTapes (concatTapeLeft k₀ k₁)).seq (rewindInput (k₀ + k₁) Symbol)
+  (tm₀.extendTapes (concatTapeLeft k₀ k₁)).seq
+    ((rewindInput Symbol).extendTapes (noTapes (k₀ + k₁)))
 
 /-- Run two machines on the same input and concatenate their outputs. -/
 def concat (tm₀ : MultiTapeTM k₀ Symbol State₀) (tm₁ : MultiTapeTM k₁ Symbol State₁) :
@@ -79,15 +80,16 @@ theorem runFrom_prefix {t₀ : ℕ}
     (fun _ _ => none) (fun _ => 0)
   let rewound : Cfg (k₀ + k₁) Symbol RewindState input :=
     ⟨none, 1, mid.workTapes, mid.workTapePos, mid.output⟩
-  have hrewind : (rewindInput (k₀ + k₁) Symbol).runFrom
-      (mid.withState (some (rewindInput (k₀ + k₁) Symbol).q₀))
+  have hrewind : ((rewindInput Symbol).extendTapes (noTapes (k₀ + k₁))).runFrom
+      (mid.withState (some ((rewindInput Symbol).extendTapes (noTapes (k₀ + k₁))).q₀))
       (mid.inputPos.val - 1 + 2) = rewound :=
-    runFrom_rewindInput mid.inputPos mid.workTapes mid.workTapePos mid.output
+    runFrom_rewindInput_noTapes mid.inputPos mid.workTapes mid.workTapePos mid.output
   have hbound : mid.inputPos.val - 1 + 2 ≤ input.length + 2 := by
     have := mid.inputPos.isLt
     omega
-  have hrewind' : (rewindInput (k₀ + k₁) Symbol).runFrom
-      (mid.withState (some (rewindInput (k₀ + k₁) Symbol).q₀)) (input.length + 2) = rewound := by
+  have hrewind' : ((rewindInput Symbol).extendTapes (noTapes (k₀ + k₁))).runFrom
+      (mid.withState (some ((rewindInput Symbol).extendTapes (noTapes (k₀ + k₁))).q₀))
+        (input.length + 2) = rewound := by
     rw [runFrom_eq_of_halt _ _ hbound (by rw [hrewind]), hrewind]
   have h := runFrom_seq (runFrom_extendTapes tm₀ (concatTapeLeft k₀ k₁) input t₀)
     hhalt hrewind' rfl
