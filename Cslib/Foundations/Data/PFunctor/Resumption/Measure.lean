@@ -25,7 +25,7 @@ branch depth: well-founded, infinitely branching programs are included.
 
 open MeasureTheory
 
-universe uA uB v
+universe uA uB v w
 
 namespace PFunctor.Resumption
 
@@ -129,5 +129,71 @@ theorem returnedMeasure_toResumption (x : P.FreeM α) :
     change returnedMeasure μ (query op (fun b => (cont b).toResumption)) = _
     rw [returnedMeasure_query, FreeM.denote_lift_bind μ _ _ Measurable.of_discrete.aemeasurable]
     exact Measure.bind_congr_right (Filter.Eventually.of_forall ih)
+
+variable {β : Type w} [MeasurableSpace β]
+
+/-- Sequential substitution agrees with Giry bind, including missing mass from divergence. -/
+theorem returnedMeasure_bind (x : Resumption P α) (f : α → Resumption P β)
+    (hf : Measurable fun a => returnedMeasure μ (f a)) :
+    returnedMeasure μ (x.bind f) =
+      (returnedMeasure μ x).bind (fun a => returnedMeasure μ (f a)) := by
+  have upper (k : ℕ) (x : Resumption P α) :
+      outputMeasure μ k (x.bind f) ≤ (returnedMeasure μ x).bind
+        (fun a => returnedMeasure μ (f a)) := by
+    induction k generalizing x with
+    | zero =>
+      rcases hx : dest x with a | ⟨op, cont⟩
+      · have heq : x = pure a := eq_of_dest_eq (by simpa using hx)
+        rw [heq, bind_pure_left, returnedMeasure_pure, Measure.dirac_bind hf]
+        exact le_iSup (outputMeasure μ · (f a)) 0
+      · simp only [outputMeasure, dest_bind, hx]
+        exact bot_le
+    | succ k ih =>
+      rcases hx : dest x with a | ⟨op, cont⟩
+      · have heq : x = pure a := eq_of_dest_eq (by simpa using hx)
+        rw [heq, bind_pure_left, returnedMeasure_pure, Measure.dirac_bind hf]
+        exact le_iSup (outputMeasure μ · (f a)) (k + 1)
+      · have heq : x = query op cont := eq_of_dest_eq (by rw [dest_query]; exact hx)
+        rw [heq, bind_query, outputMeasure_query_succ, returnedMeasure_query,
+          Measure.bind_bind Measurable.of_discrete.aemeasurable hf.aemeasurable]
+        exact Measure.bind_mono_right_of_forall Measurable.of_discrete.aemeasurable
+          Measurable.of_discrete.aemeasurable fun b => ih (cont b)
+  have lower (k : ℕ) (x : Resumption P α) :
+      (outputMeasure μ k x).bind (fun a => returnedMeasure μ (f a)) ≤
+        returnedMeasure μ (x.bind f) := by
+    induction k generalizing x with
+    | zero =>
+      rcases hx : dest x with a | ⟨op, cont⟩
+      · have heq : x = pure a := eq_of_dest_eq (by simpa using hx)
+        simp [heq, Measure.dirac_bind hf]
+      · simp only [outputMeasure, hx, Measure.bind_zero_left]
+        exact bot_le
+    | succ k ih =>
+      rcases hx : dest x with a | ⟨op, cont⟩
+      · have heq : x = pure a := eq_of_dest_eq (by simpa using hx)
+        simp [heq, Measure.dirac_bind hf]
+      · have heq : x = query op cont := eq_of_dest_eq (by rw [dest_query]; exact hx)
+        rw [heq, outputMeasure_query_succ, bind_query, returnedMeasure_query,
+          Measure.bind_bind Measurable.of_discrete.aemeasurable hf.aemeasurable]
+        exact Measure.bind_mono_right_of_forall Measurable.of_discrete.aemeasurable
+          Measurable.of_discrete.aemeasurable fun b => ih (cont b)
+  apply le_antisymm (iSup_le fun k => upper k x)
+  rw [returnedMeasure, Measure.iSup_bind_of_monotone _ (monotone_outputMeasure μ x) _ hf]
+  exact iSup_le fun k => lower k x
+
+/-- On a discrete intermediate space, every resumption continuation is measurable. -/
+theorem returnedMeasure_bind_of_discrete [DiscreteMeasurableSpace α]
+    (x : Resumption P α) (f : α → Resumption P β) :
+    returnedMeasure μ (x.bind f) = (returnedMeasure μ x).bind
+      (fun a => returnedMeasure μ (f a)) :=
+  returnedMeasure_bind μ x f Measurable.of_discrete
+
+/-- Measurable postprocessing commutes with the returned-output interpretation. -/
+theorem returnedMeasure_map (x : Resumption P α) (f : α → β) (hf : Measurable f) :
+    returnedMeasure μ (map f x) = (returnedMeasure μ x).map f := by
+  rw [map, returnedMeasure_bind]
+  · simp only [returnedMeasure_pure]
+    exact Measure.bind_dirac_eq_map _ hf
+  · simpa only [returnedMeasure_pure, Function.comp_def] using Measure.measurable_dirac.comp hf
 
 end PFunctor.Resumption

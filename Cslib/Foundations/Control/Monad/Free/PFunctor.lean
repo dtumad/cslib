@@ -23,6 +23,7 @@ signatures that already specify their answer types directly need no such increas
 universe u v w w' z
 
 /-- Package a type-indexed effect family as shapes with dependent answer types. -/
+@[implicit_reducible]
 def PFunctor.ofFamily (F : Type u → Type v) : PFunctor.{max (u + 1) v, u} :=
   ⟨Σ α, F α, Sigma.fst⟩
 

@@ -5,6 +5,7 @@ Authors: Devon Tuma
 -/
 
 import Cslib.Foundations.Data.PFunctor.Resumption.Repeat
+import Cslib.Foundations.Data.PFunctor.Resumption.Measure.Cost
 import Cslib.Foundations.Data.PFunctor.Free.Measure.PMF
 import Cslib.Foundations.Data.PFunctor.Free.Measure.WP
 import Mathlib.MeasureTheory.MeasurableSpace.Instances
@@ -83,6 +84,31 @@ example : IsProbabilityMeasure (Resumption.returnedMeasure answers sample) := by
 
 example : Resumption.returnedMeasure answers
     (Resumption.repeatUntil () (fun _ => (none : Option (Fin 3)))) = 0 := by simp
+
+theorem timeout_succ (k : ℕ) :
+    FreeM.denote answers (Resumption.truncate (k + 1) sample) {none} =
+      FreeM.denote answers (Resumption.truncate k sample) {none} * (4 : ℝ≥0∞)⁻¹ := by
+  classical
+  conv_lhs => rw [sample, Resumption.repeatUntil_eq_query, Resumption.truncate_query_succ]
+  change FreeM.denote answers ((FreeM.lift (P := four) ()).bind
+    (fun b => Resumption.truncate k ((accept b).elim sample Resumption.pure))) {none} = _
+  rw [FreeM.denote_lift_bind (P := four) answers () _ Measurable.of_discrete.aemeasurable,
+    Measure.bind_apply Option.measurableSet_none Measurable.of_discrete.aemeasurable,
+    lintegral_fintype]
+  simp [answers, PMF.toMeasure_apply_singleton _ _ (measurableSet_singleton _),
+    PMF.uniformOfFintype_apply, Fin.sum_univ_succ, accept,
+    Measure.dirac_apply' _ Option.measurableSet_none]
+
+theorem timeout (k : ℕ) :
+    FreeM.denote answers (Resumption.truncate k sample) {none} = (4 : ℝ≥0∞)⁻¹ ^ k := by
+  induction k with
+  | zero =>
+    rw [sample, Resumption.repeatUntil_eq_query, Resumption.truncate_query_zero]
+    simp
+  | succ k ih => rw [timeout_succ, ih, pow_succ]
+
+example : Resumption.expectedQueries answers sample = (1 - (4 : ℝ≥0∞)⁻¹)⁻¹ := by
+  simp only [Resumption.expectedQueries, timeout, ENNReal.tsum_geometric]
 
 section Quantitative
 

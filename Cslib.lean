@@ -241,6 +241,8 @@ public import Cslib.Crypto.Game.Hybrid
 public import Cslib.Crypto.Game.Statistical
 public import Cslib.Crypto.Negligible
 public import Cslib.Crypto.Primitives.ElGamal
+public import Cslib.Crypto.Primitives.ElGamal.Oracle
+public import Cslib.Crypto.Primitives.ElGamal.PFunctor
 public import Cslib.Crypto.Primitives.PRG.Asymptotic
 public import Cslib.Crypto.Primitives.PRG.Basic
 public import Cslib.Crypto.Primitives.PRG.Defs
@@ -295,6 +297,8 @@ public import Cslib.Foundations.Data.PFunctor.Free.WP
 public import Cslib.Foundations.Data.PFunctor.M
 public import Cslib.Foundations.Data.PFunctor.Resumption
 public import Cslib.Foundations.Data.PFunctor.Resumption.Measure
+public import Cslib.Foundations.Data.PFunctor.Resumption.Measure.Cost
+public import Cslib.Foundations.Data.PFunctor.Resumption.Measure.Truncate
 public import Cslib.Foundations.Data.PFunctor.Resumption.Repeat
 public import Cslib.Foundations.Data.PFunctor.Resumption.Truncate
 public import Cslib.Foundations.Data.Set.Saturation
@@ -305,6 +309,7 @@ public import Cslib.Foundations.Logic.LogicalEquivalence
 public import Cslib.Foundations.Logic.Operators
 public import Cslib.Foundations.MeasureTheory.FiniteSupport
 public import Cslib.Foundations.MeasureTheory.Monotone
+public import Cslib.Foundations.MeasureTheory.Option
 public import Cslib.Foundations.Order.Lean
 public import Cslib.Foundations.Relation.Attr
 public import Cslib.Foundations.Relation.Basic

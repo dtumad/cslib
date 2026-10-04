@@ -42,6 +42,7 @@ import CslibTests.Modal.UnimodalCube
 import CslibTests.MultiTapeComplexity
 import CslibTests.PACLearning
 import CslibTests.PFunctor
+import CslibTests.PFunctorCrypto
 import CslibTests.PFunctorFree
 import CslibTests.PFunctorProbability
 import CslibTests.PRG

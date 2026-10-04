@@ -12,11 +12,11 @@ public import Mathlib.MeasureTheory.Measure.GiryMonad
 /-!
 # Monotone operations and limits of measures
 
-This file supplies two small order-theoretic facts for Mathlib measures. Giry bind is monotone in
-a measurable measure-valued continuation, and the lattice supremum of an increasing sequence of
-measures is its pointwise supremum on measurable sets.
+Giry bind is monotone in a measurable measure-valued continuation. The lattice supremum of an
+increasing sequence of measures is its pointwise supremum on measurable sets. Lower integration
+and Giry bind commute with these increasing limits.
 
-The second fact is the measure-theoretic basis for interpreting progressively deeper observations
+These facts are the measure-theoretic basis for interpreting progressively deeper observations
 of a potentially nonterminating computation: returned mass grows with fuel, and its limit remains
 a measure rather than merely a pointwise set function.
 -/
@@ -24,6 +24,7 @@ a measure rather than merely a pointwise set function.
 @[expose] public section
 
 open MeasureTheory
+open scoped ENNReal
 
 namespace MeasureTheory.Measure
 
@@ -102,5 +103,31 @@ theorem bind_iSup_of_monotone {μ : Measure α} {f : ℕ → α → Measure β}
   simp_rw [iSup_apply_of_monotone _ (hmono _) s hs, bind_apply hs (hf _)]
   exact lintegral_iSup' (fun n => (measurable_coe hs).comp_aemeasurable (hf n))
     (Filter.Eventually.of_forall fun a i j hij => hmono a hij s)
+
+/-- Integrating against an increasing limit of measures commutes with the limit. -/
+theorem lintegral_iSup_of_monotone (μ : ℕ → Measure α) (hμ : Monotone μ)
+    (f : α → ℝ≥0∞) : (∫⁻ a, f a ∂(⨆ n, μ n)) = ⨆ n, ∫⁻ a, f a ∂μ n := by
+  have hs (g : SimpleFunc α ℝ≥0∞) : g.lintegral (⨆ n, μ n) = ⨆ n, g.lintegral (μ n) := by
+    simp only [SimpleFunc.lintegral,
+      iSup_apply_of_monotone μ hμ _ (SimpleFunc.measurableSet_preimage _ _)]
+    simp_rw [ENNReal.mul_iSup]
+    exact ENNReal.finsetSum_iSup_of_monotone fun r i j hij =>
+      mul_le_mul' le_rfl (hμ hij _)
+  simp only [lintegral_def, hs, iSup_comm (ι := ℕ)]
+
+/-- Giry bind preserves increasing limits in its source measure. -/
+theorem iSup_bind_of_monotone (μ : ℕ → Measure α) (hμ : Monotone μ)
+    (f : α → Measure β) (hf : Measurable f) :
+    (⨆ n, μ n).bind f = ⨆ n, (μ n).bind f := by
+  have hmono : Monotone fun n => (μ n).bind f := by
+    intro i j hij
+    apply Measure.le_iff.mpr
+    intro s hs
+    simp only [bind_apply hs hf.aemeasurable]
+    exact lintegral_mono' (hμ hij) le_rfl
+  ext s hs
+  rw [bind_apply hs hf.aemeasurable, iSup_apply_of_monotone _ hmono _ hs,
+    lintegral_iSup_of_monotone μ hμ]
+  simp only [bind_apply hs hf.aemeasurable]
 
 end MeasureTheory.Measure
