@@ -113,6 +113,12 @@ deterministic pre- and postprocessing. Subroutines have separate communication b
 the oracle's hidden state. Kernel correctness also identifies exactly the reachable encoded outputs,
 so sequencing needs no assumed decoder. Association-list lookup has a uniform machine certificate
 using the ordinary `List.lookup` API and charging for key comparisons and cache traversal.
+`Realizer` retains the chosen finite machine and polynomial clock as data; its composition uses
+the supplied machines. Saved-tape execution preserves the complete joint measure and every
+structural postcondition. Machine transitions bound selected oracle requests.
+At word interfaces, Mathlib's `Computability.Encoding` supplies decoding. Canonical validation
+rejects words outside the encoding's range and preserves a certified decoder's polynomial bound.
+Compound decoding and optional pairing require no arbitrary defaults for represented values.
 Captured continuations retain the original input and charge for its copying. Binary normalization
 and comparison, and the bounded `FreeM.sampleFin` sampler, now have uniform machine certificates.
 The sampler is polynomial in the range's bit length, unary proposal width, and unary attempt budget;
@@ -144,7 +150,9 @@ in an ordinary dependent pair, so subsequent arithmetic uses the sampled scalar 
 
 Samuel's `polytime` and `ppt` tactics have been adapted to these native certificates. Tests cover
 data-dependent sampling, captured continuations, calls to certified subprograms, and the ordinary
-Schnorr key generator and response arithmetic. Core `vcgen` also proves the structural correctness
+Schnorr key generator and response arithmetic. Dependent tuple arguments and projections now let
+`polytime` prove response arithmetic and extraction uniformly across indexed scalar families.
+Core `vcgen` also proves the structural correctness
 of an honest Schnorr transcript, leaving its algebraic identity as the final obligation.
 Reachability reflection transfers that postcondition to every completed path of a realizing machine.
 The tactics do not infer efficiency for arbitrary Lean functions or supply loop-size invariants.
@@ -152,7 +160,12 @@ The tactics do not infer efficiency for arbitrary Lean functions or supply loop-
 The remaining runtime work connects these handlers to adversary execution, connects machine-level
 rewinding to the semantic fork, and certifies both security reductions. Group and field primitives
 and family parameter data require explicit uniform certificates.
-The per-sample cutoff failure must also be accumulated over the game's sampling calls.
+Adaptive finite-sampling programs now have a whole-experiment cutoff bound
+`draws * 2⁻ᵃᵗᵗᵉᵐᵖᵗˢ` for every payoff in `[0, 1]`. Successful bounded executions are dominated
+by the ideal measure. Polynomially many draws and an attempt budget at least the security
+parameter give negligible error. The remaining scheme-specific work instantiates the complete
+game and reduction draw counts. Security transport supports polynomial loss, square-root loss,
+and separate negligible errors in the game and reduction.
 Computational and asymptotic
 ElGamal security additionally require the reduction to
 preserve the chosen admissibility predicate for a parameterized group family.

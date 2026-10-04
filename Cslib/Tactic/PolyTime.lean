@@ -273,32 +273,78 @@ theorem word_flatMap_with_rule {α : Type} {encode : α ↪ Word}
   list_flatMap_word_rule hvalues.encode_list_bool hf
 
 open Lean Meta in
-/-- Prepare tuple arguments before unification so that projections do not hide the individual
-argument functions from Lean's higher-order unifier. -/
-meta partial def prepareArgument (domain type : Expr) : MetaM Expr := do
-  let type ← whnf type
-  if type.isAppOf ``Prod then
-    let args := type.getAppArgs
-    let left ← prepareArgument domain args[0]!
-    let right ← prepareArgument domain args[1]!
-    withLocalDeclD `input domain fun input => do
-      mkLambdaFVars #[input] (← mkAppM ``Prod.mk #[mkApp left input, mkApp right input])
-  else
-    mkFreshExprMVar (← mkArrow domain type)
+/-- Prepare tuple-valued functions using function metavariables. Abstract the input before
+creating each metavariable, so matching a call can infer its component functions. -/
+private meta partial def prepareFunction (type : Expr) : MetaM Expr := do
+  let constructor ← forallBoundedTelescope type (some 1) fun _ body => do
+    let body ← whnf body
+    if body.isAppOf ``Prod then return some ``Prod.mk
+    if body.isAppOf ``Sigma then return some ``Sigma.mk
+    return none
+  match constructor with
+  | none => mkFreshExprMVar type
+  | some constructor =>
+    let leftType ← forallBoundedTelescope type (some 1) fun inputs body => do
+      mkForallFVars inputs (← whnf body).getAppArgs[0]!
+    let left ← prepareFunction leftType
+    let rightType ← forallBoundedTelescope type (some 1) fun inputs body => do
+      let right := (← whnf body).getAppArgs[1]!
+      mkForallFVars inputs (if constructor == ``Prod.mk then right
+        else mkApp right (mkAppN left inputs))
+    let right ← prepareFunction rightType
+    forallBoundedTelescope type (some 1) fun inputs body => do
+      let args := (← whnf body).getAppArgs
+      mkLambdaFVars inputs (← mkAppOptM constructor
+        #[some args[0]!, some args[1]!, some (mkAppN left inputs), some (mkAppN right inputs)])
+
+open Lean Meta in
+/-- Prepare ordinary and dependent tuple arguments before matching a certified call. -/
+meta def prepareArgument (domain type : Expr) : MetaM Expr := do
+  prepareFunction (← mkArrow domain type)
+
+/-- Reading a pair field also works when its type depends on the input. -/
+theorem pair_fst_rule {α : Type} {encode : α → Word} {left right : α → Word}
+    (h : IsPolyTime encode (fun a => List.BitPair.encode (left a) (right a))) :
+    IsPolyTime encode left := by
+  simpa only [List.BitPair.fst_encode] using h.bitPair_fst
+
+/-- Read the second field without requiring its type or encoding to be constant. -/
+theorem pair_snd_rule {α : Type} {encode : α → Word} {left right : α → Word}
+    (h : IsPolyTime encode (fun a => List.BitPair.encode (left a) (right a))) :
+    IsPolyTime encode right := by
+  simpa only [List.BitPair.snd_encode] using h.bitPair_snd
 
 open Lean Meta in
 /-- Reuse a certified tuple-valued algorithm when a client reads one of its fields. Only
 explicit pair encodings are projected, so proof search never guesses an output encoding. -/
 meta partial def withProjections (certificate : Expr) : MetaM (Array Expr) := do
-  let type ← inferType certificate
+  let type ← instantiateMVars (← inferType certificate)
   let program ← Core.betaReduce (← etaExpand type.getAppArgs.back!)
-  let isPair ← lambdaTelescope program fun _ body => pure
-    (body.isAppOf ``DFunLike.coe && body.getAppArgs[4]!.isAppOf ``pairEncoding)
+  let projections ← lambdaTelescope program fun _ body => do
+    unless body.isAppOf ``DFunLike.coe do return #[]
+    let encoding := body.getAppArgs[4]!
+    if encoding.isAppOf ``pairEncoding || encoding.isAppOf ``sigmaEncoding then
+      return #[``pair_fst_rule, ``pair_snd_rule]
+    return #[]
   let mut certificates := #[certificate]
-  if isPair then
-    for projection in [``IsPolyTime.fst, ``IsPolyTime.snd] do
-      certificates := certificates ++ (← withProjections (← mkAppM projection #[certificate]))
+  for projection in projections do
+    certificates := certificates ++ (← withProjections (← mkAppM projection #[certificate]))
   return certificates
+
+open Lean Meta Elab Tactic in
+@[aesop safe -20 tactic (rule_sets := [PolyTime])]
+private meta def polytimeInputProjection : TacticM Unit := withMainContext do
+  let target := (← instantiateMVars (← getMainTarget)).consumeMData
+  unless target.isAppOf ``IsPolyTime do throwError "expected a polynomial-time goal"
+  let input ← mkAppM ``isPolyTime_input #[target.getAppArgs[1]!]
+  for certificate in ← withProjections input do
+    let saved ← saveState
+    try
+      unless ← isDefEq (← inferType certificate) target do throwError "different input field"
+      closeMainGoal `polytime certificate
+      return
+    catch _ => saved.restore
+  throwError "not an encoded input field"
 
 -- Instantiate the called algorithm from a known certificate before searching its arguments.
 -- Unrestricted composition rules leave both the algorithm and its encoding undetermined.

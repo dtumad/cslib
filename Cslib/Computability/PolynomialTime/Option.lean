@@ -49,4 +49,18 @@ theorem IsPolyTime.option_orElse {left right : ∀ a, Option (β a)}
   funext a
   cases left a <;> rfl
 
+/-- Pair present values without choosing defaults for either represented type. -/
+theorem IsPolyTime.option_pair {γ : α → Type} {other : ∀ a, γ a ↪ Word}
+    {left : ∀ a, Option (β a)} {right : ∀ a, Option (γ a)}
+    (hleft : IsPolyTime encode (fun a => optionEncoding (element a) (left a)))
+    (hright : IsPolyTime encode (fun a => optionEncoding (other a) (right a))) :
+    IsPolyTime encode (fun a => optionEncoding (pairEncoding (element a) (other a))
+      (Option.map₂ Prod.mk (left a) (right a))) := by
+  have hpair := (hleft.tail.pair (left := wordEncoding) (right := wordEncoding)
+    hright.tail).option_some
+  convert (hleft.option_isSome.bool₂ hright.option_isSome (· && ·)).cond hpair
+    (isPolyTime_const encode []) using 1
+  funext a
+  cases left a <;> cases right a <;> rfl
+
 end Turing.MultiTapeTM

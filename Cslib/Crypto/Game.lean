@@ -206,6 +206,52 @@ theorem Secure.of_reduction {Source Target : Type*}
   exact negligible_of_le (h _ (hadmissible adversary ha))
     (fun _ => advantage_nonneg _ _) (hbound adversary ha)
 
+/-- A uniform reduction may incur polynomial loss and negligible implementation error.
+Both bounds may depend on the whole adversary, before the security parameter is supplied. -/
+theorem Secure.of_reduction_with_error {Source Target : Type*}
+    {sourceReal sourceIdeal : Source → ℕ → Game} {targetReal targetIdeal : Target → ℕ → Game}
+    {SourceAdmissible : Source → Prop} {TargetAdmissible : Target → Prop}
+    (h : Secure sourceReal sourceIdeal SourceAdmissible) (reduce : Target → Source)
+    (hadmissible : ∀ adversary, TargetAdmissible adversary → SourceAdmissible (reduce adversary))
+    (loss : Target → ℕ → ℕ) (error : Target → ℕ → ℝ)
+    (hloss : ∀ adversary, TargetAdmissible adversary → PolynomiallyBounded (loss adversary))
+    (herror : ∀ adversary, TargetAdmissible adversary → Negligible (error adversary))
+    (hbound : ∀ adversary, TargetAdmissible adversary → ∀ n,
+      advantage (targetReal adversary n) (targetIdeal adversary n) ≤
+        loss adversary n *
+          advantage (sourceReal (reduce adversary) n) (sourceIdeal (reduce adversary) n) +
+            error adversary n) :
+    Secure targetReal targetIdeal TargetAdmissible := by
+  intro adversary ha
+  exact negligible_of_le
+    (((h _ (hadmissible adversary ha)).mul_polynomiallyBounded (hloss adversary ha)).add
+      (herror adversary ha)) (fun _ => advantage_nonneg _ _) (hbound adversary ha)
+
+/-- Square-root loss, as in a forking reduction, also preserves asymptotic security. Cutoff
+errors can occur in the original experiment and inside the reduction. -/
+theorem Secure.of_reduction_sqrt {Source Target : Type*}
+    {sourceReal sourceIdeal : Source → ℕ → Game} {targetReal targetIdeal : Target → ℕ → Game}
+    {SourceAdmissible : Source → Prop} {TargetAdmissible : Target → Prop}
+    (h : Secure sourceReal sourceIdeal SourceAdmissible) (reduce : Target → Source)
+    (hadmissible : ∀ adversary, TargetAdmissible adversary → SourceAdmissible (reduce adversary))
+    (loss : Target → ℕ → ℕ) (gameError reductionError : Target → ℕ → ℝ)
+    (hloss : ∀ adversary, TargetAdmissible adversary → PolynomiallyBounded (loss adversary))
+    (hgameError : ∀ adversary, TargetAdmissible adversary → Negligible (gameError adversary))
+    (hreductionError : ∀ adversary, TargetAdmissible adversary →
+      Negligible (reductionError adversary))
+    (hbound : ∀ adversary, TargetAdmissible adversary → ∀ n,
+      advantage (targetReal adversary n) (targetIdeal adversary n) ≤ gameError adversary n +
+        Real.sqrt (loss adversary n *
+          (advantage (sourceReal (reduce adversary) n) (sourceIdeal (reduce adversary) n) +
+            reductionError adversary n))) :
+    Secure targetReal targetIdeal TargetAdmissible := by
+  intro adversary ha
+  exact negligible_of_le
+    ((hgameError adversary ha).add
+      ((Negligible.mul_polynomiallyBounded
+        ((h _ (hadmissible adversary ha)).add (hreductionError adversary ha))
+        (hloss adversary ha)).sqrt)) (fun _ => advantage_nonneg _ _) (hbound adversary ha)
+
 /-- A negligible common error bound implies asymptotic security. -/
 theorem SecureWithError.secure {Adversary : Type*} {real ideal : Adversary → ℕ → Game}
     {Admissible : Adversary → Prop} {ε : ℕ → ℝ≥0}

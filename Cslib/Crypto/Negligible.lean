@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger, Devon Tuma
 module
 
 public import Cslib.Init
+public import Cslib.Foundations.Data.Nat.PolynomialBound
 public import Mathlib.Analysis.Asymptotics.SuperpolynomialDecay
 public import Mathlib.Analysis.Real.Sqrt
 public import Mathlib.Analysis.SpecificLimits.Normed
@@ -63,5 +64,33 @@ theorem Negligible.sqrt {ε : ℕ → ℝ} (h : Negligible ε) :
     rw [show (n : ℝ) ^ (2 * degree) = ((n : ℝ) ^ degree) ^ 2 by ring,
       Real.sqrt_mul (sq_nonneg _), Real.sqrt_sq (by positivity)]
   simpa only [Function.comp_def, hroot, Real.sqrt_zero] using hlimit
+
+/-- A polynomially bounded count preserves negligible error, even when only its growth bound
+is known. Runtime certificates provide such bounds for an algorithm's query counts. -/
+theorem Negligible.mul_polynomiallyBounded {ε : ℕ → ℝ} (h : Negligible ε)
+    {count : ℕ → ℕ} (hcount : PolynomiallyBounded count) :
+    Negligible (fun n => (count n : ℝ) * ε n) := by
+  obtain ⟨c, d, hcount⟩ := hcount
+  have hpoly := h.polynomial_mul (Polynomial.C (c : ℝ) * (Polynomial.X + 1) ^ d)
+  apply hpoly.trans_abs_le
+  intro n
+  simp only [Polynomial.eval_mul, Polynomial.eval_C, Polynomial.eval_pow, Polynomial.eval_add,
+    Polynomial.eval_X, Polynomial.eval_one, abs_mul,
+    abs_of_nonneg (Nat.cast_nonneg (count n) : (0 : ℝ) ≤ count n), abs_of_nonneg (by positivity :
+      (0 : ℝ) ≤ c * ((n : ℝ) + 1) ^ d)]
+  exact mul_le_mul_of_nonneg_right (by exact_mod_cast hcount n) (abs_nonneg _)
+
+/-- A polynomial number of rejection samplings has negligible total cutoff error when the
+attempt budget is at least the security parameter. Extra attempts may be chosen by the caller. -/
+theorem negligible_sampling_error {draws attempts : ℕ → ℕ}
+    (hdraws : PolynomiallyBounded draws) (hattempts : ∀ n, n ≤ attempts n) :
+    Negligible (fun n => (draws n : ℝ) * (2⁻¹ : ℝ) ^ attempts n) := by
+  apply negligible_of_le
+    ((negligible_geometric (ratio := (2⁻¹ : ℝ)) (by norm_num)).mul_polynomiallyBounded hdraws)
+    (fun _ => by positivity)
+  intro n
+  exact mul_le_mul_of_nonneg_left
+    (pow_le_pow_of_le_one (by norm_num : (0 : ℝ) ≤ 2⁻¹) (by norm_num) (hattempts n))
+    (Nat.cast_nonneg _)
 
 end Cslib.Crypto

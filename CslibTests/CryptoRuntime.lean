@@ -10,6 +10,7 @@ import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Signing
 import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Verification
 import Cslib.Crypto.RandomOracle.PolynomialTime
 import Cslib.Computability.PolynomialTime.Finite
+import Cslib.Computability.PolynomialTime.Encoding.Decoding
 import Mathlib.Algebra.Field.ZMod
 import Mathlib.Data.Fintype.Order
 
@@ -19,6 +20,23 @@ budget and binary exponents. Finite tables implement only this fixed group's ope
 open Turing.MultiTapeTM Turing.MultiTapePTM PFunctor Cslib.Crypto
 
 namespace CryptoRuntime
+
+-- Mathlib's permissive decoder remains available; interfaces check canonical representations.
+example : Computability.encodingBoolBool.decode [true, false] = some true := rfl
+
+example : Computability.encodingBoolBool.decodeChecked [true, false] = none := by decide
+
+-- Pair parsers may ignore malformed tails. Checked decoding rejects these instead of silently
+-- turning an invalid oracle message into a valid pair of empty words.
+example : ((Computability.encodingList Bool).bitPair
+    (Computability.encodingList Bool)).decodeChecked [true] = none := by decide
+
+example : IsPolyTime wordEncoding (fun word =>
+    let encoding := (Computability.encodingList Bool).bitPair (Computability.encodingList Bool)
+    optionEncoding encoding.toEmbedding (encoding.decodeChecked word)) := by
+  apply IsPolyTime.decodeChecked
+  exact IsPolyTime.decode_bitPair _ _ (isPolyTime_input wordEncoding).option_some
+    (isPolyTime_input wordEncoding).option_some
 
 abbrev G := Multiplicative (ZMod 2)
 

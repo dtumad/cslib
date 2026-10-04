@@ -40,6 +40,33 @@ def runSnapshotFromCoins (machine : MultiTapePTM k Bool State Oracle) (input : L
     (snapshot : Snapshot k Bool State Oracle) : m (Snapshot k Bool State Oracle) :=
   coins.foldlM (fun snapshot bit => machine.stepSnapshot input handler bit snapshot) snapshot
 
+/-- Interpreting the handler commutes with each saved-coin transition, including its reply. -/
+theorem map_stepSnapshot {n : Type → Type*} [Monad n] {f : ∀ {α}, m α → n α}
+    (hf : Cslib.IsMonadHom m n f) (machine : MultiTapePTM k Bool State Oracle)
+    (handler : Oracle → List Bool → m (List Bool)) (bit : Bool)
+    (snapshot : Snapshot k Bool State Oracle) :
+    f (machine.stepSnapshot input handler bit snapshot) =
+      machine.stepSnapshot input (fun port request => f (handler port request)) bit snapshot := by
+  cases hs : snapshot.state with
+  | none => simp only [stepSnapshot, hs, hf.map_pure]
+  | some state =>
+    simp only [stepSnapshot, hs]
+    split <;> simp only [hf.map_pure, hf.map_bind]
+
+/-- Inlining handlers preserves the complete saved-tape execution, before choosing semantics. -/
+theorem map_runSnapshotFromCoins {n : Type → Type*} [Monad n] {f : ∀ {α}, m α → n α}
+    (hf : Cslib.IsMonadHom m n f) (machine : MultiTapePTM k Bool State Oracle)
+    (handler : Oracle → List Bool → m (List Bool)) (coins : List Bool)
+    (snapshot : Snapshot k Bool State Oracle) :
+    f (machine.runSnapshotFromCoins input handler coins snapshot) =
+      machine.runSnapshotFromCoins input (fun port request => f (handler port request))
+        coins snapshot := by
+  induction coins generalizing snapshot with
+  | nil => exact hf.map_pure _
+  | cons bit coins ih =>
+    simp only [runSnapshotFromCoins] at ih ⊢
+    simp only [List.foldlM_cons, hf.map_bind, map_stepSnapshot hf, ih]
+
 variable [LawfulMonad m]
 
 /-- Pausing finite execution retains the complete snapshot and the handler's state. -/

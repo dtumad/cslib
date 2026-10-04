@@ -15,9 +15,11 @@ public import Cslib.Foundations.Data.PFunctor.Free.Trace
 
 namespace PFunctor.FreeM
 
-universe u
+universe uA uB uQ
 
-variable {P Q : PFunctor.{u, u}} {α β : Type u}
+section Bounds
+
+variable {P : PFunctor.{uA, uB}} {Q : PFunctor.{uQ, uB}} {α β : Type uB}
 
 /-- The worst-case number of selected operations. Unselected operations contribute no cost. -/
 noncomputable def queryBoundP (select : P.A → Bool) : P.FreeM α → ℕ∞
@@ -127,6 +129,10 @@ theorem queryBoundP_or_le (first second : P.A → Bool) (x : P.FreeM α) :
         (if first op then 1 else 0) + (if second op then 1 else 0) := by
       cases first op <;> cases second op <;> simp
     simpa only [add_add_add_comm] using add_le_add hselect hsup
+
+end Bounds
+
+variable {P : PFunctor.{uB, uB}} {α : Type uB}
 
 /-- Every recorded execution satisfies the worst-case bound on selected operations. -/
 theorem countP_trace_le_queryBoundP (select : P.A → Bool) (x : P.FreeM α)

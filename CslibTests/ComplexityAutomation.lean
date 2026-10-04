@@ -58,6 +58,28 @@ example {F : Type} [Field F] (scalar : F ↪ Word)
   unfold Schnorr.respond
   polytime
 
+-- Both the type and its representation vary with the security parameter. Calls must retain
+-- that dependency while assembling the arguments to the two certified field operations.
+example {F : ℕ → Type} [∀ n, Field (F n)] (scalar : ∀ n, F n ↪ Word)
+    (hadd : IsPolyTime (sigmaEncoding unaryEncoding
+      (fun n => pairEncoding (scalar n) (scalar n)))
+      (fun arg => scalar arg.1 (arg.2.1 + arg.2.2)))
+    (hmul : IsPolyTime (sigmaEncoding unaryEncoding
+      (fun n => pairEncoding (scalar n) (scalar n)))
+      (fun arg => scalar arg.1 (arg.2.1 * arg.2.2))) :
+    IsPolyTime (sigmaEncoding unaryEncoding
+      (fun n => pairEncoding (scalar n) (pairEncoding (scalar n) (scalar n))))
+      (fun arg => scalar arg.1 (Schnorr.respond arg.2.1 arg.2.2.1 arg.2.2.2)) := by
+  unfold Schnorr.respond
+  polytime
+
+example {F : ℕ → Type} (scalar : ∀ n, F n ↪ Word) :
+    IsPolyTime (sigmaEncoding unaryEncoding
+      (fun n => pairEncoding (scalar n) (listEncoding (scalar n))))
+      (fun arg => sigmaEncoding unaryEncoding (fun n => listEncoding (scalar n))
+        ⟨arg.1, arg.2.1 :: arg.2.2⟩) := by
+  polytime
+
 section Structural
 
 open Std.WP

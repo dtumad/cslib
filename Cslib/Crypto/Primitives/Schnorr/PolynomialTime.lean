@@ -10,6 +10,7 @@ public import Cslib.Crypto.Primitives.Schnorr
 public import Cslib.Computability.PolynomialTime.Sigma
 public import Cslib.Computability.PolynomialTime.Encoding.Finite
 public import Cslib.Computability.PolynomialTime.Sampling.Rejection
+import Cslib.Tactic.PolyTime
 
 /-!
 # Uniform machine certificates for Schnorr
@@ -117,27 +118,8 @@ theorem isPolyTime_respond (scalar : ∀ parameter, F parameter ↪ Word)
     IsPolyTime (sigmaEncoding unaryEncoding (fun parameter =>
       pairEncoding (scalar parameter) (pairEncoding (scalar parameter) (scalar parameter))))
       (fun input => scalar input.1 (respond input.2.1 input.2.2.1 input.2.2.2)) := by
-  let input := sigmaEncoding unaryEncoding (fun parameter =>
-    pairEncoding (scalar parameter) (pairEncoding (scalar parameter) (scalar parameter)))
-  have ha := isPolyTime_input input
-  have hp := ha.sigma_fst
-  have hsecret : IsPolyTime input (fun arg => scalar arg.1 arg.2.1) := by
-    simpa only [pairEncoding_apply, List.BitPair.fst_encode] using ha.sigma_snd.bitPair_fst
-  have hnonce : IsPolyTime input (fun arg => scalar arg.1 arg.2.2.1) := by
-    simpa only [pairEncoding_apply, List.BitPair.snd_encode, List.BitPair.fst_encode] using
-      ha.sigma_snd.bitPair_snd.bitPair_fst
-  have hchallenge : IsPolyTime input (fun arg => scalar arg.1 arg.2.2.2) := by
-    simpa only [pairEncoding_apply, List.BitPair.snd_encode] using
-      ha.sigma_snd.bitPair_snd.bitPair_snd
-  have hproduct : IsPolyTime input (fun arg => scalar arg.1 (arg.2.2.2 * arg.2.1)) := by
-    apply hmul.comp_encoded (f := fun arg : Σ n, F n × F n × F n =>
-      ⟨arg.1, arg.2.2.2, arg.2.1⟩)
-    apply hp.sigma
-    exact hchallenge.pair (left := wordEncoding) (right := wordEncoding) hsecret
-  apply hadd.comp_encoded (f := fun arg : Σ n, F n × F n × F n =>
-    ⟨arg.1, arg.2.2.1, arg.2.2.2 * arg.2.1⟩)
-  apply hp.sigma
-  exact hnonce.pair (left := wordEncoding) (right := wordEncoding) hproduct
+  unfold respond
+  polytime
 
 omit [MeasurableSpace Word] [DiscreteMeasurableSpace Word] in
 /-- Special-soundness extraction has a uniform certificate from field subtraction and division.
@@ -153,37 +135,8 @@ theorem isPolyTime_extract (scalar : ∀ parameter, F parameter ↪ Word)
       pairEncoding (pairEncoding (scalar parameter) (scalar parameter))
         (pairEncoding (scalar parameter) (scalar parameter))))
       (fun input => scalar input.1 (extract input.2.1.1 input.2.1.2 input.2.2.1 input.2.2.2)) := by
-  let input := sigmaEncoding unaryEncoding (fun parameter =>
-    pairEncoding (pairEncoding (scalar parameter) (scalar parameter))
-      (pairEncoding (scalar parameter) (scalar parameter)))
-  have ha := isPolyTime_input input
-  have hp := ha.sigma_fst
-  have hc₁ : IsPolyTime input (fun arg => scalar arg.1 arg.2.1.1) := by
-    simpa only [pairEncoding_apply, List.BitPair.fst_encode] using
-      ha.sigma_snd.bitPair_fst.bitPair_fst
-  have hz₁ : IsPolyTime input (fun arg => scalar arg.1 arg.2.1.2) := by
-    simpa only [pairEncoding_apply, List.BitPair.fst_encode, List.BitPair.snd_encode] using
-      ha.sigma_snd.bitPair_fst.bitPair_snd
-  have hc₂ : IsPolyTime input (fun arg => scalar arg.1 arg.2.2.1) := by
-    simpa only [pairEncoding_apply, List.BitPair.snd_encode, List.BitPair.fst_encode] using
-      ha.sigma_snd.bitPair_snd.bitPair_fst
-  have hz₂ : IsPolyTime input (fun arg => scalar arg.1 arg.2.2.2) := by
-    simpa only [pairEncoding_apply, List.BitPair.snd_encode] using
-      ha.sigma_snd.bitPair_snd.bitPair_snd
-  have hz : IsPolyTime input (fun arg => scalar arg.1 (arg.2.1.2 - arg.2.2.2)) := by
-    apply hsub.comp_encoded (f := fun arg : Σ n, (F n × F n) × F n × F n =>
-      ⟨arg.1, arg.2.1.2, arg.2.2.2⟩)
-    apply hp.sigma
-    exact hz₁.pair (left := wordEncoding) (right := wordEncoding) hz₂
-  have hc : IsPolyTime input (fun arg => scalar arg.1 (arg.2.1.1 - arg.2.2.1)) := by
-    apply hsub.comp_encoded (f := fun arg : Σ n, (F n × F n) × F n × F n =>
-      ⟨arg.1, arg.2.1.1, arg.2.2.1⟩)
-    apply hp.sigma
-    exact hc₁.pair (left := wordEncoding) (right := wordEncoding) hc₂
-  apply hdiv.comp_encoded (f := fun arg : Σ n, (F n × F n) × F n × F n =>
-    ⟨arg.1, arg.2.1.2 - arg.2.2.2, arg.2.1.1 - arg.2.2.1⟩)
-  apply hp.sigma
-  exact hz.pair (left := wordEncoding) (right := wordEncoding) hc
+  unfold extract
+  polytime
 
 omit [MeasurableSpace Word] [DiscreteMeasurableSpace Word] in
 /-- Transcript verification uses certified scalar multiplication and addition, and compares

@@ -111,6 +111,7 @@ public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape.Measure
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Composition
+public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Cost
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Deterministic
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.ExtendChannels
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.ExtendTapes
@@ -141,6 +142,7 @@ public import Cslib.Computability.PolynomialTime.Composition
 public import Cslib.Computability.PolynomialTime.Defs
 public import Cslib.Computability.PolynomialTime.Deterministic
 public import Cslib.Computability.PolynomialTime.Encoding
+public import Cslib.Computability.PolynomialTime.Encoding.Decoding
 public import Cslib.Computability.PolynomialTime.Encoding.Finite
 public import Cslib.Computability.PolynomialTime.Finite
 public import Cslib.Computability.PolynomialTime.Fold
@@ -150,6 +152,7 @@ public import Cslib.Computability.PolynomialTime.Machine
 public import Cslib.Computability.PolynomialTime.Machine.Bounds
 public import Cslib.Computability.PolynomialTime.Machine.Replay
 public import Cslib.Computability.PolynomialTime.Machine.Rewind
+public import Cslib.Computability.PolynomialTime.Machine.Sampling
 public import Cslib.Computability.PolynomialTime.Machine.Size
 public import Cslib.Computability.PolynomialTime.Machine.Step
 public import Cslib.Computability.PolynomialTime.Monoid
@@ -159,6 +162,8 @@ public import Cslib.Computability.PolynomialTime.Probabilistic
 public import Cslib.Computability.PolynomialTime.Realization.Iteration
 public import Cslib.Computability.PolynomialTime.Realization.PolynomialTime
 public import Cslib.Computability.PolynomialTime.Realization.Transducer
+public import Cslib.Computability.PolynomialTime.Realizer
+public import Cslib.Computability.PolynomialTime.Realizer.CoinTape
 public import Cslib.Computability.PolynomialTime.Rejection
 public import Cslib.Computability.PolynomialTime.Sampling
 public import Cslib.Computability.PolynomialTime.Sampling.Finite
@@ -253,12 +258,14 @@ public import Cslib.Foundations.Data.PFunctor.Free.Fork.Probability
 public import Cslib.Foundations.Data.PFunctor.Free.Kernel
 public import Cslib.Foundations.Data.PFunctor.Free.Kernel.Support
 public import Cslib.Foundations.Data.PFunctor.Free.Measure
+public import Cslib.Foundations.Data.PFunctor.Free.Measure.Approximation
 public import Cslib.Foundations.Data.PFunctor.Free.Measure.PMF
 public import Cslib.Foundations.Data.PFunctor.Free.Measure.StateT
 public import Cslib.Foundations.Data.PFunctor.Free.Measure.Support
 public import Cslib.Foundations.Data.PFunctor.Free.Measure.WP
 public import Cslib.Foundations.Data.PFunctor.Free.MonadAttach
 public import Cslib.Foundations.Data.PFunctor.Free.Random
+public import Cslib.Foundations.Data.PFunctor.Free.Random.Approximation
 public import Cslib.Foundations.Data.PFunctor.Free.Resumption
 public import Cslib.Foundations.Data.PFunctor.Free.Trace
 public import Cslib.Foundations.Data.PFunctor.Free.Trace.StateT
