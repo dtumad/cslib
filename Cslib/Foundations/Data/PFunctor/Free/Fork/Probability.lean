@@ -291,4 +291,28 @@ theorem le_denote_fork_trace [MeasurableSpace (List (Sigma P.B))]
   rcases Prod.mk.inj heq with ⟨rfl, rfl⟩
   exact hvalid original horiginal n hchoose
 
+/-- Sample the entire private state once, then share it between both executions. Averaging
+the conditional forking bound preserves the same quadratic loss. Only reachable private states
+need a valid selector. In particular, the state may contain a fixed finite random tape. -/
+theorem le_denote_fork_bind {Seed : Type u} [MeasurableSpace Seed]
+    [MeasurableSingletonClass Seed] [Countable Seed]
+    (seed : P.FreeM Seed) (program : Seed → P.FreeM α)
+    (select : P.A → Bool) (choose : α → Option ℕ) (q : ℕ) (r : ℝ≥0∞)
+    (hanswer : ∀ op, select op = true → ∀ answer, μ op {answer} ≤ r)
+    (hvalid : ∀ saved, MonadAttach.CanReturn seed saved →
+      ∀ a events, MonadAttach.CanReturn (trace (program saved)) (a, events) →
+        ∀ n, choose a = some n → n < events.countP (fun event => select event.1)) :
+    let ε := denote μ (seed >>= program) {a | ∃ n < q, choose a = some n}
+    ε * (ε / q - r) ≤
+      denote μ (seed >>= fun saved => fork select choose (program saved))
+        (⋃ n, forkSuccess choose n) := by
+  dsimp only
+  simp only [denote_bind_of_discrete,
+    Measure.bind_apply MeasurableSet.of_discrete Measurable.of_discrete.aemeasurable]
+  refine (ENNReal.mul_sub_lintegral_le Measurable.of_discrete.aemeasurable
+    (fun _ => prob_le_one) q r).trans ?_
+  apply lintegral_mono_ae
+  filter_upwards [ae_canReturn μ seed] with saved hsaved
+  exact le_denote_fork μ select choose (program saved) q r hanswer (hvalid saved hsaved)
+
 end PFunctor.FreeM

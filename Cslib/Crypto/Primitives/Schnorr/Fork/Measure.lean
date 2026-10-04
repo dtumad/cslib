@@ -88,6 +88,29 @@ theorem le_denote_forkExtractor (g pk : G)
   obtain ⟨n, hn⟩ := Set.mem_iUnion.mp hsuccess
   exact forkExtractor_finish_isSome g pk program hout hn
 
+/-- Private randomness is sampled once and reused by the complete extractor, including the
+simulator. The success probability is that of its first execution averaged over the same seed. -/
+theorem le_denote_forkExtractor_bind {Seed : Type} [MeasurableSpace Seed]
+    [MeasurableSingletonClass Seed] [Countable Seed]
+    (seed : (P + PFunctor.mk (M × G) (fun _ => F)).FreeM Seed) (g pk : G)
+    (program : Seed → (P + PFunctor.mk (M × G) (fun _ => F)).FreeM (Option (M × G × F)))
+    (q : ℕ) (r : ℝ≥0∞) (hanswer : ∀ input challenge, μ (.inr input) {challenge} ≤ r)
+    (hcovered : ∀ saved, CanReturn seed saved →
+      ∀ out, CanReturn (FreeM.trace (program saved)) out → out.1.isSome →
+        ∃ n < q, forkPoint g pk out.1 out.2 = some n) :
+    let ε := FreeM.denote μ (seed >>= program) {candidate : Option (M × G × F) | candidate.isSome}
+    ε * (ε / q - r) ≤
+      FreeM.denote μ (seed >>= fun saved => forkExtractor g pk (program saved))
+        {result : Option F | result.isSome} := by
+  dsimp only
+  simp only [FreeM.denote_bind_of_discrete,
+    Measure.bind_apply MeasurableSet.of_discrete Measurable.of_discrete.aemeasurable]
+  refine (ENNReal.mul_sub_lintegral_le Measurable.of_discrete.aemeasurable
+    (fun _ => prob_le_one) q r).trans ?_
+  apply lintegral_mono_ae
+  filter_upwards [FreeM.ae_canReturn μ seed] with saved hsaved
+  exact le_denote_forkExtractor μ g pk (program saved) q r hanswer (hcovered saved hsaved)
+
 /-- Concrete extraction from the public-key signing simulator. The query bound counts fresh
 hash operations in the simulated experiment, including final verification. -/
 theorem le_denote_signatureExtractor (sample : P.FreeM F) (g pk : G)

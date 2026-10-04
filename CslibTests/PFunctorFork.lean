@@ -5,6 +5,7 @@ Authors: Devon Tuma
 -/
 
 import Cslib.Foundations.Data.PFunctor.Free.Fork.Probability
+import Cslib.Foundations.Data.PFunctor.Free.Fork.Replay
 import Cslib.Foundations.MeasureTheory.Uniform
 import Cslib.Crypto.RandomOracle
 
@@ -30,7 +31,7 @@ def program : effects.FreeM (ℕ × ℕ × ℕ) := do
 def runFork (choose : (ℕ × ℕ × ℕ) → Option ℕ) : StateM ℕ
     ((ℕ × ℕ × ℕ) × Option (ℕ × ℕ × ℕ)) :=
   ((fun out => (out.1, out.2.map fun event => event.2.2.2)) <$>
-    FreeM.fork id choose program).liftM counted
+    FreeM.forkWithReplay id choose program).liftM counted
 
 def choose (out : ℕ × ℕ × ℕ) : Option ℕ := if out.2.2 % 2 = 0 then some 1 else some 0
 
@@ -41,6 +42,14 @@ def choose (out : ℕ × ℕ × ℕ) : Option ℕ := if out.2.2 % 2 = 0 then som
 -- Missing and out-of-range selections consume no additional randomness.
 #guard ((runFork (fun _ => none)).run 0).run == (((0, 1, 2), none), 3)
 #guard ((runFork (fun _ => some 2)).run 0).run == (((0, 1, 2), none), 3)
+
+-- An incompatible prefix is rejected before making any fresh request.
+#guard ((((FreeM.runWithReplay (P := effects) [⟨true, 99⟩] program).run).liftM
+  counted).run 0).run == (none, 0)
+
+-- A recorded suffix extending past return is rejected too.
+#guard ((((FreeM.runWithReplay (P := effects) [⟨false, 9⟩, ⟨true, 8⟩, ⟨true, 7⟩, ⟨true, 6⟩]
+    program).run).liftM counted).run 0).run == (none, 0)
 
 def fixedTape (tape : List ℕ) : effects.FreeM (ℕ × ℕ) := do
   let challenge ← FreeM.lift true
@@ -54,7 +63,7 @@ example : FreeM.fork id (fun _ => some 0)
       FreeM.fork id (fun _ => some 0) (fixedTape tape)) :=
   FreeM.fork_mapM_bind_of_not_select _ _ _ _ _ rfl
 
-#guard (((FreeM.fork id (fun _ => some 0)
+#guard (((FreeM.forkWithReplay id (fun _ => some 0)
     ([()].mapM (fun _ => FreeM.lift false) >>= fixedTape)).liftM counted).run 0).run ==
       (((1, 0), some ⟨true, 1, 2, (2, 0)⟩), 3)
 
@@ -68,7 +77,7 @@ def cached : effects.FreeM ((ℕ × ℕ × ℕ) × List (Bool × ℕ)) :=
 def forkedCache : StateM ℕ
     (((ℕ × ℕ × ℕ) × List (Bool × ℕ)) × Option ((ℕ × ℕ × ℕ) × List (Bool × ℕ))) :=
   ((fun out => (out.1, out.2.map fun event => event.2.2.2)) <$>
-    FreeM.fork id (fun _ => some 1) cached).liftM counted
+    FreeM.forkWithReplay id (fun _ => some 1) cached).liftM counted
 
 -- Each branch has its own fresh entry; both retain and reuse the saved entry without a new draw.
 #guard (forkedCache.run 0).run ==

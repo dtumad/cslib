@@ -8,7 +8,7 @@ module
 
 public import Cslib.Crypto.Primitives.Schnorr.Extraction
 public import Cslib.Crypto.Primitives.Schnorr.Simulation
-public import Cslib.Foundations.Data.PFunctor.Free.Fork
+public import Cslib.Foundations.Data.PFunctor.Free.Fork.Replay
 
 /-!
 # Forking a Schnorr signature adversary
@@ -62,6 +62,16 @@ where
         extract? g pk input.2 (challenge, response) (challenge', response')
       else none
     | _, _ => none
+
+/-- The extractor can retain a transcript and restart the original program through a replay
+handler. This identifies the full two-run computation, before taking any marginal measure. -/
+theorem forkExtractor_eq_replay [DecidableEq (P + PFunctor.mk (M × G) (fun _ => F)).A]
+    (g pk : G)
+    (program : (P + PFunctor.mk (M × G) (fun _ => F)).FreeM (Option (M × G × F))) :
+    forkExtractor g pk program = forkExtractor.finish g pk <$>
+      FreeM.forkWithReplay (fun op => op.isRight)
+        (fun out => forkPoint g pk out.1 out.2) (FreeM.trace program) := by
+  rw [forkExtractor, FreeM.fork_eq_forkWithReplay]
 
 /-- Every successful adaptive extraction is a discrete logarithm of the supplied public key. -/
 theorem forkExtractor_sound (g pk : G)

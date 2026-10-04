@@ -134,6 +134,17 @@ end Bounds
 
 variable {P : PFunctor.{uB, uB}} {α : Type uB}
 
+/-- Recording an execution adds no operations. -/
+@[simp] theorem queryBoundP_trace (select : P.A → Bool) (x : P.FreeM α) :
+    queryBoundP select (trace x) = queryBoundP select x := by
+  induction x with
+  | pure value => rfl
+  | lift_bind op cont ih =>
+    change queryBoundP select (trace (.liftBind op cont)) =
+      queryBoundP select (.liftBind op cont)
+    simp only [trace, ← map_eq_pure_bind, queryBoundP_map, queryBoundP_lift_bind, ih]
+    rfl
+
 /-- Every recorded execution satisfies the worst-case bound on selected operations. -/
 theorem countP_trace_le_queryBoundP (select : P.A → Bool) (x : P.FreeM α)
     {out : α × List (Sigma P.B)} (h : MonadAttach.CanReturn (trace x) out) :
@@ -149,5 +160,38 @@ theorem countP_trace_le_queryBoundP (select : P.A → Bool) (x : P.FreeM α)
       (le_iSup (fun answer => queryBoundP select (cont answer)) answer)
     simp only [bind_eq_bind, queryBoundP_lift_bind, hevents, List.countP_cons]
     cases hselect : select op <;> simp_all [add_comm]
+
+/-- If every operation has a response, bounding all complete executions bounds the program.
+This lets observable execution traces certify a syntactic query budget. -/
+theorem queryBoundP_le_of_countP_trace_le [∀ op, Nonempty (P.B op)]
+    (select : P.A → Bool) (x : P.FreeM α) (n : ℕ)
+    (h : ∀ out, MonadAttach.CanReturn (trace x) out →
+      out.2.countP (fun event => select event.1) ≤ n) : queryBoundP select x ≤ n := by
+  induction x generalizing n with
+  | pure value => simp
+  | lift_bind op cont ih =>
+    have hnext answer out (hout : MonadAttach.CanReturn (trace (cont answer)) out) :
+        (select op).toNat + out.2.countP (fun event => select event.1) ≤ n := by
+      have := h (out.1, ⟨op, answer⟩ :: out.2)
+        ((canReturn_trace_lift_bind op cont _ _).mpr ⟨answer, out.2, hout, rfl⟩)
+      cases hs : select op <;> simpa [List.countP_cons, hs, Nat.add_comm] using this
+    have hcost : (select op).toNat ≤ n := by
+      obtain ⟨answer⟩ := (inferInstance : Nonempty (P.B op))
+      obtain ⟨value, hvalue⟩ := exists_canReturn (cont answer)
+      obtain ⟨events, hevents⟩ := exists_trace_of_canReturn (cont answer) hvalue
+      exact Nat.le_trans (Nat.le_add_right _ _) (hnext answer (value, events) hevents)
+    have hrest : (⨆ answer, queryBoundP select (cont answer)) ≤
+        ((n - (select op).toNat : ℕ) : ℕ∞) := by
+      apply iSup_le
+      intro answer
+      apply ih answer
+      intro out hout
+      have := hnext answer out hout
+      omega
+    calc
+      _ = ((select op).toNat : ℕ∞) + ⨆ answer, queryBoundP select (cont answer) := by
+        cases hs : select op <;> simp [queryBoundP_lift_bind, hs]
+      _ ≤ (select op).toNat + (n - (select op).toNat : ℕ) := add_le_add le_rfl hrest
+      _ = n := by norm_cast; omega
 
 end PFunctor.FreeM

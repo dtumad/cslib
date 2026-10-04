@@ -6,6 +6,8 @@ Authors: Devon Tuma
 
 module
 
+public import Cslib.Foundations.Control.Monad.IsMonadHom.Transformers
+
 public import Cslib.Computability.Machines.Turing.MultiTape.Snapshot
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape
 
@@ -68,6 +70,20 @@ theorem map_runSnapshotFromCoins {n : Type → Type*} [Monad n] {f : ∀ {α}, m
     simp only [List.foldlM_cons, hf.map_bind, map_stepSnapshot hf, ih]
 
 variable [LawfulMonad m]
+
+/-- Interpreting effects inside stateful handlers preserves the interpreter's complete joint
+result. Replay can therefore run through the same snapshot interpreter and initial handler state. -/
+theorem liftM_runSnapshotFromCoins_stateT {P : PFunctor} {S : Type}
+    (machine : MultiTapePTM k Bool State Oracle)
+    (handler : Oracle → List Bool → StateT S P.FreeM (List Bool))
+    (interpret : (op : P.A) → m (P.B op)) (coins : List Bool)
+    (snapshot : Snapshot k Bool State Oracle) (state : S) :
+    ((machine.runSnapshotFromCoins input handler coins snapshot).run state).liftM interpret =
+      (machine.runSnapshotFromCoins (m := StateT S m) input
+        (fun port request st => (handler port request st).liftM interpret) coins snapshot).run
+          state :=
+  congrFun (map_runSnapshotFromCoins ((PFunctor.FreeM.isMonadHom_liftM interpret).stateT S)
+    machine handler coins snapshot) state
 
 /-- Pausing finite execution retains the complete snapshot and the handler's state. -/
 theorem runSnapshotFromCoins_append (machine : MultiTapePTM k Bool State Oracle)

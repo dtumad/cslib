@@ -98,6 +98,7 @@ from final verification, which also covers forgeries whose hash was never reques
 adversary. The proof combines the joint-cache signing law, adaptive collision accounting,
 the general forking inequality, and checked special-soundness extraction. It averages over
 key generation and implements all fresh hash draws with the original sampler.
+The equivalent square-root upper bound on forgery probability is also available.
 
 The runtime candidate in `Computability/PolynomialTime` recovers the deterministic machine
 constructions from Samuel's branch without probabilistic dependencies. Certificates include one
@@ -115,7 +116,9 @@ so sequencing needs no assumed decoder. Association-list lookup has a uniform ma
 using the ordinary `List.lookup` API and charging for key comparisons and cache traversal.
 `Realizer` retains the chosen finite machine and polynomial clock as data; its composition uses
 the supplied machines. Saved-tape execution preserves the complete joint measure and every
-structural postcondition. Machine transitions bound selected oracle requests.
+structural postcondition. An oracle that counts requests transfers the machine's transition
+bound to selected external requests in the original source program, without assuming a separate
+source query budget or matching the placement of private coins.
 At word interfaces, Mathlib's `Computability.Encoding` supplies decoding. Canonical validation
 rejects words outside the encoding's range and preserves a certified decoder's polynomial bound.
 Compound decoding and optional pairing require no arbitrary defaults for represented values.
@@ -133,9 +136,13 @@ Sampling the private tape before execution preserves the joint output-and-oracle
 Adaptive rewinding now has a uniform certificate using prefix replay. It restores both the
 finite snapshot and handler state and reuses the same private-coin suffix. A restart operation can
 replace the remaining oracle-answer tape while retaining the prefix cache. The private-tape
-convention agrees with Bellare and Neven's general forking lemma; connecting this construction to
-the Schnorr selector and its full reduction is still required. Single-run measure equality alone
-does not preserve the coupling of a fork.
+convention agrees with Bellare and Neven's general forking lemma. Recorded-prefix replay now
+preserves the complete two-run program, and tracing and replay use ordinary stateful handlers
+compatible with the snapshot interpreter. Forking doubles the source query budget at most.
+Presampling a sufficient finite answer tape preserves the whole result measure, including the
+adaptive second run; exhaustion remains explicit. Averaging over a private seed shared by both
+runs preserves the forking inequality. Applying these laws to the complete typed Schnorr
+simulator and its machine certificate is still required.
 `ElGamal.PolynomialTime` certifies honest key generation, encryption, and decryption uniformly
 across an indexed group family. It derives binary exponentiation from certified multiplication
 and polynomial bounds on element encodings. The parameter data and remaining group primitives

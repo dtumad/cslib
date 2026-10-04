@@ -144,4 +144,30 @@ theorem euf_cma_bound (sample : P.FreeM F) (g : G)
         qH hsample (hhash _)
     _ = _ := (denote_dlogReduction_experiment μ sample g adversary).symm
 
+/-- The concrete EUF-CMA bound in its square-root form. The hash budget includes final
+verification, and the signing term accounts for all adaptive programming collisions. -/
+theorem euf_cma_bound_sqrt (sample : P.FreeM F) (g : G)
+    (adversary : G → (signatureEffects P M G F).FreeM (M × G × F))
+    (hg : Function.Bijective (fun scalar : F => scalar • g))
+    (hsample : FreeM.denote μ sample = uniformOn Set.univ) (qS qH : ℕ)
+    (hsign : ∀ pk, FreeM.queryBoundP (fun op : (signatureEffects P M G F).A => match op with
+      | .inr (.inr _) => true | _ => false) (adversary pk) ≤ qS)
+    (hhash : ∀ pk, FreeM.queryBoundP (fun op : (signatureEffects P M G F).A => match op with
+      | .inr (.inl _) => true | _ => false) (adversary pk) ≤ qH) :
+    (FreeM.denote μ (unforgeabilityExperiment sample g adversary) {true}).toReal ≤
+      (qS : ℝ) * (qH + qS) / Nat.card F + (qH + 1) / Nat.card F +
+        Real.sqrt ((qH + 1) *
+          (FreeM.denote μ (DiscreteLog.experiment sample g
+            (dlogReduction sample g adversary)) {true}).toReal) := by
+  have hcard : (Nat.card F : ℝ≥0∞) ≠ 0 := by
+    exact_mod_cast (Nat.card_pos (α := F)).ne'
+  have hbound := ENNReal.toReal_le_mul_add_sqrt_of_mul_sub_le
+    (by positivity) (by simp) (by finiteness) (measure_ne_top _ _)
+    (euf_cma_bound μ sample g adversary hg hsample qS qH hsign hhash)
+  have hsub := ENNReal.le_toReal_sub
+    (a := FreeM.denote μ (unforgeabilityExperiment sample g adversary) {true})
+    (b := qS * (qH + qS) / (Nat.card F : ℝ≥0∞)) (by finiteness)
+  simp [ENNReal.toReal_add, ENNReal.toReal_mul, div_eq_mul_inv] at hbound hsub ⊢
+  linarith
+
 end Cslib.Crypto.Schnorr

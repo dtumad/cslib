@@ -8,6 +8,8 @@ module
 
 public import Cslib.Computability.PolynomialTime.Machine.Replay
 public import Cslib.Computability.PolynomialTime.Sampling
+public import Cslib.Computability.PolynomialTime.Option
+public import Cslib.Foundations.Data.PFunctor.Free.Random.Tape
 
 /-!
 # Randomized execution through certified deterministic handlers
@@ -18,6 +20,22 @@ The interpreter charges for both handler calls and copying all reachable state.
 -/
 
 public section
+
+namespace Turing.MultiTapeTM
+
+/-- Reading and advancing an encoded answer tape is polynomial time. Exhaustion stays
+explicit, and the element type needs no default value. -/
+theorem isPolyTime_readAnswer {Answer : Type} (element : Answer ↪ Word) :
+    IsPolyTime (listEncoding element) (fun answers =>
+      optionEncoding (pairEncoding element (listEncoding element))
+        (PFunctor.FreeM.readAnswer.run answers)) := by
+  have h := (isPolyTime_input (listEncoding element)).list_head?.option_pair
+    (isPolyTime_list_tail element).option_some
+  convert h using 1
+  funext answers
+  cases answers <;> rfl
+
+end Turing.MultiTapeTM
 
 namespace Turing.MultiTapePTM
 

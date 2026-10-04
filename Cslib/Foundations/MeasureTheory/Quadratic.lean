@@ -11,6 +11,7 @@ public import Mathlib.MeasureTheory.Integral.MeanInequalities
 public import Mathlib.MeasureTheory.Integral.Lebesgue.Countable
 public import Mathlib.MeasureTheory.Integral.Lebesgue.Sub
 public import Mathlib.MeasureTheory.Measure.ProbabilityMeasure
+public import Mathlib.Analysis.Real.Sqrt
 
 /-! # Quadratic bounds for nonnegative integrals
 
@@ -23,6 +24,32 @@ open MeasureTheory
 open scoped ENNReal
 
 namespace ENNReal
+
+/-- Inverting a divided quadratic bound gives the usual square-root loss. Truncated
+subtraction needs no separate assumption that the success probability exceeds the loss. -/
+theorem toReal_le_mul_add_sqrt_of_mul_sub_le {ε q r p : ℝ≥0∞}
+    (hq : q ≠ 0) (hq_top : q ≠ ∞) (hr : r ≠ ∞) (hp : p ≠ ∞)
+    (h : ε * (ε / q - r) ≤ p) :
+    ε.toReal ≤ q.toReal * r.toReal + Real.sqrt (q.toReal * p.toReal) := by
+  have hq_pos := ENNReal.toReal_pos hq hq_top
+  have hreal : ε.toReal * (ε.toReal / q.toReal - r.toReal) ≤ p.toReal := by
+    calc
+      _ ≤ ε.toReal * (ε / q - r).toReal := by
+        simpa only [toReal_div] using
+          mul_le_mul_of_nonneg_left (le_toReal_sub (a := ε / q) hr) ε.toReal_nonneg
+      _ ≤ _ := by simpa only [toReal_mul] using toReal_mono hp h
+  have hquad : ε.toReal * (ε.toReal - q.toReal * r.toReal) ≤ q.toReal * p.toReal := by
+    calc
+      _ = q.toReal * (ε.toReal * (ε.toReal / q.toReal - r.toReal)) := by
+        field_simp
+      _ ≤ _ := mul_le_mul_of_nonneg_left hreal hq_pos.le
+  by_cases hsmall : ε.toReal ≤ q.toReal * r.toReal
+  · exact hsmall.trans (le_add_of_nonneg_right (Real.sqrt_nonneg _))
+  have hnonneg := mul_nonneg (mul_nonneg hq_pos.le r.toReal_nonneg)
+    (sub_nonneg.mpr (le_of_not_ge hsmall))
+  have hsquare : (ε.toReal - q.toReal * r.toReal) ^ 2 ≤ q.toReal * p.toReal := by
+    nlinarith
+  linarith [Real.le_sqrt_of_sq_le hsquare]
 
 variable {α : Type*} [MeasurableSpace α] {μ : Measure α}
 

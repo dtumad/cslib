@@ -6,6 +6,8 @@ Authors: Devon Tuma
 
 import Cslib.Foundations.Data.PFunctor.Free.Random
 import Cslib.Foundations.Data.PFunctor.Free.Random.Approximation
+import Cslib.Foundations.Data.PFunctor.Free.Random.Tape
+import Cslib.Foundations.Data.PFunctor.Free.Fork.Replay
 import Cslib.Crypto.Negligible
 
 /-! Sampling a range just above a power of two exercises the worst rejection rate. These
@@ -15,6 +17,8 @@ open PFunctor MeasureTheory ProbabilityTheory
 open scoped ENNReal
 
 namespace PFunctorSampling
+
+set_option linter.hashCommand false
 
 abbrev bits : PFunctor := ⟨Unit, fun _ => Fin 2⟩
 
@@ -27,8 +31,43 @@ theorem denote_coin : FreeM.denote answers coin = uniformOn Set.univ :=
 
 theorem cost_coin : FreeM.queryBound coin = 1 := FreeM.queryBound_lift (P := bits) ()
 
+abbrev requests : PFunctor := ⟨Bool, fun _ => Fin 2⟩
+
+def savedPrefix : requests.FreeM (Fin 2 × Fin 2) := do
+  let saved ← FreeM.lift false
+  let challenge ← FreeM.lift true
+  pure (saved, challenge)
+
+def replayed : requests.FreeM ((Fin 2 × Fin 2) ×
+    Option ((op : requests.A) × requests.B op × requests.B op × (Fin 2 × Fin 2))) :=
+  FreeM.forkWithReplay id (fun _ => some 0) savedPrefix
+
+-- Replaying the prefix consumes no answer. Only the selected challenge is replaced.
+#guard FreeM.runFromAnswers replayed [0, 1, 0] ==
+  some ((0, 1), some ⟨true, 1, 0, (0, 0)⟩)
+#guard FreeM.runFromAnswers replayed [0, 1] == none
+
+-- Spare tape entries are irrelevant, including after an adaptive second run.
+#guard FreeM.runFromAnswers replayed [0, 1, 0, 1] ==
+  FreeM.runFromAnswers replayed [0, 1, 0]
+
 local instance (op : bits.A) : IsProbabilityMeasure (answers op) :=
   inferInstanceAs (IsProbabilityMeasure (uniformOn (Set.univ : Set (Fin 2))))
+
+-- The whole two-run distribution is preserved, rather than just its first marginal.
+example :
+    let observe := fun out : (Fin 2 × Fin 2) ×
+      Option ((op : requests.A) × requests.B op × requests.B op × (Fin 2 × Fin 2)) =>
+        (out.1, out.2.map fun event => event.2.2.2)
+    FreeM.denote answers (FreeM.runFromAnswers (observe <$> replayed) <$>
+      (List.replicate 4 ()).mapM (fun _ => coin)) =
+        (FreeM.denote (P := requests) (fun _ => FreeM.denote answers coin)
+          (observe <$> replayed)).map some := by
+  dsimp only
+  apply FreeM.denote_runFromAnswers
+  rw [FreeM.queryBound_map]
+  apply (FreeM.queryBound_forkWithReplay_le id (fun _ => some 0) savedPrefix).trans
+  norm_num [savedPrefix, FreeM.queryBound_lift_bind (P := requests)]
 
 example (attempts : ℕ) :
     FreeM.denote answers (FreeM.sampleFin coin 257 9 attempts) {none} =
