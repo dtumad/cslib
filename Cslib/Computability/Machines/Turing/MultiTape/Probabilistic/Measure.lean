@@ -12,6 +12,7 @@ public import Cslib.Foundations.MeasureTheory.Uniform
 public import Cslib.Foundations.MeasureTheory.Option
 public import Mathlib.Logic.Equiv.List
 public import Mathlib.MeasureTheory.MeasurableSpace.Instances
+import Mathlib.MeasureTheory.Measure.Prod
 
 /-!
 # Measure semantics for fair-coin machines
@@ -89,5 +90,49 @@ theorem runKernel_coin_const (program : (effects Oracle).FreeM α) (state : S) :
       FreeM.runKernel (effectKernel oracle) program state := by
   rw [runKernel_coin_bind]
   simp only [Measure.bind_const, measure_univ, one_smul]
+
+/-- An independent private coin may be sampled before an adaptive stateful computation. -/
+theorem runKernel_coin_comm {β : Type} [MeasurableSpace β] [DiscreteMeasurableSpace β]
+    [Countable β] (program : (effects Oracle).FreeM β)
+    (cont : β → Bool → (effects Oracle).FreeM α) (state : S) :
+    FreeM.runKernel (effectKernel oracle) (program >>= fun value => coin >>= cont value) state =
+      FreeM.runKernel (effectKernel oracle)
+        (coin >>= fun bit => program >>= fun value => cont value bit) state := by
+  conv_lhs => rw [← FreeM.bind_eq_bind, FreeM.runKernel_bind]
+  simp_rw [runKernel_coin_bind]
+  simp_rw [← FreeM.bind_eq_bind, FreeM.runKernel_bind]
+  exact (Measure.bind_comm (μ := uniformOn (Set.univ : Set Bool))
+    (ν := FreeM.runKernel (effectKernel oracle) program state)
+    (f := fun bit out => FreeM.runKernel (effectKernel oracle) (cont out.1 bit) out.2)
+    Measurable.of_discrete).symm
+
+/-- Discarding a whole private coin tape leaves the joint result-and-state measure unchanged. -/
+theorem runKernel_sampleBits_const (n : ℕ) (program : (effects Oracle).FreeM α) (state : S) :
+    FreeM.runKernel (effectKernel oracle)
+      ((List.replicate n ()).mapM (fun _ => coin) >>= fun _ => program) state =
+      FreeM.runKernel (effectKernel oracle) program state := by
+  induction n with
+  | zero => simp
+  | succ n ih =>
+    simp only [List.replicate_succ, List.mapM_cons, bind_assoc, pure_bind]
+    rw [runKernel_coin_const, ih]
+
+/-- Sampling a saved coin tape commutes with preceding stateful operations. -/
+theorem runKernel_sampleBits_comm {β : Type} [MeasurableSpace β] [DiscreteMeasurableSpace β]
+    [Countable β] (n : ℕ) (program : (effects Oracle).FreeM β)
+    (cont : β → List Bool → (effects Oracle).FreeM α) (state : S) :
+    FreeM.runKernel (effectKernel oracle)
+      (program >>= fun value => (List.replicate n ()).mapM (fun _ => coin) >>= cont value) state =
+      FreeM.runKernel (effectKernel oracle)
+        ((List.replicate n ()).mapM (fun _ => coin) >>= fun bits =>
+          program >>= fun value => cont value bits) state := by
+  induction n generalizing cont state with
+  | zero => simp
+  | succ n ih =>
+    simp only [List.replicate_succ, List.mapM_cons, bind_assoc, pure_bind]
+    rw [runKernel_coin_comm, runKernel_coin_bind, runKernel_coin_bind]
+    apply Measure.bind_congr_right
+    exact Filter.Eventually.of_forall fun bit =>
+      ih (fun value bits => cont value (bit :: bits)) state
 
 end Turing.MultiTapePTM

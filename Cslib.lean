@@ -109,6 +109,7 @@ public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.UnaryRepeat
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.WordsCfg
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape
+public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape.Measure
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Composition
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Deterministic
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.ExtendChannels
