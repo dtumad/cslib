@@ -257,6 +257,20 @@ theorem IsPolyTime.list_tail_indexed {Value : α → Type}
   | nil => rfl
   | cons value values => exact (List.BitPair.snd_encode _ _).symm
 
+/-- Skipping an indexed answer block charges for its unary length without decoding elements. -/
+theorem IsPolyTime.list_drop_indexed {Value : α → Type}
+    {element : ∀ a, Value a ↪ Word} {values : ∀ a, List (Value a)}
+    (hvalues : IsPolyTime encode (fun a => listEncoding (element a) (values a)))
+    (hcount : IsPolyTime encode (fun a => unaryEncoding (count a))) :
+    IsPolyTime encode (fun a => listEncoding (element a) ((values a).drop (count a))) := by
+  let words (a : α) := (values a).map (element a)
+  have heq (a : α) (values : List (Value a)) :
+      listEncoding wordEncoding (values.map (element a)) = listEncoding (element a) values :=
+    listEncoding_map (element a) wordEncoding (element a) (fun _ => rfl) values
+  have hw : IsPolyTime encode (fun a => listEncoding wordEncoding (words a)) := by
+    simpa only [words, heq] using hvalues
+  simpa only [words, ← List.map_drop, heq] using hw.list_drop hcount
+
 /-- Ordinary first-match association-list lookup charges for key comparison and scanning. -/
 theorem IsPolyTime.list_lookup [BEq Key] [LawfulBEq Key]
     {key : Key ↪ Word} {value : Value ↪ Word}

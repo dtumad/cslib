@@ -182,21 +182,25 @@ noncomputable def simulatorStateEncoding :=
   Schnorr.seededSignatureMachineStateEncoding (fun _ => scalarEncoding) (fun _ => scalarCode)
 
 -- All saved tapes, logs, caches, keys, and the parameter are runtime inputs. The source machine
--- is arbitrary, and a single certificate handles every clock length and every simulator state.
+-- is arbitrary; three interpreter passes use an adaptive selector and a fresh hash block.
 example {State : Type} [Finite State] {k ports : ℕ}
     (machine : Turing.MultiTapePTM k Bool State (Fin ports)) (control : State ↪ Word) :
     IsPolyTime (pairEncoding wordEncoding simulatorStateEncoding) (fun arg =>
-      optionEncoding (pairEncoding (machineSnapshotEncoding k ports control)
-        simulatorStateEncoding)
-        (Id.run (((machine.runSnapshotFromCoins (m := StateT _ (OptionT Id)) []
-          (fun _ request st => OptionT.mk (pure
-            (Schnorr.seededSignatureMachineHandler (fun _ => scalarEncoding)
-              (fun _ => scalarCode) request st))) arg.1
-          (Turing.MultiTapeMachine.Snapshot.initial machine.initial)).run arg.2).run))) := by
+      optionEncoding
+        (pairEncoding
+          (pairEncoding (machineSnapshotEncoding k ports control) simulatorStateEncoding)
+          (pairEncoding (machineSnapshotEncoding k ports control) simulatorStateEncoding))
+        (machine.rewindSnapshotFromCoins? []
+          (fun _ => Schnorr.seededSignatureMachineHandler (fun _ => scalarEncoding)
+            (fun _ => scalarCode)) arg.1
+          (Turing.MultiTapeMachine.Snapshot.initial machine.initial) arg.2
+          (fun first => first.1.output.length) (Schnorr.restartSeededSignatureMachine id))) := by
   obtain ⟨bound, hbound⟩ := Finite.exists_le (fun value => (scalarCode value).length)
-  apply Schnorr.isPolyTime_runSeededSignatureMachine
+  apply Schnorr.isPolyTime_rewindSeededSignatureMachine
     (F := fun _ => F) (G := fun _ => F) (fun _ => scalarEncoding) (fun _ => scalarCode)
-    (isPolyTime_const _ _) _ (fieldOp_poly (· • ·)) (fieldOp_poly (· - ·)) machine
+    (isPolyTime_const _ _) _ (fieldOp_poly (· • ·)) (fieldOp_poly (· - ·)) machine _ _
+    (isPolyTime_fst _ _).machineSnapshot_output.unaryLength
+    (Schnorr.isPolyTime_restartSeededSignatureMachine _ _ (isPolyTime_input unaryEncoding))
     (isPolyTime_const _ _) (isPolyTime_const _ [])
     (isPolyTime_fst _ _) (isPolyTime_snd _ _)
     (groupSize := fun _ => bound) (scalarSize := fun _ => bound)

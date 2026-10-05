@@ -8,6 +8,7 @@ module
 
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.HandlerBounds
 public import Cslib.Computability.PolynomialTime.Machine.Option
+public import Cslib.Computability.PolynomialTime.Machine.Rewind
 
 /-!
 # Executing an adversary against Schnorr's signing simulator
@@ -49,6 +50,62 @@ def seededSignatureMachineHandler
   let (answer, state') ← seededSignatureWordHandler (element state.1) (scalar state.1)
     state.2.1 state.2.2.1 word state.2.2.2
   pure (answer, ⟨state.1, state.2.1, state.2.2.1, state'⟩)
+
+/-- Advance only the fresh-hash cursor. Two blocks of `skip n` answers let replay select the
+second block at the corresponding query position, retaining all private randomness and caches. -/
+def restartSeededSignatureMachine (skip : ℕ → ℕ)
+    (state : Σ n, G n × G n × ((List Word × List ((Word × G n) × F n)) ×
+      (List (F n) × List (F n)))) :
+    Σ n, G n × G n × ((List Word × List ((Word × G n) × F n)) ×
+      (List (F n) × List (F n))) :=
+  ⟨state.1, state.2.1, state.2.2.1, state.2.2.2.1, state.2.2.2.2.1,
+    state.2.2.2.2.2.drop (skip state.1)⟩
+
+omit [∀ n, Field (F n)] [∀ n, AddCommGroup (G n)] [∀ n, Module (F n) (G n)]
+  [∀ n, DecidableEq (G n)] in
+/-- At any prefix cursor, skipping the first block selects the same position in the second.
+The signing log, prefix cache, and private-scalar cursor are preserved exactly. -/
+theorem restartSeededSignatureMachine_blocks (skip : ℕ → ℕ) (n : ℕ) (g pk : G n)
+    (state : List Word × List ((Word × G n) × F n)) (privateScalars first second : List (F n))
+    (index : ℕ) (hfirst : first.length = skip n) :
+    restartSeededSignatureMachine skip
+      ⟨n, g, pk, state, privateScalars, (first ++ second).drop index⟩ =
+        ⟨n, g, pk, state, privateScalars, second.drop index⟩ := by
+  have h : ((first ++ second).drop index).drop first.length = second.drop index := by
+    rw [List.drop_drop, List.drop_append, List.drop_eq_nil_of_le (by omega)]
+    simp
+  simp only [restartSeededSignatureMachine, ← hfirst, h]
+
+omit [∀ n, Field (F n)] [∀ n, AddCommGroup (G n)] [∀ n, Module (F n) (G n)]
+  [∀ n, DecidableEq (G n)] in
+/-- A saved hash-answer block can be skipped uniformly, preserving every other state field. -/
+theorem isPolyTime_restartSeededSignatureMachine
+    (element : ∀ n, Computability.Encoding (G n) Bool) (scalar : ∀ n, F n ↪ Word)
+    {skip : ℕ → ℕ} (hskip : IsPolyTime unaryEncoding (fun n => unaryEncoding (skip n))) :
+    IsPolyTime (seededSignatureMachineStateEncoding element scalar)
+      (fun state => seededSignatureMachineStateEncoding element scalar
+        (restartSeededSignatureMachine skip state)) := by
+  have hi := isPolyTime_input (seededSignatureMachineStateEncoding element scalar)
+  have hp := hi.sigma_fst
+  have hd := hi.sigma_snd
+  have hhash : IsPolyTime (seededSignatureMachineStateEncoding element scalar)
+      (fun state => listEncoding (scalar state.1) state.2.2.2.2.2) := by
+    simpa only [seededSignatureStateEncoding, pairEncoding_apply, List.BitPair.snd_encode] using
+      hd.bitPair_snd.bitPair_snd.bitPair_snd.bitPair_snd
+  have htapes := hd.bitPair_snd.bitPair_snd.bitPair_snd.bitPair_fst.pair
+    (left := wordEncoding) (right := wordEncoding)
+    (hhash.list_drop_indexed (hskip.comp_encoded hp))
+  have hstate := hd.bitPair_snd.bitPair_snd.bitPair_fst.pair
+    (left := wordEncoding) (right := wordEncoding) htapes
+  have hkeys := hd.bitPair_fst.pair (left := wordEncoding) (right := wordEncoding)
+    (hd.bitPair_snd.bitPair_fst.pair (left := wordEncoding) (right := wordEncoding) hstate)
+  convert hp.pair (left := wordEncoding) (right := wordEncoding) hkeys using 1
+  funext state
+  simp only [restartSeededSignatureMachine, seededSignatureMachineStateEncoding,
+    seededSignatureStateEncoding, sigmaEncoding, pairEncoding_apply, List.BitPair.fst_encode,
+    List.BitPair.snd_encode, wordEncoding, Function.Embedding.refl_apply,
+    Function.Embedding.coeFn_mk]
+  rfl
 
 variable (element : ∀ n, Computability.Encoding (G n) Bool) (scalar : ∀ n, F n ↪ Word)
   (hz : IsPolyTime unaryEncoding (fun n => scalar n 0))
@@ -179,5 +236,55 @@ theorem isPolyTime_runSeededSignatureMachine
   simp only [seededSignatureMachineStateEncoding, length_sigmaEncoding, length_pairEncoding]
   have := hbound.2
   omega
+
+/-- Three certified executions implement adaptive replay of the Schnorr simulator, including
+aborts in either suffix. Selection and restart need their own certificates; this theorem does
+not identify the selected transition with the forgery's fresh hash query. -/
+theorem isPolyTime_rewindSeededSignatureMachine
+    {α State : Type} {k ports : ℕ} [Finite State]
+    {input : α → Word} {control : State ↪ Word}
+    (machine : Turing.MultiTapePTM k Bool State (Fin ports))
+    (choose : Snapshot k Bool State (Fin ports) ×
+      (Σ n, G n × G n × ((List Word × List ((Word × G n) × F n)) ×
+        (List (F n) × List (F n)))) → ℕ)
+    (restart : (Σ n, G n × G n × ((List Word × List ((Word × G n) × F n)) ×
+      (List (F n) × List (F n)))) →
+        Σ n, G n × G n × ((List Word × List ((Word × G n) × F n)) ×
+          (List (F n) × List (F n))))
+    (hchoose : IsPolyTime (pairEncoding (machineSnapshotEncoding k ports control)
+      (seededSignatureMachineStateEncoding element scalar))
+      (fun pair => unaryEncoding (choose pair)))
+    (hrestart : IsPolyTime (seededSignatureMachineStateEncoding element scalar)
+      (fun st => seededSignatureMachineStateEncoding element scalar (restart st)))
+    {snapshot : α → Snapshot k Bool State (Fin ports)} {word coins : α → Word}
+    {state : α → Σ n, G n × G n × ((List Word × List ((Word × G n) × F n)) ×
+      (List (F n) × List (F n)))}
+    (hs : IsPolyTime input (fun a => machineSnapshotEncoding k ports control (snapshot a)))
+    (hw : IsPolyTime input word) (hc : IsPolyTime input coins)
+    (hst : IsPolyTime input (fun a => seededSignatureMachineStateEncoding element scalar (state a)))
+    {groupSize scalarSize : ℕ → ℕ}
+    (hgroup : PolynomiallyBounded groupSize) (hscalar : PolynomiallyBounded scalarSize)
+    (hgsize : ∀ n value, ((element n).encode value).length ≤ groupSize n)
+    (hfsize : ∀ n value, (scalar n value).length ≤ scalarSize n) :
+    IsPolyTime input (fun a => optionEncoding
+      (pairEncoding
+        (pairEncoding (machineSnapshotEncoding k ports control)
+          (seededSignatureMachineStateEncoding element scalar))
+        (pairEncoding (machineSnapshotEncoding k ports control)
+          (seededSignatureMachineStateEncoding element scalar)))
+      (machine.rewindSnapshotFromCoins? (word a)
+        (fun _ => seededSignatureMachineHandler element scalar) (coins a) (snapshot a) (state a)
+          choose restart)) := by
+  apply isPolyTime_rewindSnapshotFromCoins? machine
+    (fun _ => seededSignatureMachineHandler element scalar) _ choose restart
+    hchoose hrestart hs hw hc hst
+  let arguments := pairEncoding wordEncoding (pairEncoding wordEncoding
+    (pairEncoding (machineSnapshotEncoding k ports control)
+      (seededSignatureMachineStateEncoding element scalar)))
+  have hi := isPolyTime_input arguments
+  simpa only [arguments, wordEncoding, Function.Embedding.refl_apply,
+    runSnapshotFromCoins_optionT_id] using
+    isPolyTime_runSeededSignatureMachine element scalar hz hdecode hsmul hsub machine
+      hi.snd.snd.fst hi.fst hi.snd.fst hi.snd.snd.snd hgroup hscalar hgsize hfsize
 
 end Cslib.Crypto.Schnorr

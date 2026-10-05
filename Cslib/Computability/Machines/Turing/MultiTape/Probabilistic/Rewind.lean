@@ -45,6 +45,56 @@ def rewindSnapshotFromCoins (machine : MultiTapePTM k Bool State Oracle) (input 
   let saved := run (coins.take index) (snapshot, state)
   (first, run (coins.drop index) (saved.1, restart saved.2))
 
+/-- Rewind an aborting deterministic handler. A failed first run, replay, or second suffix
+rejects the pair of results; no later handler call occurs after that failure. -/
+def rewindSnapshotFromCoins? (machine : MultiTapePTM k Bool State Oracle) (input : List Bool)
+    (handler : Oracle → List Bool → S → Option (List Bool × S)) (coins : List Bool)
+    (snapshot : Snapshot k Bool State Oracle) (state : S)
+    (choose : Snapshot k Bool State Oracle × S → ℕ) (restart : S → S) :
+    Option ((Snapshot k Bool State Oracle × S) × (Snapshot k Bool State Oracle × S)) := do
+  let run (tape : List Bool) (start : Snapshot k Bool State Oracle × S) :=
+    (machine.runSnapshotFromCoins (m := StateT S Option) input handler tape start.1).run start.2
+  let first ← run coins (snapshot, state)
+  let index := choose first
+  let saved ← run (coins.take index) (snapshot, state)
+  let second ← run (coins.drop index) (saved.1, restart saved.2)
+  pure (first, second)
+
+/-- The split-run identity also preserves rejection for a partial handler. -/
+theorem runSnapshotFromCoins_take_drop_option (machine : MultiTapePTM k Bool State Oracle)
+    (input : List Bool) (handler : Oracle → List Bool → S → Option (List Bool × S))
+    (coins : List Bool) (snapshot : Snapshot k Bool State Oracle) (state : S) (index : ℕ) :
+    (machine.runSnapshotFromCoins (m := StateT S Option) input handler coins snapshot).run state =
+      (do
+        let saved ← (machine.runSnapshotFromCoins (m := StateT S Option) input handler
+          (coins.take index) snapshot).run state
+        (machine.runSnapshotFromCoins (m := StateT S Option) input handler
+          (coins.drop index) saved.1).run saved.2) := by
+  conv_lhs => rw [← List.take_append_drop index coins]
+  rw [runSnapshotFromCoins_append]
+  rfl
+
+/-- An unchanged restart repeats the exact successful result, including both states, and
+preserves a failed first run as failure. The choice of prefix may depend on that first result. -/
+theorem rewindSnapshotFromCoins?_id (machine : MultiTapePTM k Bool State Oracle)
+    (input : List Bool) (handler : Oracle → List Bool → S → Option (List Bool × S))
+    (coins : List Bool) (snapshot : Snapshot k Bool State Oracle) (state : S)
+    (choose : Snapshot k Bool State Oracle × S → ℕ) :
+    machine.rewindSnapshotFromCoins? input handler coins snapshot state choose id =
+      (fun result => (result, result)) <$>
+        (machine.runSnapshotFromCoins (m := StateT S Option) input handler coins snapshot).run
+          state := by
+  dsimp only [rewindSnapshotFromCoins?]
+  cases hfirst : (machine.runSnapshotFromCoins (m := StateT S Option) input handler
+      coins snapshot).run state with
+  | none => rfl
+  | some first =>
+    have h := runSnapshotFromCoins_take_drop_option machine input handler coins snapshot
+      state (choose first)
+    rw [hfirst] at h
+    obtain ⟨saved, hsaved, hsecond⟩ := Option.bind_eq_some_iff.mp h.symm
+    simp [hsaved, hsecond]
+
 /-- Replaying a prefix restores exactly the joint state saved after that prefix. The private
 tape cursor is restored by retaining the suffix `coins.drop index`. -/
 theorem runSnapshotFromCoins_take_drop (machine : MultiTapePTM k Bool State Oracle)

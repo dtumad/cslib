@@ -94,6 +94,27 @@ example : rewound [false, true, false, false] =
     (([true, false], [([false], false), ([], false)]),
       ([true, true], [([false], true), ([], false)])) := by decide
 
+def seededChecked (_ : Bool) (request : Word) (state : Word × Cache) :
+    Option (Word × Word × Cache) :=
+  match state.2.lookup request with
+  | some answer => some ([answer], state)
+  | none => state.1.head?.map fun answer =>
+      ([answer], state.1.tail, (request, answer) :: state.2)
+
+def rewoundChecked (fresh coins : Word) : Option ((Word × Cache) × (Word × Cache)) :=
+  (rewindMachine.rewindSnapshotFromCoins? [] seededChecked coins
+    (Snapshot.initial rewindMachine.initial) ([false, false], [])
+    (fun first => first.1.output.length) (fun saved => (fresh, saved.2))).map fun result =>
+      ((result.1.1.output, result.1.2.2), (result.2.1.output, result.2.2.2))
+
+-- Replaying a partial handler preserves the prefix cache and the fixed private-bit suffix.
+example : rewoundChecked [true] [false, true, false, true] =
+    some (([true, true], [([false], false), ([], false)]),
+      ([true, false], [([false], true), ([], false)])) := by decide
+
+-- A successful first run cannot conceal exhaustion in the fork's replacement answer tape.
+example : rewoundChecked [] [false, true, false, true] = none := by decide
+
 abbrev logEncoding : List Word ↪ Word := listEncoding wordEncoding
 
 def echoLog (_ : Fin 1) (request : Word) (log : List Word) : Word × List Word :=

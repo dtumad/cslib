@@ -36,6 +36,26 @@ def totalizeHandler (handler : Oracle → List Bool → StateT S (OptionT m) (Li
 
 variable {k : ℕ} {State : Type} [DecidableEq Oracle] [LawfulMonad m]
 
+omit [Monad m] [LawfulMonad m] in
+/-- Removing the identity base monad does not change any optional result or handler state. -/
+theorem runSnapshotFromCoins_optionT_id
+    (machine : MultiTapePTM k Bool State Oracle) (input : List Bool)
+    (handler : Oracle → List Bool → S → Option (List Bool × S)) (coins : List Bool)
+    (snapshot : Snapshot k Bool State Oracle) (state : S) :
+    Id.run (((machine.runSnapshotFromCoins (m := StateT S (OptionT Id)) input
+      (fun port request st => OptionT.mk (pure (handler port request st))) coins snapshot).run
+        state).run) =
+      (machine.runSnapshotFromCoins (m := StateT S Option) input handler coins snapshot).run
+        state := by
+  have hf : Cslib.IsMonadHom (OptionT Id) Option (fun action => action.run.run) := by
+    apply Cslib.IsMonadHom.mk'
+    · intro α value
+      rfl
+    · intro α β action cont
+      cases action <;> rfl
+  exact congrFun (map_runSnapshotFromCoins (hf.stateT S) machine
+    (fun port request st => OptionT.mk (pure (handler port request st))) coins snapshot) state
+
 /-- Rejecting a failed final state gives exactly the partial interpreter's whole monadic
 computation. Continuing the clock after failure performs no additional handler effects. -/
 theorem runSnapshotFromCoins_totalizeHandler

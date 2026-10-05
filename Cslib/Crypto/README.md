@@ -172,6 +172,9 @@ Private simulator scalars and fresh hash answers have separate cursors; its stat
 charges accumulated logs, caches, and retained tapes. The canonical word handler implements the
 typed handler exactly, and flattening the tape state preserves an entire adaptive typed program.
 Malformed requests, exhausted tapes, and programming collisions reject the execution.
+Adaptive replay now composes three such aborting executions with certified selection and
+restart. Skipping a saved hash-answer block preserves the prefix cache and both private
+randomness sources; the correspondence with the semantic fork's selected query remains open.
 
 Samuel's `polytime` and `ppt` tactics have been adapted to these native certificates. Tests cover
 data-dependent sampling, captured continuations, calls to certified subprograms, and the ordinary

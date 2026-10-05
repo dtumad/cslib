@@ -7,6 +7,7 @@ Authors: Devon Tuma
 module
 
 public import Cslib.Computability.PolynomialTime.Machine.Replay
+public import Cslib.Computability.PolynomialTime.Option
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Rewind
 
 /-!
@@ -98,5 +99,67 @@ theorem isPolyTime_rewindSnapshotFromCoins
       simpa using hrun a ((coins a).take (choose (first a))) (snapshot a, state a) 0
         (by simp) (hinit a))
   exact hfirst.pair hsecond
+
+omit [Finite State] in
+/-- A certified aborting interpreter supports adaptive replay without a successful fallback.
+The three calls retain the original coin suffix; absent results remain absent throughout. -/
+theorem isPolyTime_rewindSnapshotFromCoins?
+    (machine : MultiTapePTM k Bool State (Fin ports))
+    (handler : Fin ports → Word → S → Option (Word × S))
+    (hrun : IsPolyTime (pairEncoding wordEncoding (pairEncoding wordEncoding
+      (pairEncoding (machineSnapshotEncoding k ports control) stateEncoding)))
+      (fun arg => optionEncoding (pairEncoding (machineSnapshotEncoding k ports control)
+        stateEncoding) ((machine.runSnapshotFromCoins (m := StateT S Option) arg.1 handler
+          arg.2.1 arg.2.2.1).run arg.2.2.2)))
+    (choose : Snapshot k Bool State (Fin ports) × S → ℕ) (restart : S → S)
+    (hchoose : IsPolyTime (pairEncoding (machineSnapshotEncoding k ports control) stateEncoding)
+      (fun pair => unaryEncoding (choose pair)))
+    (hrestart : IsPolyTime stateEncoding (fun st => stateEncoding (restart st)))
+    {snapshot : α → Snapshot k Bool State (Fin ports)} {word coins : α → Word} {state : α → S}
+    (hs : IsPolyTime input (fun a => machineSnapshotEncoding k ports control (snapshot a)))
+    (hw : IsPolyTime input word) (hc : IsPolyTime input coins)
+    (hst : IsPolyTime input (fun a => stateEncoding (state a))) :
+    IsPolyTime input (fun a => optionEncoding
+      (pairEncoding (pairEncoding (machineSnapshotEncoding k ports control) stateEncoding)
+        (pairEncoding (machineSnapshotEncoding k ports control) stateEncoding))
+      (machine.rewindSnapshotFromCoins? (word a) handler (coins a) (snapshot a) (state a)
+        choose restart)) := by
+  let run (a : α) (tape : Word) (pair : Snapshot k Bool State (Fin ports) × S) :=
+    (machine.runSnapshotFromCoins (m := StateT S Option) (word a) handler tape pair.1).run pair.2
+  let first (a : α) := run a (coins a) (snapshot a, state a)
+  let index (a : α) := choose ((first a).getD (snapshot a, state a))
+  let saved (a : α) := run a ((coins a).take (index a)) (snapshot a, state a)
+  let second (a : α) := run a ((coins a).drop (index a))
+    ((saved a).getD (snapshot a, state a) |>.1,
+      restart ((saved a).getD (snapshot a, state a)).2)
+  have hfirst : IsPolyTime input (fun a => optionEncoding
+      (pairEncoding (machineSnapshotEncoding k ports control) stateEncoding) (first a)) :=
+    hrun.comp_encoded (hw.pair (hc.pair (hs.pair hst)))
+  have hindex := hchoose.comp_encoded (hfirst.option_getD (hs.pair hst))
+  have hsaved : IsPolyTime input (fun a => optionEncoding
+      (pairEncoding (machineSnapshotEncoding k ports control) stateEncoding) (saved a)) :=
+    hrun.comp_encoded (hw.pair ((hc.take hindex).pair (hs.pair hst)))
+  have hrestored := hsaved.option_getD (hs.pair hst)
+  have hsecond : IsPolyTime input (fun a => optionEncoding
+      (pairEncoding (machineSnapshotEncoding k ports control) stateEncoding) (second a)) :=
+    hrun.comp_encoded (hw.pair ((hc.drop hindex).pair
+      (hrestored.fst.pair (hrestart.comp_encoded hrestored.snd))))
+  convert hsaved.option_isSome.cond (hfirst.option_pair hsecond)
+    (isPolyTime_const input []) using 1
+  funext a
+  dsimp +instances only [rewindSnapshotFromCoins?, first, saved, index, second, run]
+  cases hfirst : (machine.runSnapshotFromCoins (m := StateT S Option) (word a) handler
+      (coins a) (snapshot a)).run (state a) with
+  | none =>
+    simp [Option.map₂]
+  | some first =>
+    dsimp +instances only [Option.getD, Bind.bind, Option.bind]
+    cases (machine.runSnapshotFromCoins (m := StateT S Option) (word a) handler
+      ((coins a).take (choose first)) (snapshot a)).run (state a) with
+    | none => rfl
+    | some saved =>
+      dsimp +instances only [Option.getD]
+      cases (machine.runSnapshotFromCoins (m := StateT S Option) (word a) handler
+        ((coins a).drop (choose first)) saved.1).run (restart saved.2) <;> rfl
 
 end Turing.MultiTapeTM
