@@ -455,6 +455,7 @@ attribute [aesop safe apply (rule_sets := [PolyTime])]
   Turing.MultiTapeTM.IsPolyTime.bitPair_fst
   Turing.MultiTapeTM.IsPolyTime.bitPair_snd
   Turing.MultiTapeTM.IsPolyTime.getD
+  Turing.MultiTapeTM.IsPolyTime.findIdx?
   Turing.MultiTapeTM.IsPolyTime.list_getD
   Turing.MultiTapeTM.IsPolyTime.range
   Turing.MultiTapeTM.isPolyTime_list_headD

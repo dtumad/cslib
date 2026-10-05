@@ -32,18 +32,22 @@ open PFunctor
 variable {P : PFunctor.{0, 0}} {F G M : Type} [Field F] [AddCommGroup G] [Module F G]
   [DecidableEq F] [DecidableEq G] [DecidableEq M]
 
+/-- Find the first accepting occurrence of a candidate's input in the fresh hash transcript. -/
+def findForkPoint (g pk : G) (candidate : Option (M × G × F))
+    (hashes : List ((M × G) × F)) : Option ℕ :=
+  match candidate with
+  | none => none
+  | some (message, commitment, response) =>
+    hashes.findIdx? fun event => decide (event.1 = (message, commitment) ∧
+      Accepts g pk commitment event.2 response)
+
 /-- Select the first accepting occurrence of the forgery's hash input, counting hash operations
 only. Including the final verifier query makes a previously unqueried forgery eligible too. -/
 def forkPoint (g pk : G) (candidate : Option (M × G × F))
     (events : List (Sigma (P + PFunctor.mk (M × G) (fun _ => F)).B)) : Option ℕ :=
-  match candidate with
-  | none => none
-  | some (message, commitment, response) =>
-    let hashes := events.filterMap fun
-      | ⟨.inl _, _⟩ => none
-      | ⟨.inr input, challenge⟩ => some (input, challenge)
-    hashes.findIdx? fun event => decide (event.1 = (message, commitment) ∧
-      Accepts g pk commitment event.2 response)
+  findForkPoint g pk candidate (events.filterMap fun
+    | ⟨.inl _, _⟩ => none
+    | ⟨.inr input, challenge⟩ => some (input, challenge))
 
 /-- Fork a candidate-producing program and extract only from two checked transcripts at
 the same hash input. The program must inline its mutable state before calling this function. -/

@@ -150,6 +150,7 @@ public import Cslib.Computability.PolynomialTime.Encoding.Finite
 public import Cslib.Computability.PolynomialTime.Encoding.Oracle
 public import Cslib.Computability.PolynomialTime.Finite
 public import Cslib.Computability.PolynomialTime.Fold
+public import Cslib.Computability.PolynomialTime.Fork
 public import Cslib.Computability.PolynomialTime.Iteration
 public import Cslib.Computability.PolynomialTime.List
 public import Cslib.Computability.PolynomialTime.Machine
@@ -220,6 +221,7 @@ public import Cslib.Crypto.Primitives.Schnorr.PFunctor
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Execution
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Forgery
+public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Fork
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Handler
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.HandlerBounds
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Output
@@ -285,6 +287,8 @@ public import Cslib.Foundations.Data.PFunctor.Free.Fork
 public import Cslib.Foundations.Data.PFunctor.Free.Fork.Measure
 public import Cslib.Foundations.Data.PFunctor.Free.Fork.Probability
 public import Cslib.Foundations.Data.PFunctor.Free.Fork.Replay
+public import Cslib.Foundations.Data.PFunctor.Free.Fork.Tape
+public import Cslib.Foundations.Data.PFunctor.Free.Fork.Tape.Probability
 public import Cslib.Foundations.Data.PFunctor.Free.Kernel
 public import Cslib.Foundations.Data.PFunctor.Free.Kernel.Option
 public import Cslib.Foundations.Data.PFunctor.Free.Kernel.Support

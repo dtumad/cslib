@@ -6,6 +6,7 @@ Authors: Devon Tuma
 
 import Cslib.Foundations.Data.PFunctor.Free.Fork.Probability
 import Cslib.Foundations.Data.PFunctor.Free.Fork.Replay
+import Cslib.Foundations.Data.PFunctor.Free.Fork.Tape.Probability
 import Cslib.Foundations.MeasureTheory.Uniform
 import Cslib.Crypto.RandomOracle
 
@@ -82,6 +83,40 @@ def forkedCache : StateM ℕ
 -- Each branch has its own fresh entry; both retain and reuse the saved entry without a new draw.
 #guard (forkedCache.run 0).run ==
   ((((0, 1, 0), [(true, 1), (false, 0)]), some ((0, 2, 0), [(true, 2), (false, 0)])), 3)
+
+-- Tape replay counts selected queries, retaining the unselected response in either prefix.
+#guard FreeM.forkFromAnswers id choose program [10, 11, 12] [30] ==
+  some ((10, 11, 12), some ⟨true, 12, 30, (10, 11, 30)⟩)
+#guard FreeM.forkFromAnswers id choose program [10, 11, 13] [30, 31] ==
+  some ((10, 11, 13), some ⟨true, 11, 30, (10, 30, 31)⟩)
+
+-- A missing fork needs no fresh tape. Actual exhaustion remains distinct from that case.
+#guard FreeM.forkFromAnswers id (fun _ => none) program [10, 11, 12] [] ==
+  some ((10, 11, 12), none)
+#guard FreeM.forkFromAnswers id (fun _ => some 2) program [10, 11, 12] [] ==
+  some ((10, 11, 12), none)
+#guard FreeM.forkFromAnswers id choose program [10, 11] [30, 31] == none
+#guard FreeM.forkFromAnswers id choose program [10, 11, 13] [30] == none
+
+-- The private seed is still read after the fork, and both branches see the same seed.
+#guard FreeM.forkFromAnswers id (fun _ => some 0) (fixedTape [99]) [1] [2] ==
+  some ((1, 99), some ⟨true, 1, 2, (2, 99)⟩)
+
+-- Reexecution reconstructs the prefix cache and excludes the first run's suffix entry.
+#guard (FreeM.forkFromAnswers id (fun _ => some 1) cached [0, 1] [5]).map
+    (fun out => (out.1, out.2.map fun event => event.2.2.2)) ==
+  some ((((0, 1, 0), [(true, 1), (false, 0)]),
+    some ((0, 5, 0), [(true, 5), (false, 0)])))
+
+def changingPath : effects.FreeM (ℕ × ℕ) := do
+  let first ← FreeM.lift true
+  if first = 0 then pure (first, 0) else
+    let second ← FreeM.lift true
+    pure (first, second)
+
+-- The first run leaves an answer unused; a longer second run uses only its fresh suffix.
+#guard FreeM.forkFromAnswers id (fun _ => some 0) changingPath [0, 99] [1, 2] ==
+  some ((0, 0), some ⟨true, 0, 1, (1, 2)⟩)
 
 open MeasureTheory ProbabilityTheory
 open scoped ENNReal

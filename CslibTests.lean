@@ -15,6 +15,7 @@ import CslibTests.CryptoRuntime
 import CslibTests.CryptoSampling
 import CslibTests.DFA
 import CslibTests.ElGamal
+import CslibTests.ForkRuntime
 import CslibTests.FreeMonad
 import CslibTests.GrindLint
 import CslibTests.HML

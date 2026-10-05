@@ -51,6 +51,17 @@ def runFromAnswers (program : (PFunctor.mk Operation (fun _ => Answer)).FreeM α
     (answer : Answer) (rest : List Answer) :
     runFromAnswers (lift op >>= cont) (answer :: rest) = runFromAnswers (cont answer) rest := rfl
 
+/-- Postprocessing does not consume answers or hide exhaustion. -/
+@[simp] theorem runFromAnswers_map {β : Type u} (f : α → β)
+    (program : (PFunctor.mk Operation (fun _ => Answer)).FreeM α) (answers : List Answer) :
+    runFromAnswers (f <$> program) answers = (runFromAnswers program answers).map f := by
+  induction program generalizing answers with
+  | pure value => rfl
+  | lift_bind op cont ih =>
+    cases answers with
+    | nil => rfl
+    | cons answer rest => exact ih answer rest
+
 /-- Supplying answers cannot create a result absent from the source program. -/
 theorem canReturn_of_runFromAnswers
     (program : (PFunctor.mk Operation (fun _ => Answer)).FreeM α)

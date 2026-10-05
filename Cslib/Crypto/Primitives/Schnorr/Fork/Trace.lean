@@ -171,7 +171,7 @@ theorem forkPoint_isSome_iff (g pk : G) (message : M) (commitment : G) (response
     (forkPoint g pk (some (message, commitment, response)) events).isSome ↔
       ∃ challenge, Accepts g pk commitment challenge response ∧
         ⟨Sum.inr (message, commitment), challenge⟩ ∈ events := by
-  simp only [forkPoint, List.findIdx?_isSome, List.any_eq_true, decide_eq_true_eq,
+  simp only [forkPoint, findForkPoint, List.findIdx?_isSome, List.any_eq_true, decide_eq_true_eq,
     List.mem_filterMap]
   constructor
   · rintro ⟨⟨input, challenge⟩, ⟨⟨op, answer⟩, hmem, heq⟩, hinput, haccepts⟩
@@ -229,7 +229,7 @@ theorem forkPoint_spec_of_prefix (g pk : G) (candidate : Option (M × G × F))
         (fun event => decide (event.1 = (message, commitment) ∧
           Accepts g pk commitment event.2 response)) = some (hashes before).length := by
       rw [hlength]
-      simp only [forkPoint, hashes, List.filterMap_append, List.filterMap_cons,
+      simp only [forkPoint, findForkPoint, hashes, List.filterMap_append, List.filterMap_cons,
         List.filterMap_nil, List.append_assoc, List.singleton_append] at hpoint ⊢
       convert hpoint using 2
       congr 3

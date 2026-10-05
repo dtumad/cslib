@@ -65,7 +65,7 @@ theorem le_denote_forkExtractor (g pk : G)
         constructor
         · rintro ⟨n, _, hn⟩
           cases hc : out.1 with
-          | none => simp [choose, forkPoint, hc] at hn
+          | none => simp [choose, forkPoint, findForkPoint, hc] at hn
           | some candidate => simp
         · exact hcovered out hout
       _ = _ := by

@@ -8,6 +8,7 @@ module
 
 public import Cslib.Computability.PolynomialTime.Arithmetic
 public import Cslib.Computability.PolynomialTime.Fold
+public import Cslib.Computability.PolynomialTime.Option
 import Mathlib.Tactic.Ring
 
 /-!
@@ -245,6 +246,36 @@ theorem IsPolyTime.list_head?_indexed {Value : α → Type}
   funext a
   dsimp only [words]
   cases values a <;> rfl
+
+/-- Locate the first true bit, retaining failure when every bit is false. The index is the
+length of the initial false prefix, computed by the existing word-scanning machine. -/
+theorem IsPolyTime.findIdx? {word : α → Word} (hword : IsPolyTime encode word) :
+    IsPolyTime encode (fun a => optionEncoding unaryEncoding ((word a).findIdx? id)) := by
+  have heq (word : Word) : word.findIdx? id =
+      if word.any id then some (word.takeWhile Bool.not).length else none := by
+    induction word with
+    | nil => rfl
+    | cons bit word ih =>
+      cases bit <;> cases h : word.any id <;> simp [List.findIdx?_cons, ih, h]
+  have hindex := (hword.takeWhile Bool.not).unaryLength.option_some
+    (element := fun _ => unaryEncoding)
+  convert (hword.any id).cond hindex (isPolyTime_const encode []) using 1
+  funext a
+  rw [heq]
+  split <;> rfl
+
+/-- Locate the first match of an efficient predicate that captures runtime data. -/
+theorem IsPolyTime.list_findIdx?_with {Environment : Type}
+    {environment : Environment ↪ Word} {element : Item ↪ Word}
+    {env : α → Environment} {values : α → List Item} {predicate : Environment → Item → Bool}
+    (hvalues : IsPolyTime encode (fun a => listEncoding element (values a)))
+    (henv : IsPolyTime encode (fun a => environment (env a)))
+    (hpredicate : IsPolyTime (pairEncoding environment element)
+      (fun pair => [predicate pair.1 pair.2])) :
+    IsPolyTime encode (fun a =>
+      optionEncoding unaryEncoding ((values a).findIdx? (predicate (env a)))) := by
+  simpa only [List.findIdx?_map, Function.comp_def, id_eq] using
+    (hvalues.list_map_with (output := boolEncoding) henv hpredicate).decode_list_bool.findIdx?
 
 /-- Advancing an indexed answer tape requires only the encoded list's tail. -/
 theorem IsPolyTime.list_tail_indexed {Value : α → Type}

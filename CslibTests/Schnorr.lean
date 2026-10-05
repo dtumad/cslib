@@ -116,6 +116,14 @@ def equalChallenges (op : forkEffects.A) : Id (forkEffects.B op) :=
 #guard (((Schnorr.signatureExtractor sample (1 : F) (0 : F) identityKey).liftM
   equalChallenges).run == none)
 
+-- The selector skips unrelated inputs and nonaccepting challenges, and failed output selects none.
+#guard Schnorr.findForkPoint (1 : F) (7 : F) (some ("fresh", 11, Schnorr.respond (7 : F) 11 3))
+  [(("other", 11), 3), (("fresh", 11), 2), (("fresh", 11), 3)] == some 2
+#guard Schnorr.findForkPoint (1 : F) (7 : F) (some ("fresh", 11, Schnorr.respond (7 : F) 11 3))
+  [(("fresh", 11), 2)] == none
+#guard Schnorr.findForkPoint (1 : F) (7 : F) (none : Option (String × F × F))
+  [(("fresh", 11), 3)] == none
+
 open MeasureTheory ProbabilityTheory
 open scoped ENNReal
 

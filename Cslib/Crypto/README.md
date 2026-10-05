@@ -190,6 +190,14 @@ The complete first run now includes checked output decoding and final forgery ve
 It rejects timeout, malformed output, failed interfaces, and previously signed messages.
 Final verification shares the cache and hash tape and preserves private simulator randomness;
 its typed saved-tape execution equals the original `simulatedForgery` program.
+`FreeM.forkFromAnswers` implements the full fork by restarting with the recorded answer prefix
+and a fresh suffix. Two source-length tapes preserve the entire two-run measure, including
+adaptive selection and different paths after the fork. The general forking bound holds with
+one private seed shared by both runs. A traced interpreter and selector give a uniform machine
+for this replay construction, charging for both executions and prefix copying. Schnorr's
+fresh-hash selector has a uniform certificate, using ordinary `List.findIdx?`, scalar
+decoding, and the certified group operations. Connecting the actual machine interpreter's fresh-hash
+transcript to these results remains part of the complete reduction certificate.
 
 Samuel's `polytime` and `ppt` tactics have been adapted to these native certificates. Tests cover
 data-dependent sampling, captured continuations, calls to certified subprograms, and the ordinary

@@ -126,6 +126,18 @@ def forkPrefix (select : P.A → Bool) : ℕ → List (Sigma P.B) →
       | index + 1 => (forkPrefix select index events).map (fun out => (event :: out.1, out.2))
     else (forkPrefix select index events).map (fun out => (event :: out.1, out.2))
 
+omit [DecidableEq P.A] in
+/-- When every operation is eligible, the fork prefix is an ordinary list slice. -/
+@[simp] theorem forkPrefix_true (index : ℕ) (events : List (Sigma P.B)) :
+    forkPrefix (fun _ => true) index events =
+      events[index]?.map (fun event => (events.take index, event)) := by
+  induction index generalizing events with
+  | zero => cases events <;> rfl
+  | succ index ih =>
+    cases events with
+    | nil => rfl
+    | cons event events => simp [forkPrefix, ih, Option.map_map, Function.comp_def]
+
 /-- Reexecute from the start with the recorded prefix and a fresh answer at the selected point.
 The replay handler rejects incompatible recorded requests. -/
 def restartAtTrace (select : P.A → Bool) (index : ℕ) (events : List (Sigma P.B))
@@ -172,6 +184,16 @@ private theorem forkAtTrace_eq_restartAtTrace (select : P.A → Bool) (index : �
           rcases focus with ⟨before, event⟩
           simp only [Option.map_some, Option.elim_some, List.cons_append, bind_eq_bind,
             runWithReplay_lift_bind_cons]
+
+/-- Restarting at a recorded occurrence uses at most the source program's selected requests.
+The prefix is supplied from the trace, without repeating its effects. -/
+theorem queryBoundP_restartAtTrace_le (target select : P.A → Bool) (index : ℕ)
+    (program : P.FreeM α) {value : α} {events : List (Sigma P.B)}
+    (h : MonadAttach.CanReturn (trace program) (value, events)) :
+    queryBoundP target (restartAtTrace select index events program) ≤
+      queryBoundP target program := by
+  rw [← forkAtTrace_eq_restartAtTrace select index program h]
+  exact queryBoundP_forkAtTrace_le target select index events program
 
 /-- Run twice from the original program, supplying recorded answers to the second run's
 prefix. Only the trace is retained between runs; no continuation is stored. -/
