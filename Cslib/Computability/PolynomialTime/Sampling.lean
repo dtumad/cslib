@@ -65,4 +65,14 @@ theorem isPPT_sampleBits_of_isPolyTime {α : Type} [Finite Oracle]
   apply isPPT_sampleBits.comp (f := fun a => (count a, []))
   exact hcount.append (isPolyTime_const input [false])
 
+omit [DecidableEq Oracle] in
+/-- Sampling a single fair bit has a uniform certificate for every input encoding. -/
+theorem isPPT_coin {α : Type} [Finite Oracle] (input : α ↪ Word) :
+    IsPPT input boolEncoding (fun _ => coin (Oracle := Oracle)) := by
+  apply isPPT_map_encoding_iff.mp
+  simpa only [List.replicate_succ, List.replicate_zero, List.mapM_cons, List.mapM_nil,
+    bind_assoc, pure_bind, boolEncoding, Function.Embedding.coeFn_mk, map_eq_pure_bind] using
+    isPPT_sampleBits_of_isPolyTime (Oracle := Oracle) (count := fun _ : α => 1)
+      (isPolyTime_const input [true])
+
 end Turing.MultiTapePTM

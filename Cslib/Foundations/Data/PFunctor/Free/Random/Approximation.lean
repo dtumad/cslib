@@ -43,6 +43,43 @@ theorem comap_denote_sampleFin_le (n bits attempts : ℕ) (hcover : n ≤ 2 ^ bi
 
 variable [∀ op, IsProbabilityMeasure (μ op)]
 
+omit [∀ op, IsProbabilityMeasure (μ op)] in
+/-- Transporting a bounded sample through a finite equivalence preserves domination by the
+uniform measure. No representation-specific distribution is needed by the caller. -/
+theorem comap_denote_map_sampleFin_le {α : Type} [MeasurableSpace α]
+    [MeasurableSingletonClass α] [Finite α] (n bits attempts : ℕ) (e : Fin n ≃ α)
+    (hcover : n ≤ 2 ^ bits) :
+    (denote μ (Option.map e <$> sampleFin coin n bits attempts)).comap some ≤
+      uniformOn Set.univ := by
+  rw [← map_uniformOn_univ e]
+  have h := comap_denote_sampleFin_le μ coin hcoin n bits attempts hcover
+  apply Measure.le_iff.mpr
+  intro event hevent
+  rw [Option.measurableEmbedding_some.comap_apply,
+    ← map_eq_map, denote_map _ _ _ Measurable.of_discrete,
+    Measure.map_apply Measurable.of_discrete MeasurableSet.of_discrete,
+    Measure.map_apply Measurable.of_discrete hevent]
+  have hpre : Option.map e ⁻¹' (some '' event) = some '' (e ⁻¹' event) := by
+    ext out
+    cases out <;> simp
+  rw [hpre, ← Option.measurableEmbedding_some.comap_apply]
+  exact h _
+
+omit [∀ op, IsProbabilityMeasure (μ op)] in
+/-- Re-encoding a successful finite draw leaves the cutoff probability unchanged. -/
+theorem denote_map_sampleFin_none_le_of_bounds {α : Type} [MeasurableSpace α]
+    [MeasurableSingletonClass α] (n bits attempts : ℕ)
+    (e : Fin n ≃ α) (hcover : n ≤ 2 ^ bits) (hsize : 2 ^ bits ≤ 2 * n) :
+    denote μ (Option.map e <$> sampleFin coin n bits attempts) {none} ≤
+      (2 : ℝ≥0∞)⁻¹ ^ attempts := by
+  rw [← map_eq_map, denote_map _ _ _ Measurable.of_discrete,
+    Measure.map_apply Measurable.of_discrete (measurableSet_singleton _)]
+  have hpre : Option.map e ⁻¹' {none} = {none} := by
+    ext out
+    cases out <;> simp
+  rw [hpre]
+  exact denote_sampleFin_none_le_of_bounds μ coin hcoin n bits attempts hcover hsize
+
 /-- A bounded sampler loses at most its failure probability for every bounded continuation. -/
 theorem lintegral_uniform_le_sampleFin_add (n bits attempts : ℕ) [NeZero n]
     (hcover : n ≤ 2 ^ bits) (hsize : 2 ^ bits ≤ 2 * n)

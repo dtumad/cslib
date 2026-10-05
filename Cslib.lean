@@ -182,14 +182,18 @@ public import Cslib.Crypto.DiscreteLog
 public import Cslib.Crypto.Game
 public import Cslib.Crypto.Negligible
 public import Cslib.Crypto.Primitives.ElGamal
+public import Cslib.Crypto.Primitives.ElGamal.Cost
 public import Cslib.Crypto.Primitives.ElGamal.Oracle
 public import Cslib.Crypto.Primitives.ElGamal.PFunctor
 public import Cslib.Crypto.Primitives.ElGamal.PolynomialTime
+public import Cslib.Crypto.Primitives.ElGamal.PolynomialTime.Reduction
 public import Cslib.Crypto.Primitives.ElGamal.Resumption
+public import Cslib.Crypto.Primitives.ElGamal.Sampling
 public import Cslib.Crypto.Primitives.PRG.Asymptotic
 public import Cslib.Crypto.Primitives.PRG.Basic
 public import Cslib.Crypto.Primitives.PRG.Defs
 public import Cslib.Crypto.Primitives.Schnorr
+public import Cslib.Crypto.Primitives.Schnorr.Cost
 public import Cslib.Crypto.Primitives.Schnorr.Extraction
 public import Cslib.Crypto.Primitives.Schnorr.Fork
 public import Cslib.Crypto.Primitives.Schnorr.Fork.Cost
@@ -201,6 +205,7 @@ public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Signing
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Verification
 public import Cslib.Crypto.Primitives.Schnorr.Reduction
+public import Cslib.Crypto.Primitives.Schnorr.Sampling
 public import Cslib.Crypto.Primitives.Schnorr.Security
 public import Cslib.Crypto.Primitives.Schnorr.Simulation
 public import Cslib.Crypto.Primitives.Schnorr.Simulation.LiftM

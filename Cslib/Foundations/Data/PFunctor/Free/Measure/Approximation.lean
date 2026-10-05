@@ -134,4 +134,64 @@ theorem lintegral_denote_le_liftM_option_add
         intro out
         cases out <;> simp [f, OptionT.run]
 
+omit [∀ op, IsProbabilityMeasure (μ op)] [∀ op, IsProbabilityMeasure (ν op)] in
+/-- Successful implemented outcomes are dominated by the ideal experiment's measure. -/
+theorem denote_liftM_option_le
+    (handler : (op : P.A) → OptionT Q.FreeM (P.B op))
+    (hstep : ∀ op, (denote ν (handler op).run).comap some ≤ μ op)
+    (x : P.FreeM α) (event : Set α) :
+    denote ν (x.liftM handler).run (some '' event) ≤ denote μ x event := by
+  have h := lintegral_liftM_option_le μ ν handler hstep x (event.indicator (fun _ => 1))
+  rwa [← lintegral_comap_some, lintegral_indicator_const MeasurableSet.of_discrete,
+    lintegral_indicator_const MeasurableSet.of_discrete, one_mul, one_mul,
+    Option.measurableEmbedding_some.comap_apply] at h
+
+/-- Event probabilities inherit the accumulated cutoff error without conditioning on success. -/
+theorem denote_le_liftM_option_add
+    (handler : (op : P.A) → OptionT Q.FreeM (P.B op))
+    (risk : P.A → Bool) (δ : ℝ≥0∞)
+    (hstep : ∀ op, ∀ f : P.B op → ℝ≥0∞, (∀ value, f value ≤ 1) →
+      ∫⁻ value, f value ∂μ op ≤
+        (∫⁻ out, out.elim 0 f ∂denote ν (handler op).run) + if risk op then δ else 0)
+    (x : P.FreeM α) (n : ℕ) (hcount : queryBoundP risk x ≤ n) (event : Set α) :
+    denote μ x event ≤ denote ν (x.liftM handler).run (some '' event) + n * δ := by
+  have h := lintegral_denote_le_liftM_option_add μ ν handler risk δ hstep x n hcount
+    (event.indicator (fun _ => 1)) (fun value => by
+      by_cases h : value ∈ event <;> simp [h])
+  rwa [← lintegral_comap_some, lintegral_indicator_const MeasurableSet.of_discrete,
+    lintegral_indicator_const MeasurableSet.of_discrete, one_mul, one_mul,
+    Option.measurableEmbedding_some.comap_apply] at h
+
+/-- A local sampler certificate gives an event bound for the whole adaptive experiment.
+Successful draws are dominated by the ideal law; exhaustion accounts for the missing mass. -/
+theorem denote_le_liftM_option_add_of_le
+    (handler : (op : P.A) → OptionT Q.FreeM (P.B op))
+    (hstep : ∀ op, (denote ν (handler op).run).comap some ≤ μ op)
+    (risk : P.A → Bool) (δ : ℝ≥0∞)
+    (hfailure : ∀ op, denote ν (handler op).run {none} ≤ if risk op then δ else 0)
+    (x : P.FreeM α) (n : ℕ) (hcount : queryBoundP risk x ≤ n) (event : Set α) :
+    denote μ x event ≤ denote ν (x.liftM handler).run (some '' event) + n * δ := by
+  apply denote_le_liftM_option_add μ ν handler risk δ _ x n hcount event
+  intro op f hf
+  exact (lintegral_le_lintegral_option_add _ _ (hstep op) f hf).trans
+    (add_le_add le_rfl (hfailure op))
+
+/-- A two-sided real-valued error bound for any event of the implemented experiment. -/
+theorem abs_toReal_denote_sub_liftM_option_le
+    (handler : (op : P.A) → OptionT Q.FreeM (P.B op))
+    (hstep : ∀ op, (denote ν (handler op).run).comap some ≤ μ op)
+    (risk : P.A → Bool) (δ : ℝ≥0∞) (hδ : δ ≠ ⊤)
+    (hfailure : ∀ op, denote ν (handler op).run {none} ≤ if risk op then δ else 0)
+    (x : P.FreeM α) (n : ℕ) (hcount : queryBoundP risk x ≤ n) (event : Set α) :
+    |(denote μ x event).toReal -
+      (denote ν (x.liftM handler).run (some '' event)).toReal| ≤ n * δ.toReal := by
+  have hle := ENNReal.toReal_mono (measure_ne_top _ _)
+    (denote_liftM_option_le μ ν handler hstep x event)
+  have hupper := ENNReal.toReal_mono (by finiteness)
+    (denote_le_liftM_option_add_of_le μ ν handler hstep risk δ hfailure x n hcount event)
+  rw [abs_of_nonneg (sub_nonneg.mpr hle)]
+  rw [ENNReal.toReal_add (measure_ne_top _ _) (by finiteness),
+    ENNReal.toReal_mul, ENNReal.toReal_natCast] at hupper
+  linarith
+
 end PFunctor.FreeM

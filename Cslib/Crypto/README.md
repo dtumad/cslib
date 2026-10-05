@@ -147,6 +147,9 @@ simulator and its machine certificate is still required.
 across an indexed group family. It derives binary exponentiation from certified multiplication
 and polynomial bounds on element encodings. The parameter data and remaining group primitives
 have explicit uniform certificates; sampling exhaustion remains visible in `OptionT`.
+`ElGamal.PolynomialTime.Reduction` also certifies the ordinary two-phase DDH reduction from
+the adversary phases' uniform certificates and group multiplication. Dependent results retain
+their parameter through the compiled continuation, without a decoder or a default value.
 `Schnorr.PolynomialTime` gives uniform certificates for key generation, response arithmetic,
 transcript checking, and special-soundness extraction. Scalar decoding checks the binary range;
 the algebra certificates use independently supplied group and field encodings.
@@ -165,14 +168,19 @@ Reachability reflection transfers that postcondition to every completed path of 
 The tactics do not infer efficiency for arbitrary Lean functions or supply loop-size invariants.
 
 The remaining runtime work connects these handlers to adversary execution, connects machine-level
-rewinding to the semantic fork, and certifies both security reductions. Group and field primitives
+rewinding to the semantic fork, and certifies Schnorr's complete reduction and ElGamal's encryption
+oracle inlining. Group and field primitives
 and family parameter data require explicit uniform certificates.
 Adaptive finite-sampling programs now have a whole-experiment cutoff bound
 `draws * 2⁻ᵃᵗᵗᵉᵐᵖᵗˢ` for every payoff in `[0, 1]`. Successful bounded executions are dominated
 by the ideal measure. Polynomially many draws and an attempt budget at least the security
-parameter give negligible error. The remaining scheme-specific work instantiates the complete
-game and reduction draw counts. Security transport supports polynomial loss, square-root loss,
-and separate negligible errors in the game and reduction.
+parameter give negligible error. The scheme-specific bounds now count complete games and
+reductions: Schnorr uses at most `2q + 2` draws in the honest game and `4q + 3` in the
+discrete-logarithm experiment, where `q` counts selected ambient, hash, and signing requests.
+ElGamal pays for both adaptive phases and two or three challenge exponents. Both schemes have
+concrete security theorems for the resulting cutoff implementations. A `ZMod 101` regression
+instantiates Schnorr's complete bound with the actual binary rejection sampler. Security
+transport supports polynomial loss, square-root loss, and separate negligible errors.
 Computational and asymptotic
 ElGamal security additionally require the reduction to
 preserve the chosen admissibility predicate for a parameterized group family.
@@ -181,8 +189,9 @@ submission; ordinary effect truncation therefore differs from a transition clock
 
 For Schnorr, the concrete theorem assumes a finite scalar field, countable effects and messages,
 a uniform sampler, and a bijective scalar-to-public-key map. Computational and asymptotic
-security still require implementing and costing the reduction, transporting the sampling
-cutoff error through the complete game, and proving admissibility for a group family.
+security still require implementing and costing the reduction and proving admissibility for
+a group family. The cutoff theorem accounts for both fork executions, including simulator
+randomness and the final verifier. Aborting finite sampling can only remove successful forgeries.
 
 ## Plans and notes
 

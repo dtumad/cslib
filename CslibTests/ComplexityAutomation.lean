@@ -22,6 +22,8 @@ local instance : MeasurableSpace Word := ⊤
 
 example : IsPolyTime wordEncoding (fun word => word.reverse ++ word) := by polytime
 
+example : IsPPT (Oracle := Empty) wordEncoding boolEncoding (fun _ => coin) := by ppt
+
 example : IsPolyTime (pairEncoding wordEncoding (listEncoding wordEncoding))
     (fun pair => pairEncoding wordEncoding (listEncoding wordEncoding)
       (pair.1, pair.1 :: pair.2)) := by polytime
@@ -78,6 +80,15 @@ example {F : ℕ → Type} (scalar : ∀ n, F n ↪ Word) :
       (fun n => pairEncoding (scalar n) (listEncoding (scalar n))))
       (fun arg => sigmaEncoding unaryEncoding (fun n => listEncoding (scalar n))
         ⟨arg.1, arg.2.1 :: arg.2.2⟩) := by
+  polytime
+
+-- A dependent tuple may contain a conditional under an abstract encoding. Constructing the
+-- tuple must not force its field types to be constant across the parameter family.
+example {F : ℕ → Type} (scalar : ∀ n, F n ↪ Word) :
+    IsPolyTime (sigmaEncoding unaryEncoding
+      (fun n => pairEncoding boolEncoding (pairEncoding (scalar n) (scalar n))))
+      (fun arg => pairEncoding (scalar arg.1) (scalar arg.1)
+        ((if arg.2.1 then arg.2.2.1 else arg.2.2.2), arg.2.2.2)) := by
   polytime
 
 section Structural

@@ -81,18 +81,30 @@ theorem queryBoundP_map (select : P.A → Bool) (f : α → β) (x : P.FreeM α)
     simp only [ih]
 
 /-- An inlined operation may use at most the cost charged to its source operation. -/
-theorem queryBoundP_liftM_le (select : P.A → Bool) (target : Q.A → Bool)
-    (handler : (op : P.A) → Q.FreeM (P.B op))
-    (hhandler : ∀ op, queryBoundP target (handler op) ≤ if select op then 1 else 0)
-    (x : P.FreeM α) : queryBoundP target (x.liftM handler) ≤ queryBoundP select x := by
+theorem queryBoundP_liftM_le_mul (select : P.A → Bool) (target : Q.A → Bool)
+    (handler : (op : P.A) → Q.FreeM (P.B op)) (cost : ℕ∞)
+    (hhandler : ∀ op, queryBoundP target (handler op) ≤ if select op then cost else 0)
+    (x : P.FreeM α) : queryBoundP target (x.liftM handler) ≤ queryBoundP select x * cost := by
   induction x with
   | pure a => simp
   | lift_bind op cont ih =>
     rw [bind_eq_bind, liftM_lift_bind]
-    apply (queryBoundP_bind_le target _ _ (⨆ answer, queryBoundP select (cont answer))
-      (fun answer => (ih answer).trans
-        (le_iSup (fun b => queryBoundP select (cont b)) answer))).trans
-    exact add_le_add (hhandler op) le_rfl
+    calc
+      _ ≤ queryBoundP target (handler op) + (⨆ b, queryBoundP select (cont b)) * cost :=
+        queryBoundP_bind_le _ _ _ _ fun b => (ih b).trans
+          (by gcongr; exact le_iSup (fun b => queryBoundP select (cont b)) b)
+      _ ≤ (if select op then cost else 0) + (⨆ b, queryBoundP select (cont b)) * cost :=
+        add_le_add (hhandler op) le_rfl
+      _ = _ := by
+        simp only [queryBoundP_lift_bind, add_mul]
+        cases select op <;> simp
+
+/-- An inlined operation may use at most the cost charged to its source operation. -/
+theorem queryBoundP_liftM_le (select : P.A → Bool) (target : Q.A → Bool)
+    (handler : (op : P.A) → Q.FreeM (P.B op))
+    (hhandler : ∀ op, queryBoundP target (handler op) ≤ if select op then 1 else 0)
+    (x : P.FreeM α) : queryBoundP target (x.liftM handler) ≤ queryBoundP select x := by
+  simpa using queryBoundP_liftM_le_mul select target handler 1 hhandler x
 
 /-- A finite query budget pays for the current operation before bounding each continuation. -/
 theorem queryBoundP_cont_le (select : P.A → Bool) (op : P.A) (cont : P.B op → P.FreeM α)

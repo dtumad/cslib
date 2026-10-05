@@ -36,6 +36,7 @@ meta def applyHead (rules : Array (Name × Name)) : TacticM Unit :=
 @[aesop safe -10 tactic (rule_sets := [PPT])]
 private meta def pptPrimitive : Lean.Elab.Tactic.TacticM Unit :=
   applyHead #[(``Pure.pure, ``IsPolyTime.isPPT),
+    (``coin, ``isPPT_coin),
     (``List.mapM, ``isPPT_sampleBits_of_isPolyTime)]
 
 open Lean Meta Elab Tactic PolyTime in

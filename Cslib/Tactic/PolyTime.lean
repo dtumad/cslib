@@ -136,7 +136,11 @@ private meta def polytimeConstruct : TacticM Unit := withMainContext do
     if body.isAppOf ``List.cons && body.getAppArgs[1]!.isAppOf ``List.foldl &&
         body.getAppArgs.back!.isAppOf ``List.nil then return ``IsPolyTime.foldl_bool
     throwError "expected tuple construction or a bitwise combination"
-  liftMetaTactic fun goal => goal.applyConst rule
+  if rule == ``IsPolyTime.pair then
+    -- The field types and encodings may depend on the input. Assemble their encoded words.
+    evalTactic (← `(tactic| apply IsPolyTime.pair (left := wordEncoding) (right := wordEncoding)))
+  else
+    liftMetaTactic fun goal => goal.applyConst rule
 
 open Lean Meta Elab Tactic in
 @[aesop safe -5 tactic (rule_sets := [PolyTime])]
@@ -506,12 +510,17 @@ open Lean Meta Elab Tactic in
 private meta def polytimeIte : TacticM Unit := withMainContext do
   let target := (← Core.betaReduce (← instantiateMVars (← getMainTarget))).consumeMData
   unless target.isAppOf ``IsPolyTime do throwError "expected a polynomial-time goal"
-  let (isIte, isBitIte) ← lambdaTelescope target.getAppArgs.back! fun _ body => pure
-    (body.isAppOf ``ite, body.isAppOf ``List.cons &&
-      body.getAppArgs.back!.isAppOf ``List.nil && body.getAppArgs[1]!.consumeMData.isAppOf ``ite)
-  unless isIte || isBitIte do throwError "expected a conditional"
+  let (isIte, isBitIte, isAppliedIte) ←
+      lambdaTelescope target.getAppArgs.back! fun _ body => do
+    let body ← whnf body
+    return (body.isAppOf ``ite, body.isAppOf ``List.cons &&
+      body.getAppArgs.back!.isAppOf ``List.nil && body.getAppArgs[1]!.consumeMData.isAppOf ``ite,
+      body.isApp && body.appArg!.consumeMData.isAppOf ``ite)
+  unless isIte || isBitIte || isAppliedIte do throwError "expected a conditional"
   if isBitIte then
     evalTactic (← `(tactic| simp only [apply_ite (fun bit : Bool => [bit])]))
+  else if isAppliedIte then
+    evalTactic (← `(tactic| simp only [apply_ite]))
   evalTactic (← `(tactic| first | apply IsPolyTime.cond | apply IsPolyTime.ite))
 
 -- Resolve the collection's encoding before searching the callback. Otherwise Aesop may search

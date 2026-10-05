@@ -167,4 +167,16 @@ theorem IsPPT.sigma {input : α ↪ Word} {β : α → Type} {output : ∀ a, β
   simpa only [← comp_map, Function.comp_def, sigmaEncoding, pairEncoding,
     Function.Embedding.coeFn_mk, wordEncoding, Function.Embedding.refl_apply] using h
 
+/-- An indexed result can flow directly into its continuation. The compiler retains the input
+alongside the result, so no decoding or default value is needed to recover its type. -/
+theorem IsPPT.bind_sigma {input : α ↪ Word} {β : α → Type}
+    {middle : ∀ a, β a ↪ Word} {output : γ ↪ Word}
+    {first : ∀ a, (effects Oracle).FreeM (β a)}
+    {second : ∀ a, β a → (effects Oracle).FreeM γ}
+    (hfirst : IsPPT input wordEncoding (fun a => middle a <$> first a))
+    (hsecond : IsPPT (sigmaEncoding input middle) output
+      (fun pair => second pair.1 pair.2)) :
+    IsPPT input output (fun a => first a >>= second a) := by
+  simpa only [bind_map_left] using hfirst.sigma.bind hsecond
+
 end Turing.MultiTapePTM
