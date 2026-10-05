@@ -6,7 +6,7 @@ Authors: Devon Tuma
 
 import Cslib.Foundations.Data.PFunctor.Free.MonadAttach
 
-/-! Reachability with empty responses, attached proofs, and independent universes. -/
+/-! Chosen responses, structural attachment, and independent universes. -/
 
 open PFunctor MonadAttach
 
@@ -27,7 +27,32 @@ example (x : arity.FreeM Nat) :
   exact WeaklyLawfulMonadAttach.map_attach
 
 -- The response and result universes are independent.
-example (x : arity.FreeM (ULift.{2} Nat)) : (FreeM.support x).Finite :=
-  FreeM.support_finite x
+example (x : arity.FreeM (ULift.{2} Nat)) :
+    (FreeM.possibleOutputs (fun _ => Set.univ) x).Finite :=
+  FreeM.possibleOutputs_finite _ (fun _ => Set.toFinite _) x
+
+abbrev coin : PFunctor := ⟨Unit, fun _ => Bool⟩
+
+-- Different response assignments describe the same syntax without competing instances.
+example : FreeM.possibleOutputs (P := coin) (fun _ => {true}) (FreeM.lift ()) = {true} := by
+  exact FreeM.possibleOutputs_lift _ _
+
+example : FreeM.possibleOutputs (P := coin) (fun _ => {false}) (FreeM.lift ()) = {false} := by
+  exact FreeM.possibleOutputs_lift _ _
+
+example : CanReturn (FreeM.lift (P := coin) ()) false := FreeM.canReturn_lift _ _
+
+-- Chosen output sets also bound interpretations into ordinary monads.
+example (x : coin.FreeM Bool) {b : Bool}
+    (h : CanReturn (x.liftM (fun _ => (some true : Option Bool))) b) :
+    b ∈ FreeM.possibleOutputs (P := coin) (fun _ => {true}) x := by
+  refine FreeM.mem_possibleOutputs_of_canReturn_liftM _ _ ?_ x h
+  intro op c hc
+  exact (LawfulMonadAttach.eq_of_canReturn_pure hc).symm
+
+-- Finite allowed response sets suffice even when the full response type is infinite.
+example (x : (⟨Unit, fun _ => Nat⟩ : PFunctor).FreeM Nat) :
+    (FreeM.possibleOutputs (fun _ => {0, 1}) x).Finite :=
+  FreeM.possibleOutputs_finite _ (fun _ => (Set.finite_singleton _).insert _) x
 
 end CslibTests.PFunctorAttach
