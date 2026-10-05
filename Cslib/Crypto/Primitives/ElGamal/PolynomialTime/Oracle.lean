@@ -7,7 +7,6 @@ Authors: Devon Tuma
 module
 
 public import Cslib.Crypto.Primitives.ElGamal.PolynomialTime
-public import Cslib.Crypto.Primitives.ElGamal.PolynomialTime.Reduction
 public import Cslib.Computability.PolynomialTime.Encoding.Decoding
 public import Cslib.Computability.PolynomialTime.Machine.Handler
 

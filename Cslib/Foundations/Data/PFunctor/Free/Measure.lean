@@ -9,6 +9,7 @@ module
 public import Cslib.Foundations.Data.PFunctor.Free
 public import Mathlib.MeasureTheory.Measure.ProbabilityMeasure
 public import Mathlib.MeasureTheory.Measure.Prod
+public import Cslib.Foundations.Data.PFunctor.Free.MonadAttach
 
 /-!
 # Measure semantics for polynomial free programs
@@ -25,11 +26,13 @@ no separate notion of a probabilistic effect signature is needed. Adapted from
 
 @[expose] public section
 
+namespace PFunctor.FreeM
+
+section Interpretation
+
 open MeasureTheory
 
 universe uA uB v w uQ
-
-namespace PFunctor.FreeM
 
 variable {P : PFunctor.{uA, uB}} [∀ op, MeasurableSpace (P.B op)]
   {α : Type v} {β : Type w}
@@ -157,5 +160,34 @@ theorem denote_apply_univ_le_one [∀ op, IsProbabilityMeasure (μ op)]
         _ = 1 := by simp
     · simp only [denote_lift_bind_of_not_aemeasurable μ op cont hcont,
         Measure.coe_zero, Pi.zero_apply, zero_le]
+
+end Interpretation
+
+section Support
+
+open MeasureTheory
+
+universe uA uB v
+
+variable {P : PFunctor.{uA, uB}} [∀ op, MeasurableSpace (P.B op)]
+  [∀ op, DiscreteMeasurableSpace (P.B op)]
+  (μ : (op : P.A) → Measure (P.B op))
+  {α : Type v} [MeasurableSpace α] [DiscreteMeasurableSpace α]
+
+/-- Structural partial correctness holds almost everywhere under any answer measures. -/
+theorem ae_canReturn (x : P.FreeM α) : ∀ᵐ a ∂denote μ x, MonadAttach.CanReturn x a := by
+  induction x with
+  | pure a => simp
+  | lift_bind op cont ih =>
+    rw [ae_iff, denote_lift_bind μ _ _ Measurable.of_discrete.aemeasurable,
+      Measure.bind_apply MeasurableSet.of_discrete Measurable.of_discrete.aemeasurable]
+    apply lintegral_eq_zero_of_ae_eq_zero
+    apply Filter.Eventually.of_forall
+    intro answer
+    apply measure_mono_null _ ((ae_iff.mp (ih answer)))
+    intro a ha hreturn
+    exact ha ⟨answer, hreturn⟩
+
+end Support
 
 end PFunctor.FreeM

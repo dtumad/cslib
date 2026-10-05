@@ -8,7 +8,7 @@ module
 
 public import Cslib.Foundations.Data.PFunctor.Free.Fork
 public import Cslib.Foundations.Data.PFunctor.Free.Trace.Handler
-public import Cslib.Foundations.Data.PFunctor.Free.Cost.Filtered
+public import Cslib.Foundations.Data.PFunctor.Free.Cost
 
 /-!
 # Forking by replaying a recorded prefix

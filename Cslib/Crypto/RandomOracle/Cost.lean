@@ -7,7 +7,7 @@ Authors: Devon Tuma
 module
 
 public import Cslib.Crypto.RandomOracle
-public import Cslib.Foundations.Data.PFunctor.Free.Cost.Filtered
+public import Cslib.Foundations.Data.PFunctor.Free.Cost
 
 /-! # Sampling costs of cached random-oracle queries -/
 

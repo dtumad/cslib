@@ -7,7 +7,7 @@ Authors: Devon Tuma
 module
 
 public import Cslib.Crypto.Primitives.Schnorr.Fork
-public import Cslib.Foundations.Data.PFunctor.Free.Trace.StateT
+public import Cslib.Foundations.Data.PFunctor.Free.Trace.Handler
 
 /-! # Every successful simulated forgery has a fork point -/
 

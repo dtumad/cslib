@@ -9,7 +9,7 @@ module
 public import Cslib.Computability.PolynomialTime.Encoding.Oracle
 public import Cslib.Computability.PolynomialTime.Realizer.CoinTape
 public import Cslib.Computability.PolynomialTime.Realizer.Queries
-public import Cslib.Foundations.Data.PFunctor.Free.Kernel.Option
+public import Cslib.Foundations.Data.PFunctor.Free.Kernel
 
 /-! # Joint correctness at a typed oracle interface -/
 

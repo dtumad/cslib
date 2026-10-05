@@ -6,7 +6,7 @@ Authors: Devon Tuma
 
 module
 
-public import Cslib.Foundations.Data.PFunctor.Free.Cost.Filtered
+public import Cslib.Foundations.Data.PFunctor.Free.Cost
 public import Cslib.Foundations.Data.PFunctor.Free.Measure
 public import Cslib.Foundations.MeasureTheory.Abort
 public import Init.Control.Option

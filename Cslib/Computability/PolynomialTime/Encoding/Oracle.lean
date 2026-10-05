@@ -8,7 +8,7 @@ module
 
 public import Cslib.Computability.PolynomialTime.Encoding.Decoding
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic
-public import Cslib.Foundations.Data.PFunctor.Free.Cost.Filtered
+public import Cslib.Foundations.Data.PFunctor.Free.Cost
 
 /-!
 # Typed queries at a machine's word interface

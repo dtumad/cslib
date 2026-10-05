@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger, Devon Tuma
 module
 
 public import Cslib.Computability.Machines.Turing.MultiTape.Machine
-public import Cslib.Foundations.Data.PFunctor.Free.Cost.Filtered
+public import Cslib.Foundations.Data.PFunctor.Free.Cost
 
 /-!
 # Fair-coin oracle Turing machines

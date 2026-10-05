@@ -6,7 +6,7 @@ Authors: Devon Tuma
 
 import Cslib.Foundations.Data.PFunctor.Free.Fork.Probability
 import Cslib.Foundations.Data.PFunctor.Free.Fork.Replay
-import Cslib.Foundations.Data.PFunctor.Free.Fork.Tape.Probability
+import Cslib.Foundations.Data.PFunctor.Free.Fork.Tape
 import Cslib.Foundations.MeasureTheory.Uniform
 import Cslib.Crypto.RandomOracle
 

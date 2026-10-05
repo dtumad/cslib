@@ -8,7 +8,7 @@ module
 
 public import Cslib.Crypto.DiscreteLog
 public import Cslib.Crypto.Primitives.Schnorr.Fork
-public import Cslib.Crypto.Primitives.Schnorr.Simulation.LiftM
+public import Cslib.Crypto.Primitives.Schnorr.Simulation
 
 /-! # A discrete-logarithm reduction from a Schnorr signature adversary -/
 

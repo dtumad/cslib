@@ -7,7 +7,7 @@ Authors: Devon Tuma
 module
 
 public import Cslib.Crypto.Primitives.ElGamal.Oracle
-public import Cslib.Foundations.Data.PFunctor.Free.Cost.Filtered
+public import Cslib.Foundations.Data.PFunctor.Free.Cost
 
 /-!
 # Sampling budgets for ElGamal experiments

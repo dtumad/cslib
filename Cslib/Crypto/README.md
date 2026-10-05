@@ -153,7 +153,7 @@ simulator and its machine certificate is still required.
 across an indexed group family. It derives binary exponentiation from certified multiplication
 and polynomial bounds on element encodings. The parameter data and remaining group primitives
 have explicit uniform certificates; sampling exhaustion remains visible in `OptionT`.
-`ElGamal.PolynomialTime.Reduction` also certifies the ordinary two-phase DDH reduction from
+The same module also certifies the ordinary two-phase DDH reduction from
 the adversary phases' uniform certificates and group multiplication. Dependent results retain
 their parameter through the compiled continuation, without a decoder or a default value.
 `ElGamal.Security` applies that certificate to uniform DDH hardness and proves negligible
@@ -222,9 +222,9 @@ of an honest Schnorr transcript, leaving its algebraic identity as the final obl
 Reachability reflection transfers that postcondition to every completed path of a realizing machine.
 The tactics do not infer efficiency for arbitrary Lean functions or supply loop-size invariants.
 
-The remaining runtime work connects saved-tape machine execution and rewinding to the semantic
-fork, and certifies Schnorr's complete reduction. Group and field primitives and family
-parameter data require explicit uniform certificates.
+The remaining runtime work connects the shared-seed sampling measure to the semantic fork,
+bounds the source answer tape, and certifies Schnorr's complete reduction. Group and field
+primitives and family parameter data require explicit uniform certificates.
 Adaptive finite-sampling programs now have a whole-experiment cutoff bound
 `draws * 2⁻ᵃᵗᵗᵉᵐᵖᵗˢ` for every payoff in `[0, 1]`. Successful bounded executions are dominated
 by the ideal measure. Polynomially many draws and an attempt budget at least the security

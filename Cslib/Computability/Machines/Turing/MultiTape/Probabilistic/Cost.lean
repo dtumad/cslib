@@ -8,7 +8,7 @@ module
 
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Snapshot
-public import Cslib.Foundations.Data.PFunctor.Free.Cost.Filtered
+public import Cslib.Foundations.Data.PFunctor.Free.Cost
 
 /-!
 # Oracle-query bounds from machine clocks

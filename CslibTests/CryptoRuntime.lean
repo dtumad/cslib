@@ -6,12 +6,11 @@ Authors: Devon Tuma
 
 import Cslib.Crypto.Primitives.ElGamal.PolynomialTime
 import Cslib.Crypto.Primitives.Schnorr.PolynomialTime
-import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Signing
+import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Oracle
 import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Simulation
-import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Verification
 import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Execution
 import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.TracedExecution
-import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Replay
+import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Fork
 import Cslib.Crypto.RandomOracle.PolynomialTime
 import Cslib.Computability.PolynomialTime.Finite
 import Cslib.Computability.PolynomialTime.Encoding.Decoding

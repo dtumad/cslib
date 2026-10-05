@@ -7,7 +7,7 @@ Authors: Devon Tuma
 module
 
 public import Cslib.Crypto.Primitives.ElGamal.Sampling
-public import Cslib.Crypto.Primitives.ElGamal.PolynomialTime.Reduction
+public import Cslib.Crypto.Primitives.ElGamal.PolynomialTime
 
 /-!
 # Computational security of ElGamal

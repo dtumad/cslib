@@ -6,7 +6,7 @@ Authors: Devon Tuma
 
 module
 
-public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.HandlerBounds
+public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Handler
 public import Cslib.Computability.PolynomialTime.Machine.Option
 public import Cslib.Computability.PolynomialTime.Machine.Rewind
 

@@ -7,7 +7,7 @@ Authors: Devon Tuma
 module
 
 public import Cslib.Computability.PolynomialTime.Probabilistic
-public import Cslib.Foundations.Data.PFunctor.Free.Kernel.Support
+public import Cslib.Foundations.Data.PFunctor.Free.Kernel
 
 /-!
 # Reachable outputs of a machine realization

@@ -5,7 +5,6 @@ Authors: Devon Tuma
 -/
 
 import Cslib.Computability.PolynomialTime.Fork
-import Cslib.Computability.PolynomialTime.Fork.Partial
 import Cslib.Tactic.PolyTime
 
 /-! The two-run compiler constructs a machine from a checked one-query interpreter. All

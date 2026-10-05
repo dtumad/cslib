@@ -7,7 +7,7 @@ Authors: Devon Tuma, Quang Dao
 module
 
 public import Cslib.Crypto.Primitives.Schnorr.Fork.Trace
-public import Cslib.Crypto.Primitives.Schnorr.Fork.Cost
+public import Cslib.Crypto.Primitives.Schnorr.Cost
 public import Cslib.Foundations.Data.PFunctor.Free.Fork.Probability
 
 /-! # Concrete probability of extracting from a Schnorr forgery -/

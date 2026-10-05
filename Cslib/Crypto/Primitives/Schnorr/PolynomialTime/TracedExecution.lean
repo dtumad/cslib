@@ -6,7 +6,7 @@ Authors: Devon Tuma
 
 module
 
-public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.TraceBounds
+public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Trace
 public import Cslib.Crypto.Primitives.Schnorr.Fork
 import Cslib.Tactic.PolyTime
 

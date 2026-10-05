@@ -6,16 +6,43 @@ Authors: Devon Tuma
 
 module
 
+public import Cslib.Crypto.Primitives.Schnorr.Oracle
+public import Cslib.Computability.PolynomialTime.Encoding.Oracle
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Simulation
 public import Cslib.Crypto.Primitives.Schnorr.Simulation.Seeded
-public import Cslib.Crypto.Primitives.Schnorr.Encoding
 public import Cslib.Computability.PolynomialTime.Encoding.Decoding
 
-/-! # Uniform certificates for Schnorr's saved-tape handler -/
+/-!
+# Saved-tape Schnorr handlers
+
+Canonical request and reply encodings connect the typed simulator to its word interface.
+The uniform certificates account for cache operations, tape consumption, and state growth.
+-/
 
 @[expose] public section
 
 namespace Cslib.Crypto.Schnorr
+
+section Interface
+
+variable {M G F : Type}
+
+/-- Hash requests carry a message and commitment; signing requests carry a message.
+The leading bit distinguishes them, leaving any ambient effects outside this interface. -/
+def signatureRequestEncoding (message : Computability.Encoding M Bool)
+    (element : Computability.Encoding G Bool) : Computability.Encoding ((M × G) ⊕ M) Bool :=
+  (message.bitPair element).bitSum message
+
+/-- A hash reply is a scalar; a signing reply is a commitment and response. -/
+def signatureResponseEncoding (element : Computability.Encoding G Bool)
+    (scalar : Computability.Encoding F Bool) : (op : (M × G) ⊕ M) →
+      Computability.Encoding ((signatureEffects 0 M G F).B (.inr op)) Bool
+  | .inl _ => scalar
+  | .inr _ => element.bitPair scalar
+
+end Interface
+
+section Handlers
 
 open PFunctor Turing.MultiTapeTM Turing.MultiTapePTM
 
@@ -290,5 +317,117 @@ theorem isPolyTime_seededSignatureWordHandler
         ((messages a, cache a), privateScalars a, hashScalars a) <;> rfl
 
 end Word
+
+end Handlers
+
+section Growth
+
+open PFunctor Turing.MultiTapeTM
+
+variable {F G M : Type}
+
+@[simp] theorem length_seededSignatureStateEncoding
+    (element : G ↪ Word) (scalar : F ↪ Word) (messageCode : M ↪ Word)
+    (state : (List M × List ((M × G) × F)) × (List F × List F)) :
+    (seededSignatureStateEncoding element scalar messageCode state).length =
+      4 * (listEncoding messageCode state.1.1).length +
+        2 * (listEncoding (pairEncoding (pairEncoding messageCode element) scalar)
+          state.1.2).length +
+        2 * (listEncoding scalar state.2.1).length +
+          (listEncoding scalar state.2.2).length + 4 := by
+  simp only [seededSignatureStateEncoding, length_pairEncoding]
+  omega
+
+variable [Field F] [AddCommGroup G] [Module F G] [DecidableEq G]
+
+/-- Each successful word call has a bounded reply and adds only one log entry and one cache
+entry. Consumed tape entries cannot increase the retained state. The bound applies to arbitrary
+prior caches, so adaptive execution needs no separate bound on the number of cached entries. -/
+theorem seededSignatureWordHandler_size
+    (element : Computability.Encoding G Bool) (scalar : F ↪ Word) (g pk : G)
+    (word : Word) (state : (List Word × List ((Word × G) × F)) × (List F × List F))
+    {out : Word × (List Word × List ((Word × G) × F)) × (List F × List F)}
+    (h : seededSignatureWordHandler element scalar g pk word state = some out)
+    (groupBound scalarBound : ℕ)
+    (hg : ∀ value, (element.encode value).length ≤ groupBound)
+    (hf : ∀ value, (scalar value).length ≤ scalarBound) :
+    out.1.length ≤ 2 * groupBound + scalarBound + 1 ∧
+      (seededSignatureStateEncoding element.toEmbedding scalar wordEncoding out.2).length ≤
+        (seededSignatureStateEncoding element.toEmbedding scalar wordEncoding state).length +
+          (24 * word.length + 8 * groupBound + 4 * scalarBound + 18) := by
+  let : BEq Word := instBEqOfDecidableEq
+  rcases state with ⟨⟨messages, cache⟩, privateScalars, hashScalars⟩
+  cases word with
+  | nil => cases h
+  | cons bit payload =>
+    cases bit with
+    | false =>
+      change ((do
+        let input ← ((Computability.encodingList Bool).bitPair element).decodeChecked payload
+        let result ← seededSignatureHandler g pk (.inl input)
+          ((messages, cache), privateScalars, hashScalars)
+        pure (scalar result.1, result.2)) : Option _) = some out at h
+      obtain ⟨input, hinput, h⟩ := Option.bind_eq_some_iff.mp h
+      have hcode := (Computability.Encoding.decodeChecked_eq_some _ _ _).mp hinput
+      have hmessage : input.1.length ≤ payload.length := by
+        have hlength := congrArg List.length hcode
+        change (pairEncoding wordEncoding element.toEmbedding input).length = payload.length
+          at hlength
+        simp only [length_pairEncoding, wordEncoding, Function.Embedding.refl_apply] at hlength
+        omega
+      obtain ⟨result, hresult, hout⟩ := Option.bind_eq_some_iff.mp h
+      have hout' : (scalar result.1, result.2) = out := Option.some.inj hout
+      subst out
+      cases hlookup : cache.lookup input with
+      | some answer =>
+        rw [seededSignatureHandler_hash_hit _ _ _ _ _ _ _ answer hlookup] at hresult
+        cases hresult
+        exact ⟨(hf answer).trans (by omega), Nat.le_add_right _ _⟩
+      | none =>
+        cases hashScalars with
+        | nil =>
+          rw [seededSignatureHandler_hash_exhausted _ _ _ _ _ _ hlookup] at hresult
+          cases hresult
+        | cons answer rest =>
+          rw [seededSignatureHandler_hash_miss _ _ _ _ _ _ _ answer hlookup] at hresult
+          cases hresult
+          refine ⟨(hf answer).trans (by omega), ?_⟩
+          have := hg input.2
+          have := hf answer
+          simp only [length_seededSignatureStateEncoding, listEncoding_cons, length_pairEncoding,
+            wordEncoding, Function.Embedding.refl_apply, Computability.Encoding.toEmbedding_apply,
+            List.length_cons]
+          omega
+    | true =>
+      obtain ⟨result, hresult, hout⟩ := Option.bind_eq_some_iff.mp h
+      have hout' : (pairEncoding element.toEmbedding scalar result.1, result.2) = out :=
+        Option.some.inj hout
+      subst out
+      cases privateScalars with
+      | nil =>
+        rw [seededSignatureHandler_sign_exhausted _ _ _ _ _ _ _ (by simp)] at hresult
+        cases hresult
+      | cons challenge rest =>
+        cases rest with
+        | nil =>
+          rw [seededSignatureHandler_sign_exhausted _ _ _ _ _ _ _ (by simp)] at hresult
+          cases hresult
+        | cons response rest =>
+          rw [seededSignatureHandler_sign] at hresult
+          simp only [simulateSign.finish] at hresult
+          split at hresult
+          next =>
+            have hout := Option.some.inj hresult
+            cases hout
+            have := hg (response • g - challenge • pk)
+            have := hf challenge
+            have := hf response
+            simp only [length_pairEncoding, length_seededSignatureStateEncoding, listEncoding_cons,
+              wordEncoding, Function.Embedding.refl_apply,
+              Computability.Encoding.toEmbedding_apply, List.length_cons]
+            constructor <;> omega
+          next => cases hresult
+
+end Growth
 
 end Cslib.Crypto.Schnorr

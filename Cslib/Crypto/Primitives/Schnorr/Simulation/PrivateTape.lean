@@ -7,7 +7,7 @@ Authors: Devon Tuma
 module
 
 public import Cslib.Crypto.Primitives.Schnorr.Simulation.Trace
-public import Cslib.Foundations.Data.PFunctor.Free.Random.Tape.Trace
+public import Cslib.Foundations.Data.PFunctor.Free.Random.Tape
 
 /-!
 # Schnorr simulation after fixing private randomness
