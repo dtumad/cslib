@@ -122,6 +122,10 @@ source query budget or matching the placement of private coins.
 At word interfaces, Mathlib's `Computability.Encoding` supplies decoding. Canonical validation
 rejects words outside the encoding's range and preserves a certified decoder's polynomial bound.
 Compound decoding and optional pairing require no arbitrary defaults for represented values.
+Typed oracle adapters preserve the complete program and joint state when requests and replies
+are canonical, and reject malformed messages explicitly. Word-machine clocks now bound the
+original typed requests even for parameter-dependent signatures. Chosen machines also return
+checked typed results, with pathwise and joint-measure guarantees for saved private tapes.
 Captured continuations retain the original input and charge for its copying. Binary normalization
 and comparison, and the bounded `FreeM.sampleFin` sampler, now have uniform machine certificates.
 The sampler is polynomial in the range's bit length, unary proposal width, and unary attempt budget;

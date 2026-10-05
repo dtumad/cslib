@@ -7,13 +7,14 @@ Authors: Devon Tuma
 module
 
 public import Cslib.Computability.PolynomialTime.Binary
+public import Cslib.Computability.PolynomialTime.Encoding.Decoding
 
 /-!
 # Binary encodings through finite-range equivalences
 
 The equivalence chooses a representation, not a multiplication table. Arithmetic still needs its
-own uniform machine certificates. Decoding checks the binary range before constructing a value;
-the caller supplies an efficiently encoded fallback for values outside that range.
+own uniform machine certificates. The optional decoder rejects out-of-range indices. A total
+conversion is also available when the caller supplies an efficiently encoded fallback.
 -/
 
 @[expose] public section
@@ -42,5 +43,40 @@ theorem IsPolyTime.finEquiv_decode {α ι : Type} {β : ι → Type} {input : α
   convert (hvalue.binary_lt hbound).cond hvalue hfallback using 1
   funext a
   by_cases h : value a < bound (parameter a) <;> simp [h]
+
+end Turing.MultiTapeTM
+
+namespace Computability.Encoding
+
+open Turing.MultiTapeTM
+
+/-- Decode finite-range binary indices through a supplied equivalence. Out-of-range values
+are rejected, including when the represented type is empty. -/
+def finEquiv {α : Type} {n : ℕ} (equiv : α ≃ Fin n) : Encoding α Bool where
+  encode := finEquivEncoding equiv
+  decode word := if h : Nat.ofBitsList word < n then some (equiv.symm ⟨_, h⟩) else none
+  decode_encode value := by simp [finEquivEncoding_apply, (equiv value).isLt]
+
+@[simp] theorem finEquiv_toEmbedding {α : Type} {n : ℕ} (equiv : α ≃ Fin n) :
+    (finEquiv equiv).toEmbedding = finEquivEncoding equiv := rfl
+
+end Computability.Encoding
+
+namespace Turing.MultiTapeTM
+
+/-- Finite-range parsing has a uniform bound in the binary range and input lengths.
+The decoder returns `none` outside the range and needs no represented fallback. -/
+theorem IsPolyTime.decode_finEquiv {Input Index : Type} {Value : Index → Type}
+    {input : Input → Word} {parameter : Input → Index} {word : Input → Word}
+    {bound : Index → ℕ} (equiv : ∀ i, Value i ≃ Fin (bound i))
+    (hbound : IsPolyTime input (fun a => binaryEncoding (bound (parameter a))))
+    (hword : IsPolyTime input word) :
+    IsPolyTime input (fun a => optionEncoding (finEquivEncoding (equiv (parameter a)))
+      ((Computability.Encoding.finEquiv (equiv (parameter a))).decode (word a))) := by
+  have hvalue := hword.binary_ofBitsList
+  convert (hvalue.binary_lt hbound).cond hvalue.option_some (isPolyTime_const input []) using 1
+  funext a
+  by_cases h : Nat.ofBitsList (word a) < bound (parameter a) <;>
+    simp [Computability.Encoding.finEquiv, h, finEquivEncoding_apply]
 
 end Turing.MultiTapeTM

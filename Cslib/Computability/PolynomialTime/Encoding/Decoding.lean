@@ -64,11 +64,58 @@ def bitPair {β : Type*} (left : Encoding α Bool) (right : Encoding β Bool) :
     (left.bitPair right).toEmbedding =
       Turing.MultiTapeTM.pairEncoding left.toEmbedding right.toEmbedding := rfl
 
+/-- Tag a disjoint union with one bit before its payload. -/
+def bitSum {β : Type*} (left : Encoding α Bool) (right : Encoding β Bool) :
+    Encoding (α ⊕ β) Bool where
+  encode
+    | .inl value => false :: left.encode value
+    | .inr value => true :: right.encode value
+  decode
+    | [] => none
+    | false :: word => (left.decode word).map Sum.inl
+    | true :: word => (right.decode word).map Sum.inr
+  decode_encode value := by cases value <;> simp
+
+/-- Optional values use the same empty-or-tagged representation as machine certificates.
+The outer optional result of decoding distinguishes malformed words from a valid `none`. -/
+def bitOption (element : Encoding α Bool) : Encoding (Option α) Bool where
+  encode
+    | none => []
+    | some value => true :: element.encode value
+  decode
+    | [] => some none
+    | false :: _ => none
+    | true :: word => some <$> element.decode word
+  decode_encode value := by cases value <;> simp
+
+@[simp] theorem bitOption_toEmbedding {α : Type} (element : Encoding α Bool) :
+    element.bitOption.toEmbedding = Turing.MultiTapeTM.optionEncoding element.toEmbedding := rfl
+
 end Computability.Encoding
 
 namespace Turing.MultiTapeTM
 
 variable {α : Type}
+
+/-- Canonical validation works uniformly with parameter-dependent representations. Both the
+decoded value and its code come from the certified parser; comparison needs no typed default. -/
+theorem IsPolyTime.decodeChecked_indexed {Input Index : Type} {Value : Index → Type}
+    {input : Input → Word} {parameter : Input → Index} {word : Input → Word}
+    (encoding : ∀ i, Computability.Encoding (Value i) Bool)
+    (hword : IsPolyTime input word)
+    (hdecode : IsPolyTime input (fun a =>
+      optionEncoding (encoding (parameter a)).toEmbedding
+        ((encoding (parameter a)).decode (word a)))) :
+    IsPolyTime input (fun a => optionEncoding (encoding (parameter a)).toEmbedding
+      ((encoding (parameter a)).decodeChecked (word a))) := by
+  convert (hdecode.tail.beq hword).cond hdecode (isPolyTime_const input []) using 1
+  funext a
+  cases h : (encoding (parameter a)).decode (word a) with
+  | none => simp [Computability.Encoding.decodeChecked, h]
+  | some value =>
+    simp only [Computability.Encoding.decodeChecked, h, Option.filter_some,
+      optionEncoding_some, List.tail_cons, Computability.Encoding.toEmbedding_apply]
+    split <;> simp_all
 
 /-- Canonical validation preserves a decoder's polynomial bound. The decoder's result code
 already contains the representation needed for comparison, so no typed fallback is required. -/
@@ -76,16 +123,9 @@ theorem IsPolyTime.decodeChecked (encoding : Computability.Encoding α Bool)
     (hdecode : IsPolyTime wordEncoding
       (fun word => optionEncoding encoding.toEmbedding (encoding.decode word))) :
     IsPolyTime wordEncoding
-      (fun word => optionEncoding encoding.toEmbedding (encoding.decodeChecked word)) := by
-  convert (hdecode.tail.beq (isPolyTime_input wordEncoding)).cond hdecode
-    (isPolyTime_const wordEncoding []) using 1
-  funext word
-  cases h : encoding.decode word with
-  | none => simp [Computability.Encoding.decodeChecked, h]
-  | some value =>
-    simp only [Computability.Encoding.decodeChecked, h, Option.filter_some,
-      optionEncoding_some, List.tail_cons, Computability.Encoding.toEmbedding_apply]
-    split <;> simp_all [wordEncoding]
+      (fun word => optionEncoding encoding.toEmbedding (encoding.decodeChecked word)) :=
+  IsPolyTime.decodeChecked_indexed (parameter := fun _ => ()) (fun _ => encoding)
+    (isPolyTime_input wordEncoding) hdecode
 
 /-- Decoding a compound request charges both parsers and assembly of the optional result. -/
 theorem IsPolyTime.decode_bitPair {β : Type} (left : Computability.Encoding α Bool)

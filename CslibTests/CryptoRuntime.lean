@@ -12,6 +12,8 @@ import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Verification
 import Cslib.Crypto.RandomOracle.PolynomialTime
 import Cslib.Computability.PolynomialTime.Finite
 import Cslib.Computability.PolynomialTime.Encoding.Decoding
+import Cslib.Computability.PolynomialTime.Realizer.Decoding
+import Cslib.Computability.PolynomialTime.Realizer.Encoding
 import Mathlib.Algebra.Field.ZMod
 import Mathlib.Data.Fintype.Order
 
@@ -38,6 +40,70 @@ example : IsPolyTime wordEncoding (fun word =>
   apply IsPolyTime.decodeChecked
   exact IsPolyTime.decode_bitPair _ _ (isPolyTime_input wordEncoding).option_some
     (isPolyTime_input wordEncoding).option_some
+
+-- A failed parse differs from a valid optional result whose value is absent.
+example : Computability.encodingBoolBool.bitOption.decodeChecked [] = some none := by decide
+example : Computability.encodingBoolBool.bitOption.decodeChecked [true, true] =
+    some (some true) := by decide
+example : Computability.encodingBoolBool.bitOption.decodeChecked [false] = none := by decide
+example : Computability.encodingBoolBool.bitOption.decodeChecked [true, true, false] =
+    none := by decide
+
+-- Scalar parsing rejects both out-of-range indices and redundant high zero bits.
+example : (Computability.Encoding.finEquiv (Equiv.refl (Fin 3))).decodeChecked [true, true] =
+    none := by decide
+example : (Computability.Encoding.finEquiv (Equiv.refl (Fin 3))).decode [true, false] =
+    some 1 := by decide
+example : (Computability.Encoding.finEquiv (Equiv.refl (Fin 3))).decodeChecked [true, false] =
+    none := by decide
+
+-- There is no fallback value available for an empty represented type.
+example : IsPolyTime wordEncoding (fun word => optionEncoding (finBinaryEncoding 0)
+    ((Computability.Encoding.finEquiv (Equiv.refl (Fin 0))).decodeChecked word)) := by
+  apply IsPolyTime.decodeChecked_indexed (parameter := fun _ => ())
+    (fun _ => Computability.Encoding.finEquiv (Equiv.refl (Fin 0)))
+    (isPolyTime_input wordEncoding)
+  exact IsPolyTime.decode_finEquiv (parameter := fun _ => ())
+    (fun _ => Equiv.refl (Fin 0)) (isPolyTime_const _ []) (isPolyTime_input wordEncoding)
+
+namespace TypedOracle
+
+abbrev requests : PFunctor := .mk Bool (fun _ => Bool)
+
+def program : (PFunctor.mk Unit (fun _ => Bool) + requests).FreeM Bool := do
+  let bit ← FreeM.lift (P := PFunctor.mk Unit (fun _ => Bool) + requests) (.inl ())
+  let answer ← FreeM.lift (P := PFunctor.mk Unit (fun _ => Bool) + requests) (.inr bit)
+  FreeM.lift (P := PFunctor.mk Unit (fun _ => Bool) + requests) (.inr answer)
+
+def replies (word : Word) : (op : (effects Unit).A) → StateM ℕ ((effects Unit).B op)
+  | .inl _ => pure false
+  | .inr _ => do
+    modify (· + 1)
+    pure word
+
+-- Rejecting a malformed first reply stops the adaptive second query.
+example : (((program.liftM (encodeEffects (P := requests) Computability.encodingBoolBool
+    (fun _ => Computability.encodingBoolBool))).run).liftM
+      (m := StateM ℕ) (replies [true, false])).run 0 = (none, 1) := rfl
+
+example : (((program.liftM (encodeEffects (P := requests) Computability.encodingBoolBool
+    (fun _ => Computability.encodingBoolBool))).run).liftM
+      (m := StateM ℕ) (replies [true])).run 0 = (some true, 2) := rfl
+
+def typedReply (bit : requests.A) : StateM ℕ (requests.B bit) := do
+  modify (· + 1)
+  pure (!bit)
+
+-- An invalid request is rejected before it can modify the typed oracle's shared state.
+example : ((decodeQuery (P := requests) (m := StateM ℕ) Computability.encodingBoolBool
+    (fun _ => Computability.encodingBoolBool) typedReply [true, false]).run).run 0 =
+      (none, 0) := rfl
+
+example : ((decodeQuery (P := requests) (m := StateM ℕ) Computability.encodingBoolBool
+    (fun _ => Computability.encodingBoolBool) typedReply [true]).run).run 0 =
+      (some [false], 1) := rfl
+
+end TypedOracle
 
 abbrev G := Multiplicative (ZMod 2)
 

@@ -144,6 +144,7 @@ public import Cslib.Computability.PolynomialTime.Deterministic
 public import Cslib.Computability.PolynomialTime.Encoding
 public import Cslib.Computability.PolynomialTime.Encoding.Decoding
 public import Cslib.Computability.PolynomialTime.Encoding.Finite
+public import Cslib.Computability.PolynomialTime.Encoding.Oracle
 public import Cslib.Computability.PolynomialTime.Finite
 public import Cslib.Computability.PolynomialTime.Fold
 public import Cslib.Computability.PolynomialTime.Iteration
@@ -164,6 +165,8 @@ public import Cslib.Computability.PolynomialTime.Realization.PolynomialTime
 public import Cslib.Computability.PolynomialTime.Realization.Transducer
 public import Cslib.Computability.PolynomialTime.Realizer
 public import Cslib.Computability.PolynomialTime.Realizer.CoinTape
+public import Cslib.Computability.PolynomialTime.Realizer.Decoding
+public import Cslib.Computability.PolynomialTime.Realizer.Encoding
 public import Cslib.Computability.PolynomialTime.Realizer.Queries
 public import Cslib.Computability.PolynomialTime.Rejection
 public import Cslib.Computability.PolynomialTime.Sampling
@@ -264,6 +267,7 @@ public import Cslib.Foundations.Data.PFunctor.Free.Fork.Measure
 public import Cslib.Foundations.Data.PFunctor.Free.Fork.Probability
 public import Cslib.Foundations.Data.PFunctor.Free.Fork.Replay
 public import Cslib.Foundations.Data.PFunctor.Free.Kernel
+public import Cslib.Foundations.Data.PFunctor.Free.Kernel.Option
 public import Cslib.Foundations.Data.PFunctor.Free.Kernel.Support
 public import Cslib.Foundations.Data.PFunctor.Free.Measure
 public import Cslib.Foundations.Data.PFunctor.Free.Measure.Approximation
