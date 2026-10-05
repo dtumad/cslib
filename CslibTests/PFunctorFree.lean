@@ -5,6 +5,7 @@ Authors: Devon Tuma
 -/
 
 import Cslib.Foundations.Control.Monad.Free.Fold
+import Cslib.Foundations.Control.Monad.Free.PFunctor
 import Cslib.Foundations.Data.PFunctor.Free.Fold
 import Cslib.Foundations.Data.PFunctor.Free.W
 
@@ -102,3 +103,27 @@ example : W.toFreeM (α := Nat) leaf = (FreeM.lift (P := arity) 0).bind (fun b =
   exact Fin.elim0 b
 
 end CslibTests.PFunctorFree
+
+namespace CslibTests.FreeInterop
+
+inductive Choice : Type → Type 1 where
+  | choose (n : Nat) : Choice (Fin (n + 1))
+
+def handler : {α : Type} → Choice α → Id α
+  | _, .choose n => ⟨n, Nat.lt_succ_self n⟩
+
+def program : Cslib.FreeM Choice Nat := do
+  let n ← Cslib.FreeM.lift (.choose 3)
+  let k ← Cslib.FreeM.lift (.choose n.val)
+  pure (n.val + k.val)
+
+-- The answer type of the second request depends on the first reply.
+example : program.toPFunctor.liftM
+    (fun op : (PFunctor.ofFamily Choice).A => handler op.2) = 6 := rfl
+
+-- Conversion and the monad-homomorphism API must also accept larger result universes.
+example (x : Cslib.FreeM Choice (ULift.{2} Nat)) :
+    Cslib.FreeM.ofPFunctor (Cslib.FreeM.toPFunctor (id <$> x)) = x := by
+  simp
+
+end CslibTests.FreeInterop
