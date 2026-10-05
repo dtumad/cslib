@@ -6,6 +6,7 @@ Authors: Devon Tuma
 
 module
 
+public import Cslib.Foundations.Control.Monad.MonadAttach
 public import Cslib.Computability.PolynomialTime.Sampling
 public import Cslib.Computability.PolynomialTime.Sampling.Iteration
 public import Cslib.Computability.PolynomialTime.Rejection
@@ -75,7 +76,7 @@ theorem runKernel_selectBelow
     apply FreeM.runKernel_bind_congr_of_canReturn
     intro word hword state
     have hlength : word.length = bits := by
-      simpa using FreeM.length_of_canReturn_mapM (fun _ : Unit => coin) _ hword
+      simpa using List.length_of_canReturn_mapM (fun _ : Unit => coin) _ hword
     have htake (rest : Word) : (word ++ rest).take bits = word := by
       rw [← hlength, List.take_left]
     have hdrop (rest : Word) : (word ++ rest).drop bits = rest := by

@@ -9,7 +9,7 @@ public import Cslib.Foundations.Data.PFunctor.Free
 public import Cslib.Foundations.Data.PFunctor.Resumption
 
 /-!
-# Embedding finite free programs into resumptions
+# Embedding well-founded free programs into resumptions
 
 This module contains the canonical inclusion of the initial-algebra
 `FreeM p β` into the final-coalgebra `Resumption p β`. Keeping the bridge
@@ -25,7 +25,7 @@ namespace PFunctor.FreeM
 
 variable {p : PFunctor.{uA, uB}} {α : Type uα} {β : Type uβ}
 
-/-- Embed a finite free program into the corresponding tau-free resumption. -/
+/-- Embed a well-founded free program into the corresponding tau-free resumption. -/
 def toResumption : FreeM p α → Resumption p α
   | .pure value => Resumption.pure value
   | .liftBind position next =>
@@ -39,96 +39,48 @@ theorem toResumption_liftBind (position : p.A)
     toResumption (FreeM.liftBind position next) =
       Resumption.query position fun direction => toResumption (next direction) := rfl
 
-theorem dest_toResumption_pure (value : α) :
-    Resumption.dest (toResumption (pure value : FreeM p α)) = Sum.inl value := rfl
-
-theorem dest_toResumption_lift_bind (position : p.A)
-    (next : p.B position → FreeM p α) :
-    Resumption.dest (toResumption ((FreeM.lift position).bind next)) =
-      Sum.inr (.mk position (fun direction => toResumption (next direction))) := by
-  change Resumption.dest (Resumption.query position (fun d => toResumption (next d))) = _
-  rw [Resumption.dest_query]
-
-theorem dest_toResumption_liftBind (position : p.A)
-    (next : p.B position → FreeM p α) :
-    Resumption.dest (toResumption (FreeM.liftBind position next)) =
-      Sum.inr (.mk position (fun direction => toResumption (next direction))) :=
-  dest_toResumption_lift_bind position next
+@[simp] theorem toResumption_lift (position : p.A) :
+    toResumption (FreeM.lift position) = Resumption.lift position := rfl
 
 @[simp] theorem toResumption_bind (program : FreeM p α) (k : α → FreeM p β) :
     toResumption (FreeM.bind program k) =
       Resumption.bind (toResumption program) (fun value => toResumption (k value)) := by
   induction program with
-  | pure value =>
-      change toResumption (k value) =
-        Resumption.bind (Resumption.pure value) (fun result => toResumption (k result))
-      rw [Resumption.bind_pure_left]
+  | pure value => simp
   | lift_bind position next ih =>
-      change toResumption
-          (FreeM.liftBind position (fun direction => FreeM.bind (next direction) k)) =
-        Resumption.bind
-          (Resumption.query position fun direction => toResumption (next direction))
-          (fun value => toResumption (k value))
-      rw [toResumption_liftBind, Resumption.bind_query]
-      congr 1
-      funext direction
-      exact ih direction
+    simp only [← liftBind_eq, FreeM.bind, toResumption, Resumption.bind_query, ih]
 
 @[simp] theorem toResumption_map (f : α → β) (program : FreeM p α) :
     toResumption (FreeM.map f program) = Resumption.map f (toResumption program) := by
-  induction program with
-  | pure value =>
-      change Resumption.pure (f value) = Resumption.map f (Resumption.pure value)
-      rw [Resumption.map_pure]
-  | lift_bind position next ih =>
-      change toResumption
-          (FreeM.liftBind position (fun direction => FreeM.map f (next direction))) =
-        Resumption.map f
-          (Resumption.query position fun direction => toResumption (next direction))
-      rw [toResumption_liftBind, Resumption.map_query]
-      congr 1
-      funext direction
-      exact ih direction
+  simp only [← bind_pure_comp, toResumption_bind, Resumption.map, Function.comp_def,
+    toResumption_pure]
 
-/-- The finite-program embedding is injective: regarding a well-founded tree
+@[simp] theorem toResumption_bind' {β : Type uα}
+    (program : FreeM p α) (k : α → FreeM p β) :
+    toResumption (program >>= k) = toResumption program >>= fun value => toResumption (k value) :=
+  toResumption_bind program k
+
+@[simp] theorem toResumption_map' {β : Type uα} (f : α → β) (program : FreeM p α) :
+    toResumption (f <$> program) = f <$> toResumption program := toResumption_map f program
+
+/-- The free-program embedding is injective: regarding a well-founded tree
 as a possibly infinite tree loses no information. -/
 theorem toResumption_injective : Function.Injective (toResumption (p := p) (α := α)) := by
   intro left
   induction left with
   | pure value =>
-      intro right h
-      cases right with
-      | pure value' =>
-          have hdest := congrArg Resumption.dest h
-          simp only [dest_toResumption_pure] at hdest
-          cases hdest
-          rfl
-      | liftBind position next =>
-          have hdest := congrArg Resumption.dest h
-          change Sum.inl value = Sum.inr
-            (Sigma.mk position (fun direction => toResumption (next direction)) :
-              p.Obj (Resumption p α)) at hdest
-          exact (Sum.inl_ne_inr hdest).elim
+    intro right h
+    cases right with
+    | pure value' => simpa [← Resumption.dest_inj] using h
+    | liftBind position next => simp [← Resumption.dest_inj, toResumption] at h
   | lift_bind position next ih =>
-      intro right h
-      cases right with
-      | pure value =>
-          have hdest := congrArg Resumption.dest h
-          change (Sum.inr
-            (Sigma.mk position (fun direction => toResumption (next direction)) :
-              p.Obj (Resumption p α))) =
-            Sum.inl value at hdest
-          exact (Sum.inr_ne_inl hdest).elim
-      | liftBind position' next' =>
-          have hdest := Sum.inr.inj (congrArg Resumption.dest h)
-          have hposition : position = position' := (Sigma.mk.inj hdest).1
-          cases hposition
-          have hnext : (fun direction => toResumption (next direction)) =
-              fun direction => toResumption (next' direction) :=
-            eq_of_heq (Sigma.mk.inj hdest).2
-          apply congrArg (FreeM.liftBind position)
-          funext direction
-          exact ih direction (congrFun hnext direction)
+    intro right h
+    cases right with
+    | pure value => simp [← Resumption.dest_inj, ← liftBind_eq, toResumption] at h
+    | liftBind position' next' =>
+      obtain ⟨rfl, hnext⟩ := Sigma.mk.inj (Sum.inr.inj (congrArg Resumption.dest h))
+      exact congrArg (FreeM.liftBind position)
+        (funext fun direction => ih direction (congrFun (eq_of_heq hnext) direction))
 
 /-- The inclusion preserves the monad operations. -/
 theorem isMonadHom_toResumption : Cslib.IsMonadHom p.FreeM (Resumption p) toResumption :=

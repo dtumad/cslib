@@ -15,6 +15,7 @@ import CslibTests.CryptoRuntime
 import CslibTests.CryptoSampling
 import CslibTests.DFA
 import CslibTests.ElGamal
+import CslibTests.ExactWP
 import CslibTests.ForkRuntime
 import CslibTests.FreeMonad
 import CslibTests.GrindLint
@@ -41,8 +42,10 @@ import CslibTests.PFunctorFork
 import CslibTests.PFunctorFree
 import CslibTests.PFunctorProbability
 import CslibTests.PFunctorSampling
+import CslibTests.PFunctorWP
 import CslibTests.PRG
 import CslibTests.Reduction
+import CslibTests.Resumption
 import CslibTests.Schnorr
 import CslibTests.StatefulProcesses
 import CslibTests.Synthesis

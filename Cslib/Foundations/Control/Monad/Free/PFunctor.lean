@@ -6,101 +6,167 @@ Authors: Devon Tuma
 
 module
 
-public import Cslib.Foundations.Control.Monad.Free
-public import Cslib.Foundations.Data.PFunctor.Free
+public import Cslib.Foundations.Control.Monad.Free.Fold
+public import Cslib.Foundations.Data.PFunctor.Basic
+public import Cslib.Foundations.Data.PFunctor.Free.Fold
 
 /-!
 # Indexed effects as polynomial effects
 
-A type-indexed effect family determines a polynomial functor: a shape packages an answer type
-and an effect returning that type. The two free-monad presentations are equivalent, including
-their interpretation in any monad. Packaging the answer type increases the shape universe;
-signatures that already specify their answer types directly need no such increase.
+An operation `op : F ι` of a type-indexed effect family `F` is a shape of the polynomial functor
+`PFunctor.ofFamily F`, whose directions are the answers `ι`. This file shows that the free monads
+`Cslib.FreeM F` and `(PFunctor.ofFamily F).FreeM` are isomorphic, compatibly with folds and
+monadic interpretation, so programs over indexed effects can use the `PFunctor.FreeM` API.
+The price is the shape universe `max (u + 1) v` of `PFunctor.ofFamily F`.
+
+## Main definitions
+
+- `Cslib.FreeM.toPFunctorFreeM`, `Cslib.FreeM.ofPFunctorFreeM`: the conversions.
+- `Cslib.FreeM.equivPFunctorFreeM`: the conversions as an equivalence.
+
+## Main statements
+
+- `Cslib.FreeM.isMonadHom_toPFunctorFreeM`, `Cslib.FreeM.isMonadHom_ofPFunctorFreeM`: both
+  conversions are monad morphisms.
+- `Cslib.FreeM.foldFreeM_toPFunctorFreeM`, `Cslib.FreeM.liftM_toPFunctorFreeM`: folds and
+  interpretations agree on both presentations.
 -/
 
 @[expose] public section
 
 universe u v w w' z
 
-/-- Package a type-indexed effect family as shapes with dependent answer types. -/
-@[implicit_reducible]
-def PFunctor.ofFamily (F : Type u → Type v) : PFunctor.{max (u + 1) v, u} :=
-  ⟨Σ α, F α, Sigma.fst⟩
-
 namespace Cslib.FreeM
 
 variable {F : Type u → Type v} {α : Type w} {β : Type w'}
 
-/-- Regard a free program over indexed effects as a polynomial free program. -/
-def toPFunctor : FreeM F α → (PFunctor.ofFamily F).FreeM α
-  | .pure a => pure a
-  | .liftBind (ι := ι) op cont => .liftBind ⟨ι, op⟩ fun b => toPFunctor (cont b)
+/-- Regard a program over the effect family `F` as a program over `PFunctor.ofFamily F`. -/
+def toPFunctorFreeM : FreeM F α → (PFunctor.ofFamily F).FreeM α
+  | .pure a => .pure a
+  | .liftBind (ι := ι) op cont => .liftBind ⟨ι, op⟩ fun b => toPFunctorFreeM (cont b)
 
-/-- Recover the indexed-effect presentation of a polynomial program over `ofFamily`. -/
-def ofPFunctor : (PFunctor.ofFamily F).FreeM α → FreeM F α
-  | .pure a => pure a
-  | .liftBind ⟨_, op⟩ cont => .liftBind op fun b => ofPFunctor (cont b)
-
-@[simp]
-theorem toPFunctor_pure (a : α) : toPFunctor (pure a : FreeM F α) = pure a := rfl
+/-- Regard a program over `PFunctor.ofFamily F` as a program over the effect family `F`. -/
+def ofPFunctorFreeM : (PFunctor.ofFamily F).FreeM α → FreeM F α
+  | .pure a => .pure a
+  | .liftBind op cont => .liftBind op.2 fun b => ofPFunctorFreeM (cont b)
 
 @[simp]
-theorem ofPFunctor_pure (a : α) : ofPFunctor (pure a : (PFunctor.ofFamily F).FreeM α) =
-    (pure a : FreeM F α) := rfl
+theorem toPFunctorFreeM_pure (a : α) : toPFunctorFreeM (pure a : FreeM F α) = pure a := rfl
 
 @[simp]
-theorem ofPFunctor_toPFunctor (x : FreeM F α) : ofPFunctor (toPFunctor x) = x := by
+theorem toPFunctorFreeM_lift {ι : Type u} (op : F ι) :
+    toPFunctorFreeM (lift op) = PFunctor.FreeM.lift (P := .ofFamily F) ⟨ι, op⟩ := rfl
+
+@[simp]
+theorem toPFunctorFreeM_bind (x : FreeM F α) (f : α → FreeM F β) :
+    toPFunctorFreeM (x.bind f) = (toPFunctorFreeM x).bind fun a => toPFunctorFreeM (f a) := by
   induction x with
   | pure a => rfl
   | lift_bind op cont ih =>
-    change liftBind op (fun b => ofPFunctor (toPFunctor (cont b))) = liftBind op cont
-    congr 1
-    exact funext ih
+    exact congrArg (PFunctor.FreeM.liftBind (P := .ofFamily F) ⟨_, op⟩) (funext ih)
 
 @[simp]
-theorem toPFunctor_ofPFunctor (x : (PFunctor.ofFamily F).FreeM α) :
-    toPFunctor (ofPFunctor x) = x := by
+theorem toPFunctorFreeM_map (f : α → β) (x : FreeM F α) :
+    toPFunctorFreeM (x.map f) = (toPFunctorFreeM x).map f := by
   induction x with
   | pure a => rfl
   | lift_bind op cont ih =>
-    rcases op with ⟨ι, op⟩
-    change PFunctor.FreeM.liftBind (P := PFunctor.ofFamily F) ⟨ι, op⟩
-      (fun b => toPFunctor (ofPFunctor (cont b))) =
-        PFunctor.FreeM.liftBind (P := PFunctor.ofFamily F) ⟨ι, op⟩ cont
-    congr 1
-    exact funext ih
-
-/-- The indexed and polynomial presentations of a free program are equivalent. -/
-def equivPFunctor : FreeM F α ≃ (PFunctor.ofFamily F).FreeM α where
-  toFun := toPFunctor
-  invFun := ofPFunctor
-  left_inv := ofPFunctor_toPFunctor
-  right_inv := toPFunctor_ofPFunctor
+    exact congrArg (PFunctor.FreeM.liftBind (P := .ofFamily F) ⟨_, op⟩) (funext ih)
 
 @[simp]
-theorem toPFunctor_bind (x : FreeM F α) (f : α → FreeM F β) :
-    toPFunctor (x.bind f) = (toPFunctor x).bind fun a => toPFunctor (f a) := by
+theorem toPFunctorFreeM_bind' {α β : Type w} (x : FreeM F α) (f : α → FreeM F β) :
+    toPFunctorFreeM (x >>= f) = toPFunctorFreeM x >>= fun a => toPFunctorFreeM (f a) :=
+  toPFunctorFreeM_bind x f
+
+@[simp]
+theorem toPFunctorFreeM_map' {α β : Type w} (f : α → β) (x : FreeM F α) :
+    toPFunctorFreeM (f <$> x) = f <$> toPFunctorFreeM x :=
+  toPFunctorFreeM_map f x
+
+@[simp]
+theorem ofPFunctorFreeM_pure (a : α) :
+    ofPFunctorFreeM (pure a : (PFunctor.ofFamily F).FreeM α) = pure a := rfl
+
+@[simp]
+theorem ofPFunctorFreeM_lift (op : (PFunctor.ofFamily F).A) :
+    ofPFunctorFreeM (PFunctor.FreeM.lift op) = lift op.2 := rfl
+
+@[simp]
+theorem ofPFunctorFreeM_bind (x : (PFunctor.ofFamily F).FreeM α)
+    (f : α → (PFunctor.ofFamily F).FreeM β) :
+    ofPFunctorFreeM (x.bind f) = (ofPFunctorFreeM x).bind fun a => ofPFunctorFreeM (f a) := by
   induction x with
   | pure a => rfl
-  | @lift_bind ι op cont ih =>
-    change PFunctor.FreeM.liftBind (P := PFunctor.ofFamily F) ⟨ι, op⟩
-      (fun b => toPFunctor ((cont b).bind f)) =
-        PFunctor.FreeM.liftBind (P := PFunctor.ofFamily F) ⟨ι, op⟩
-          (fun b => (toPFunctor (cont b)).bind _)
-    congr 1
-    exact funext ih
+  | lift_bind op cont ih => exact congrArg (liftBind op.2) (funext ih)
 
-/-- Both syntax presentations have the same interpretation, including stateful interpretations. -/
-theorem liftM_toPFunctor {m : Type u → Type z} [Monad m] {α : Type u}
-    (interp : {β : Type u} → F β → m β) (x : FreeM F α) :
-    (toPFunctor x).liftM (fun op : (PFunctor.ofFamily F).A => interp op.2) =
+@[simp]
+theorem ofPFunctorFreeM_map (f : α → β) (x : (PFunctor.ofFamily F).FreeM α) :
+    ofPFunctorFreeM (x.map f) = (ofPFunctorFreeM x).map f := by
+  induction x with
+  | pure a => rfl
+  | lift_bind op cont ih => exact congrArg (liftBind op.2) (funext ih)
+
+@[simp]
+theorem ofPFunctorFreeM_bind' {α β : Type w} (x : (PFunctor.ofFamily F).FreeM α)
+    (f : α → (PFunctor.ofFamily F).FreeM β) :
+    ofPFunctorFreeM (x >>= f) = ofPFunctorFreeM x >>= fun a => ofPFunctorFreeM (f a) :=
+  ofPFunctorFreeM_bind x f
+
+@[simp]
+theorem ofPFunctorFreeM_map' {α β : Type w} (f : α → β) (x : (PFunctor.ofFamily F).FreeM α) :
+    ofPFunctorFreeM (f <$> x) = f <$> ofPFunctorFreeM x :=
+  ofPFunctorFreeM_map f x
+
+@[simp]
+theorem ofPFunctorFreeM_toPFunctorFreeM (x : FreeM F α) :
+    ofPFunctorFreeM (toPFunctorFreeM x) = x := by
+  induction x with
+  | pure a => rfl
+  | lift_bind op cont ih => exact congrArg (liftBind op) (funext ih)
+
+@[simp]
+theorem toPFunctorFreeM_ofPFunctorFreeM (x : (PFunctor.ofFamily F).FreeM α) :
+    toPFunctorFreeM (ofPFunctorFreeM x) = x := by
+  induction x with
+  | pure a => rfl
+  | lift_bind op cont ih => exact congrArg (PFunctor.FreeM.liftBind op) (funext ih)
+
+/-- Programs over an effect family are equivalent to programs over its polynomial functor. -/
+@[simps]
+def equivPFunctorFreeM : FreeM F α ≃ (PFunctor.ofFamily F).FreeM α where
+  toFun := toPFunctorFreeM
+  invFun := ofPFunctorFreeM
+  left_inv := ofPFunctorFreeM_toPFunctorFreeM
+  right_inv := toPFunctorFreeM_ofPFunctorFreeM
+
+theorem isMonadHom_toPFunctorFreeM :
+    IsMonadHom (FreeM F) (PFunctor.ofFamily F).FreeM toPFunctorFreeM :=
+  .mk' toPFunctorFreeM_pure toPFunctorFreeM_bind
+
+theorem isMonadHom_ofPFunctorFreeM :
+    IsMonadHom (PFunctor.ofFamily F).FreeM (FreeM F) ofPFunctorFreeM :=
+  .mk' ofPFunctorFreeM_pure ofPFunctorFreeM_bind
+
+/-- Folding a program agrees with folding its polynomial presentation. -/
+theorem foldFreeM_toPFunctorFreeM {γ : Type z} (onValue : α → γ)
+    (onEffect : {ι : Type u} → F ι → (ι → γ) → γ) (x : FreeM F α) :
+    (toPFunctorFreeM x).foldFreeM onValue (fun op : (PFunctor.ofFamily F).A => onEffect op.2) =
+      x.foldFreeM onValue onEffect := by
+  induction x with
+  | pure a => rfl
+  | lift_bind op cont ih => exact congrArg (onEffect op) (funext ih)
+
+/-- Interpreting a program agrees with interpreting its polynomial presentation. -/
+theorem liftM_toPFunctorFreeM {m : Type u → Type z} [Monad m] {α : Type u}
+    (interp : {ι : Type u} → F ι → m ι) (x : FreeM F α) :
+    (toPFunctorFreeM x).liftM (fun op : (PFunctor.ofFamily F).A => interp op.2) =
       x.liftM interp := by
-  induction x with
-  | pure a => rfl
-  | lift_bind op cont ih =>
-    change (interp op >>= fun b => (toPFunctor (cont b)).liftM _) =
-      (interp op >>= fun b => (cont b).liftM interp)
-    congr 1
-    exact funext ih
+  rw [PFunctor.FreeM.liftM_eq_foldFreeM, liftM_eq_foldFreeM, ← foldFreeM_toPFunctorFreeM]
+
+theorem liftM_ofPFunctorFreeM {m : Type u → Type z} [Monad m] {α : Type u}
+    (interp : {ι : Type u} → F ι → m ι) (x : (PFunctor.ofFamily F).FreeM α) :
+    (ofPFunctorFreeM x).liftM interp =
+      x.liftM (fun op : (PFunctor.ofFamily F).A => interp op.2) := by
+  rw [← liftM_toPFunctorFreeM, toPFunctorFreeM_ofPFunctorFreeM]
 
 end Cslib.FreeM

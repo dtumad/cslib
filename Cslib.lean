@@ -250,6 +250,7 @@ public import Cslib.Crypto.RandomOracle.Cost
 public import Cslib.Crypto.RandomOracle.Measure
 public import Cslib.Crypto.RandomOracle.PolynomialTime
 public import Cslib.Foundations.Combinatorics.InfiniteGraphRamsey
+public import Cslib.Foundations.Control.Monad.ExactWP
 public import Cslib.Foundations.Control.Monad.Free
 public import Cslib.Foundations.Control.Monad.Free.Effects
 public import Cslib.Foundations.Control.Monad.Free.Fold
@@ -257,6 +258,7 @@ public import Cslib.Foundations.Control.Monad.Free.PFunctor
 public import Cslib.Foundations.Control.Monad.IsMonadHom
 public import Cslib.Foundations.Control.Monad.IsMonadHom.List
 public import Cslib.Foundations.Control.Monad.IsMonadHom.Transformers
+public import Cslib.Foundations.Control.Monad.MonadAttach
 public import Cslib.Foundations.Data.BiTape
 public import Cslib.Foundations.Data.BitString
 public import Cslib.Foundations.Data.DecidableEqZero

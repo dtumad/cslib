@@ -54,9 +54,13 @@ def rename (name : Oracle → Oracle') (op : (effects Oracle).A) :
   induction program with
   | pure result => rfl
   | lift_bind op cont ih =>
+    rw [FreeM.bind_eq_bind, FreeM.liftM_lift_bind]
     cases op with
-    | inl token => cases token; exact exists_congr ih
-    | inr request => cases request; exact exists_congr ih
+    | inl token =>
+      simpa [rename, coin, FreeM.canReturn_lift_bind] using exists_congr ih
+    | inr request =>
+      cases request
+      simpa [rename, query, FreeM.canReturn_lift_bind] using exists_congr ih
 
 variable [MeasurableSpace (List Bool)] [DiscreteMeasurableSpace (List Bool)]
   {S : Type} [MeasurableSpace S] [DiscreteMeasurableSpace S]

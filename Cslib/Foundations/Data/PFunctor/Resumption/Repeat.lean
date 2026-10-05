@@ -32,7 +32,7 @@ def repeatUntil (op : P.A) (accept : P.B op → Option α) : Resumption P α :=
 /-- An accepted response returns immediately; a rejected response starts the next attempt. -/
 theorem repeatUntil_eq_query (op : P.A) (accept : P.B op → Option α) :
     repeatUntil op accept = query op (fun b => (accept b).elim (repeatUntil op accept) pure) := by
-  apply eq_of_dest_eq
+  apply dest_injective
   rw [repeatUntil, dest_corec, dest_query]
   apply congrArg Sum.inr
   apply Sigma.ext
@@ -43,7 +43,7 @@ theorem repeatUntil_eq_query (op : P.A) (accept : P.B op → Option α) :
   cases hb : accept b with
   | none => rfl
   | some a =>
-    apply eq_of_dest_eq
+    apply dest_injective
     simp [dest_corec]
 
 variable [∀ op, MeasurableSpace (P.B op)]

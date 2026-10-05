@@ -86,17 +86,16 @@ def viewEquiv {X : Type uX} : (p + C.{uβ, uB} β).Obj X ≃ β ⊕ p.Obj X wher
 @[simp] theorem unpack_map {X : Type uX} {Y : Type uY} (f : X → Y)
     (step : (p + C.{uβ, uB} β).Obj X) :
     unpack ((p + C.{uβ, uB} β).map f step) =
-      Sum.map (fun value : β => value) (p.map f) (unpack step) := by
+      Sum.map id (p.map f) (unpack step) := by
   rcases step with ⟨shape, next⟩
   cases shape <;> rfl
 
 theorem pack_sum_map {X : Type uX} {Y : Type uY} (f : X → Y)
     (step : β ⊕ p.Obj X) :
-    pack (Sum.map (fun value : β => value) (p.map f) step) =
+    pack (Sum.map id (p.map f) step) =
       (p + C.{uβ, uB} β).map f (pack step) := by
-  rcases step with value | ⟨position, next⟩
-  · exact Sigma.ext rfl (heq_of_eq (funext fun d => d.elim))
-  · rfl
+  apply viewEquiv.injective
+  simp only [viewEquiv, Equiv.coe_fn_mk, unpack_pack, unpack_map]
 
 /-! ## Constructors, destructor, and corecursor -/
 
@@ -117,16 +116,13 @@ def dest (computation : Resumption p β) : β ⊕ p.Obj (Resumption p β) :=
     pack (dest computation) = M.dest computation :=
   pack_unpack _
 
-/-- The computational destructor is injective, just as the underlying
-M-type destructor is. -/
-theorem eq_of_dest_eq {left right : Resumption p β} (h : dest left = dest right) :
-    left = right := by
-  apply M.eq_of_dest_eq
-  rw [← pack_dest left, ← pack_dest right, h]
+/-- The computational destructor is injective. -/
+theorem dest_injective : Function.Injective (dest (p := p) (β := β)) :=
+  viewEquiv.injective.comp M.dest_injective
 
 @[simp] theorem dest_inj {left right : Resumption p β} :
     dest left = dest right ↔ left = right :=
-  ⟨eq_of_dest_eq, fun h => h ▸ rfl⟩
+  dest_injective.eq_iff
 
 /-- Build a resumption from a return-or-query coalgebra. -/
 def corec {X : Type uX} (step : X → β ⊕ p.Obj X) (seed : X) : Resumption p β :=
@@ -141,19 +137,14 @@ def corec {X : Type uX} (step : X → β ⊕ p.Obj X) (seed : X) : Resumption p 
 
 @[simp] theorem dest_corec {X : Type uX} (step : X → β ⊕ p.Obj X) (seed : X) :
     dest (corec step seed) =
-      Sum.map (fun value : β => value) (p.map (corec step)) (step seed) := by
+      Sum.map id (p.map (corec step)) (step seed) := by
   unfold dest corec
   rw [M.dest_corec, unpack_map, unpack_pack]
 
 /-- Corecursing from the destructor reconstructs the original resumption. -/
 @[simp] theorem corec_dest (computation : Resumption p β) :
     corec dest computation = computation := by
-  unfold corec
-  have hstep : (fun state : Resumption p β => pack (dest state)) = M.dest := by
-    funext state
-    exact pack_dest state
-  rw [hstep]
-  exact M.corec_dest computation
+  simpa only [corec, pack_dest] using M.corec_dest computation
 
 /-! ## Coinduction and finality -/
 
@@ -172,6 +163,12 @@ inductive HeadMatch (R : Resumption p β → Resumption p β → Prop) :
       (right_dest : dest right = Sum.inr (.mk position right_next))
       (next_rel : ∀ direction, R (left_next direction) (right_next direction)) :
       HeadMatch R left right
+
+/-- Every resumption has a head matching itself. -/
+theorem HeadMatch.refl (computation : Resumption p β) : HeadMatch Eq computation computation := by
+  rcases h : dest computation with value | ⟨position, next⟩
+  · exact .pure value h h
+  · exact .query position next next h h (fun _ => rfl)
 
 /-- Strengthen the relation used below a matching pair of resumption heads. -/
 theorem HeadMatch.mono {R S : Resumption p β → Resumption p β → Prop}
@@ -208,13 +205,21 @@ coalgebra equation is the computational corecursor. -/
 theorem corec_unique {X : Type uX} (step : X → β ⊕ p.Obj X)
     (f : X → Resumption p β)
     (hf : ∀ state, dest (f state) =
-      Sum.map (fun value : β => value) (p.map f) (step state)) :
+      Sum.map id (p.map f) (step state)) :
     f = corec step := by
   unfold corec
   apply M.corec_unique (fun state => pack (step state)) f
   intro state
   rw [← pack_dest, hf]
   exact pack_sum_map f (step state)
+
+/-- A map of coalgebra states commutes with corecursion. -/
+theorem corec_comp {X : Type uX} {Y : Type uY}
+    (step : X → β ⊕ p.Obj X) (step' : Y → β ⊕ p.Obj Y) (f : X → Y)
+    (hf : ∀ x, step' (f x) = Sum.map id (p.map f) (step x)) :
+    corec step' ∘ f = corec step :=
+  M.corec_comp (pack ∘ step) (pack ∘ step') f
+    (fun x => by simpa only [Function.comp_apply, hf] using pack_sum_map f (step x))
 
 /-! ## Functorial and monadic structure -/
 
@@ -232,19 +237,10 @@ def bindStep (k : α → Resumption p β) :
     Resumption p α ⊕ Resumption p β →
       β ⊕ p.Obj (Resumption p α ⊕ Resumption p β)
   | Sum.inl computation =>
-      match dest computation with
-      | Sum.inl value =>
-          match dest (k value) with
-          | Sum.inl result => Sum.inl result
-          | Sum.inr (.mk position next) =>
-              Sum.inr (.mk position (fun direction => Sum.inr (next direction)))
-      | Sum.inr (.mk position next) =>
-          Sum.inr (.mk position (fun direction => Sum.inl (next direction)))
-  | Sum.inr computation =>
-      match dest computation with
-      | Sum.inl result => Sum.inl result
-      | Sum.inr (.mk position next) =>
-          Sum.inr (.mk position (fun direction => Sum.inr (next direction)))
+      (dest computation).elim
+        (fun value => Sum.map id (p.map Sum.inr) (dest (k value)))
+        (fun step => Sum.inr (p.map Sum.inl step))
+  | Sum.inr computation => Sum.map id (p.map Sum.inr) (dest computation)
 
 /-- Monadic bind on resumptions. Named bind permits source and target result
 types in different universes. -/
@@ -258,27 +254,9 @@ def map (f : α → β) (computation : Resumption p α) : Resumption p β :=
 
 private theorem corec_bindStep_inr (k : α → Resumption p β)
     (computation : Resumption p β) :
-    corec (bindStep k) (Sum.inr computation) = computation := by
-  refine M.bisim
-    (fun left right => left = corec (bindStep k) (Sum.inr right)) ?_ _ _ rfl
-  rintro left right rfl
-  rcases h : dest right with result | ⟨position, next⟩
-  · refine ⟨Sum.inr result, PEmpty.elim, PEmpty.elim, ?_, ?_, fun direction => ?_⟩
-    · rw [← pack_dest, ← pack_inl]
-      apply congrArg pack
-      simp only [dest_corec, bindStep, h, Sum.map_inl]
-    · rw [← pack_dest, ← pack_inl]
-      exact congrArg pack h
-    · exact direction.elim
-  · refine ⟨Sum.inl position,
-      (fun direction : p.B position => corec (bindStep k) (Sum.inr (next direction))),
-      next, ?_, ?_, fun direction => rfl⟩
-    · rw [← pack_dest, ← pack_inr]
-      apply congrArg pack
-      simp only [dest_corec, bindStep, h]
-      rfl
-    · rw [← pack_dest, ← pack_inr]
-      exact congrArg pack h
+    corec (bindStep k) (Sum.inr computation) = computation :=
+  (congrFun (corec_comp dest (bindStep k) Sum.inr (fun _ => rfl)) computation).trans
+    (corec_dest computation)
 
 @[simp] theorem dest_bind (computation : Resumption p α) (k : α → Resumption p β) :
     dest (bind computation k) =
@@ -290,83 +268,48 @@ private theorem corec_bindStep_inr (k : α → Resumption p β)
   rw [dest_corec]
   rcases h : dest computation with value | ⟨position, next⟩
   · rcases hk : dest (k value) with result | ⟨position, next⟩
-    · simp [bindStep, h, hk]
-    · simp only [bindStep, h, hk]
-      apply congrArg Sum.inr
-      apply Sigma.ext
-      · rfl
-      · apply heq_of_eq
-        funext direction
-        exact corec_bindStep_inr k (next direction)
+    <;> simp [bindStep, h, hk, PFunctor.map, Function.comp_def, corec_bindStep_inr]
   · simp only [bindStep, h]
     rfl
 
 @[simp] theorem bind_pure_left (value : α) (k : α → Resumption p β) :
     bind (pure value) k = k value := by
-  apply eq_of_dest_eq
+  apply dest_injective
   simp
 
 @[simp] theorem bind_query (position : p.A) (next : p.B position → Resumption p α)
     (k : α → Resumption p β) :
     bind (query position next) k = query position (fun direction => bind (next direction) k) := by
-  apply eq_of_dest_eq
+  apply dest_injective
   simp
 
 @[simp] theorem bind_pure_right (computation : Resumption p α) :
     bind computation pure = computation := by
-  refine M.bisim
-    (fun (left right : Resumption p α) =>
-      ∃ source : Resumption p α, left = bind source pure ∧ right = source) ?_
-    _ _ ⟨computation, rfl, rfl⟩
-  rintro left right ⟨source, hleft, hright⟩
-  rw [hleft, hright]
-  rcases h : dest source with value | ⟨position, next⟩
-  · refine ⟨Sum.inr value, PEmpty.elim, PEmpty.elim, ?_, ?_, fun direction => ?_⟩
-    · rw [← pack_dest, ← pack_inl]
-      apply congrArg pack
-      simp [dest_bind, h]
-    · rw [← pack_dest, ← pack_inl]
-      exact congrArg pack h
-    · exact direction.elim
-  · refine ⟨Sum.inl position, (fun direction : p.B position => bind (next direction) pure), next,
-      ?_, ?_, fun direction => ⟨next direction, rfl, rfl⟩⟩
-    · rw [← pack_dest, ← pack_inr]
-      apply congrArg pack
-      simp [dest_bind, h]
-    · rw [← pack_dest, ← pack_inr]
-      exact congrArg pack h
+  refine bisim (fun left right => left = bind right pure) ?_ rfl
+  rintro _ right rfl
+  rcases h : dest right with value | ⟨position, next⟩
+  · exact .pure value (by simp [dest_bind, h]) h
+  · exact .query position (fun direction => bind (next direction) pure) next
+      (by simp [dest_bind, h]) h (fun _ => rfl)
 
 theorem bind_assoc (computation : Resumption p α) (k : α → Resumption p β)
     (k' : β → Resumption p γ) :
     bind (bind computation k) k' = bind computation (fun value => bind (k value) k') := by
-  refine M.bisim
+  refine bisim
     (fun (left right : Resumption p γ) => left = right ∨ ∃ source : Resumption p α,
       left = bind (bind source k) k' ∧
       right = bind source (fun value => bind (k value) k')) ?_
-    _ _ (Or.inr ⟨computation, rfl, rfl⟩)
-  rintro left right hrel
-  rcases hrel with hEq | ⟨source, hleft, hright⟩
-  · subst left
-    rcases h : M.dest right with ⟨shape, next⟩
-    exact ⟨shape, next, next, rfl, rfl, fun _ => Or.inl rfl⟩
-  · rw [hleft, hright]
-    rcases h : dest source with value | ⟨position, next⟩
+    (Or.inr ⟨computation, rfl, rfl⟩)
+  rintro left right (rfl | ⟨source, rfl, rfl⟩)
+  · exact (HeadMatch.refl _).mono Or.inl
+  · rcases h : dest source with value | ⟨position, next⟩
     · rw [show source = pure value by
-        apply eq_of_dest_eq
+        apply dest_injective
         simpa using h]
       simp only [bind_pure_left]
-      rcases hk : M.dest (bind (k value) k') with ⟨shape, next⟩
-      exact ⟨shape, next, next, rfl, rfl, fun _ => Or.inl rfl⟩
-    · refine ⟨Sum.inl position,
-        (fun direction : p.B position => bind (bind (next direction) k) k'),
-        (fun direction : p.B position => bind (next direction) (fun value => bind (k value) k')),
-        ?_, ?_, fun direction => Or.inr ⟨next direction, rfl, rfl⟩⟩
-      · rw [← pack_dest, ← pack_inr]
-        apply congrArg pack
-        simp [dest_bind, h]
-      · rw [← pack_dest, ← pack_inr]
-        apply congrArg pack
-        simp [dest_bind, h]
+      exact (HeadMatch.refl _).mono Or.inl
+    · exact .query position _ _ (by simp [h]) (by simp [h])
+        (fun direction => Or.inr ⟨next direction, rfl, rfl⟩)
 
 @[simp] theorem map_pure (f : α → β) (value : α) :
     map f (pure (p := p) value) = pure (f value) := by
@@ -378,9 +321,7 @@ theorem bind_assoc (computation : Resumption p α) (k : α → Resumption p β)
   simp [map]
 
 @[simp] theorem map_id (computation : Resumption p α) :
-    map id computation = computation := by
-  change bind computation pure = computation
-  exact bind_pure_right computation
+    map id computation = computation := bind_pure_right computation
 
 theorem map_comp (g : β → γ) (f : α → β) (computation : Resumption p α) :
     map (g ∘ f) computation = map g (map f computation) := by
@@ -397,7 +338,7 @@ instance instMonad : Monad (Resumption p) where
   pure := pure
   bind := bind
 
-@[simp] theorem map_eq_functor_map (f : α → β) (computation : Resumption p α) :
+@[simp] theorem map_eq_map (f : α → β) (computation : Resumption p α) :
     f <$> computation = map f computation := rfl
 
 instance instLawfulMonad : LawfulMonad (Resumption p) := LawfulMonad.mk'

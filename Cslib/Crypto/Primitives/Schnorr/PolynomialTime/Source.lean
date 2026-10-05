@@ -400,7 +400,7 @@ theorem toMeasure_sample_privateForgery {Input : Type} {Q : PFunctor.{0, 0}}
       filter_upwards [FreeM.ae_canReturn μ bits] with coins hcoins
       have hlength : coins.length = clock := by
         simpa only [List.length_replicate] using
-          FreeM.length_of_canReturn_mapM (fun _ : Unit => bit) _ hcoins
+          List.length_of_canReturn_mapM (fun _ : Unit => bit) _ hcoins
       have hcount : FreeM.queryBound (machineSource coins).run * 2 ≤ (2 * clock : ℕ) := by
         calc
           _ ≤ (coins.length : ℕ∞) * 2 := by
@@ -824,7 +824,7 @@ theorem toMeasure_sample_runSignatureFromAnswers {Input : Type}
   filter_upwards [] with privateScalars
   have hlength : coins.length = implementation.clock (input a).length := by
     simpa only [List.length_replicate] using
-      FreeM.length_of_canReturn_mapM (fun _ : Unit => bit) _ hcoins
+      List.length_of_canReturn_mapM (fun _ : Unit => bit) _ hcoins
   simpa only [FreeM.toMeasure, map_eq_pure_bind, FreeM.denote_bind_of_discrete] using
     toMeasure_runSignatureFromAnswers element scalar μ implementation.machine (input a) coins
       (Snapshot.initial implementation.machine.initial) g pk privateScalars sample
@@ -1053,7 +1053,7 @@ theorem le_toMeasure_dlogReductionFromAnswers_typed {Input : Type}
       rw [hsaved]
       have hlength : coins.length = clock := by
         simpa only [List.length_replicate] using
-          FreeM.length_of_canReturn_mapM (fun _ : Unit => bit) _ hcoins
+          List.length_of_canReturn_mapM (fun _ : Unit => bit) _ hcoins
       exact hlength.le) hanswer
   have hfirst := toMeasure_sample_runSignatureFromAnswers element scalar μ implementation a
     source hsource bit sample hbit g pk

@@ -89,7 +89,7 @@ theorem canReturn_runConfigFrom_of_coins (machine : MultiTapePTM k Bool State Or
         refine ⟨cfg.step action symbol move, ?_, ih _ h⟩
         simp only [MultiTapePTM.step, hs]
         apply (FreeM.canReturn_bind _ _ _).mpr
-        exact ⟨bit, ⟨bit, rfl⟩, by simp [ha]⟩
+        exact ⟨bit, (by simp [coin]), by simp [ha]⟩
       | query oracle next =>
         rw [ha] at h
         obtain ⟨answer, _, h⟩ := (FreeM.canReturn_bind _ _ _).mp h
@@ -97,9 +97,9 @@ theorem canReturn_runConfigFrom_of_coins (machine : MultiTapePTM k Bool State Or
         refine ⟨cfg.receive oracle next answer, ?_, ih _ h⟩
         simp only [MultiTapePTM.step, hs]
         apply (FreeM.canReturn_bind _ _ _).mpr
-        refine ⟨bit, ⟨bit, rfl⟩, ?_⟩
+        refine ⟨bit, (by simp [coin]), ?_⟩
         rw [ha]
-        exact (FreeM.canReturn_bind _ _ _).mpr ⟨answer, ⟨answer, rfl⟩, rfl⟩
+        exact (FreeM.canReturn_bind _ _ _).mpr ⟨answer, (by simp [query]), rfl⟩
 
 /-- A pathwise clock is also valid for each saved tape of that length. -/
 theorem HaltsWithin.coins {machine : MultiTapePTM k Bool State Oracle} {fuel : ℕ}

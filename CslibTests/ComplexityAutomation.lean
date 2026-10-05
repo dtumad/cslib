@@ -102,7 +102,7 @@ variable {F G : Type} [Field F] [AddCommGroup G] [Module F G]
 abbrev scalarEffects (F : Type) : PFunctor := ⟨Unit, fun _ => F⟩
 
 local instance : WPMonad (scalarEffects F).FreeM Prop EStack⟨⟩ :=
-  FreeM.forallWP
+  FreeM.forallWP (fun _ => Set.univ)
 
 -- The same native Schnorr program supports structural WP reasoning. `vcgen` handles both
 -- samples and the monadic plumbing; the remaining obligation is the scheme's algebraic law.
@@ -123,7 +123,7 @@ set_option experimental.vcgen true
 
 variable {Oracle : Type}
 
-local instance : WPMonad (effects Oracle).FreeM Prop EStack⟨⟩ := FreeM.forallWP
+local instance : WPMonad (effects Oracle).FreeM Prop EStack⟨⟩ := FreeM.forallWP (fun _ => Set.univ)
 
 example (oracle : Oracle) (request : Word) :
     ⦃True⦄ (fun answer => request ++ answer) <$> query oracle request
@@ -149,7 +149,7 @@ example {F G State Ports : Type} [Field F] [AddCommGroup G] [Module F G] [Decida
     vcgen [Schnorr.realTranscript]
     exact Schnorr.accepts_respond g secret _ _
   obtain ⟨transcript, htranscript, hencode⟩ := hrealizes.canReturn hword
-  exact ⟨transcript, hencode, (FreeM.forallWP_iff _ _).mp (hspec.le_wp trivial) _ htranscript⟩
+  exact ⟨transcript, hencode, (FreeM.forallWP_univ_iff _ _).mp (hspec.le_wp trivial) _ htranscript⟩
 
 end MachineCorrectness
 

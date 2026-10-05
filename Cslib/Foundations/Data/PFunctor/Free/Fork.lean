@@ -117,10 +117,10 @@ theorem canReturn_fst_fork (select : P.A → Bool) (choose : α → Option ℕ) 
       obtain ⟨second, _, h⟩ := (canReturn_bind _ _ _).mp h
       have ho : out = (first.1, some ⟨op, answer, answer', second⟩) := h
       subst out
-      exact ⟨answer, ih answer _ (out := first) hfirst⟩
+      exact (canReturn_lift_bind op cont _).mpr ⟨answer, ih answer _ (out := first) hfirst⟩
     · have ho : out = first := h
       subst out
-      exact ⟨answer, ih answer _ hfirst⟩
+      exact (canReturn_lift_bind op cont _).mpr ⟨answer, ih answer _ hfirst⟩
 
 /-- Disabling the selector performs precisely one execution, with no extra effects. -/
 theorem fork_choose_none (select : P.A → Bool) (x : P.FreeM α) :

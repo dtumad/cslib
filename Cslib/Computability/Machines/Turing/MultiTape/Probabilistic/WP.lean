@@ -27,18 +27,18 @@ variable {Oracle : Type}
 /-- A structural proof must hold for either private coin. -/
 @[spec]
 theorem forallWP_coin_spec (post : Bool → Prop) (epost : EStack⟨⟩) :
-    letI : WPMonad (effects Oracle).FreeM Prop EStack⟨⟩ := FreeM.forallWP
+    letI : WPMonad (effects Oracle).FreeM Prop EStack⟨⟩ := FreeM.forallWP (fun _ => Set.univ)
     ⦃∀ bit, post bit⦄ coin (Oracle := Oracle) ⦃post; epost⦄ := by
-  let : WPMonad (effects Oracle).FreeM Prop EStack⟨⟩ := FreeM.forallWP
-  exact ⟨fun h => h⟩
+  let : WPMonad (effects Oracle).FreeM Prop EStack⟨⟩ := FreeM.forallWP (fun _ => Set.univ)
+  exact ⟨fun h bit _ => h bit⟩
 
 /-- A structural proof must allow every reply word, including malformed or oversized replies. -/
 @[spec]
 theorem forallWP_query_spec (oracle : Oracle) (request : List Bool)
     (post : List Bool → Prop) (epost : EStack⟨⟩) :
-    letI : WPMonad (effects Oracle).FreeM Prop EStack⟨⟩ := FreeM.forallWP
+    letI : WPMonad (effects Oracle).FreeM Prop EStack⟨⟩ := FreeM.forallWP (fun _ => Set.univ)
     ⦃∀ answer, post answer⦄ query oracle request ⦃post; epost⦄ := by
-  let : WPMonad (effects Oracle).FreeM Prop EStack⟨⟩ := FreeM.forallWP
-  exact ⟨fun h => h⟩
+  let : WPMonad (effects Oracle).FreeM Prop EStack⟨⟩ := FreeM.forallWP (fun _ => Set.univ)
+  exact ⟨fun h answer _ => h answer⟩
 
 end Turing.MultiTapePTM

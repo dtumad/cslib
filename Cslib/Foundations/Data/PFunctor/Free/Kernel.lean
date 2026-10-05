@@ -138,7 +138,7 @@ theorem runKernel_bind_congr_of_canReturn {X : Type uB}
     apply Measure.bind_congr_right
     refine Filter.Eventually.of_forall fun out => ih out.1 ?_ out.2
     intro x hx
-    exact h x ⟨out.1, hx⟩
+    exact h x ((canReturn_lift_bind op cont x).mpr ⟨out.1, hx⟩)
 
 /-- An isolated query has exactly its supplied answer-and-state kernel. -/
 @[simp]
@@ -316,7 +316,7 @@ theorem runKernel_ae_canReturn (program : P.FreeM α) (state : S) :
     intro out
     apply measure_mono_null _ (ae_iff.mp (ih out.1 out.2))
     intro result hresult hreturn
-    exact hresult ⟨out.1, hreturn⟩
+    exact hresult ((canReturn_lift_bind op cont result.1).mpr ⟨out.1, hreturn⟩)
 
 /-- If every answer has positive mass while keeping a fixed state, every reachable result
 has positive mass at that state. This applies to a full-support test interpretation. -/
@@ -329,7 +329,7 @@ theorem runKernel_singleton_ne_zero_of_canReturn (state : S)
     have heq : value = result := hvalue
     simp [heq]
   | lift_bind op cont ih =>
-    obtain ⟨answer, hanswer⟩ := hvalue
+    obtain ⟨answer, hanswer⟩ := (canReturn_lift_bind op cont value).mp hvalue
     rw [runKernel_bind, runKernel_lift,
       Measure.bind_apply MeasurableSet.of_discrete Measurable.of_discrete.aemeasurable]
     intro hzero

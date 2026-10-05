@@ -1,31 +1,18 @@
 /-
 Copyright (c) 2026 PolyFun Contributors. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Quang Dao
+Authors: Quang Dao, Devon Tuma
 -/
 module
 
 public import Mathlib.Data.PFunctor.Univariate.M
 public import Cslib.Foundations.Data.PFunctor.Basic
 
-/-! # Auxiliary lemmas for `PFunctor.M`
+/-!
+# Destructors and corecursion for polynomial M-types
 
-Small extensions to `Mathlib.Data.PFunctor.Univariate.M` used by the
-resumption construction, adapted from PolyFun.
-
-The Mathlib file already supplies `M.mk`, `M.dest`, `M.corec`, `M.dest_mk`,
-`M.mk_dest`, `M.dest_corec`, `M.corec_unique`, and the bisimulation principle
-`M.bisim`. We add a few rewriting helpers that come up repeatedly when
-defining and reasoning about ITrees:
-
-* `M.dest_inj` / `M.eq_of_dest_eq` — `M.dest` is injective on `M P` (since
-  it has a left inverse `M.mk`).
-* `M.dest_corec_apply` — `M.dest_corec` through the polynomial-object constructor.
-* `M.dest_corec_eq` — reformulation of `M.dest_corec` that lets `simp` see the
-  result as an explicit polynomial object.
-* `M.corec_eq_corec` — bisimulation principle for two `corec`s, the workhorse
-  for `bind`/`iter` rewriting.
-* `M.corec_dest` — `M.corec dest = id`. The corecursive identity.
+Injectivity, corecursion equations, and a bisimulation principle for corecursors.
+Adapted from PolyFun's polynomial M-type API.
 -/
 
 @[expose] public section
@@ -40,29 +27,14 @@ variable {P : PFunctor.{uA, uB}} {α : Type v}
 
 /-! ### Injectivity of `dest` -/
 
-/-- `M.dest` is injective: equal destructions imply equal `M`-values, since
-`M.mk` is a left inverse of `M.dest` (see `M.mk_dest`). -/
-theorem eq_of_dest_eq {u v : M P} (h : M.dest u = M.dest v) : u = v := by
-  rw [← M.mk_dest u, ← M.mk_dest v, h]
+/-- The destructor of a polynomial M-type is injective. -/
+theorem dest_injective : Function.Injective (M.dest (F := P)) :=
+  Function.LeftInverse.injective M.mk_dest
 
 @[simp] theorem dest_inj {u v : M P} : M.dest u = M.dest v ↔ u = v :=
-  ⟨eq_of_dest_eq, fun h => h ▸ rfl⟩
+  dest_injective.eq_iff
 
-/-! ### Corec helpers -/
-
-/-- The shape and children of a corecursive polynomial tree. -/
-theorem dest_corec_apply (g : α → P α) (x : α) :
-    M.dest (M.corec g x) = .mk ((g x).fst) (fun b => M.corec g ((g x).snd b)) := by
-  rw [M.dest_corec]
-  rfl
-
-/-- Pointwise version of `dest_corec_apply` with an explicit shape and child family,
-convenient when the right-hand side of a `corec` step is already known
-explicitly. -/
-theorem dest_corec_eq {a : P.A} {h : P.B a → α} (g : α → P α) (x : α) (heq : g x = .mk a h) :
-    M.dest (M.corec g x) = .mk a (fun b => M.corec g (h b)) := by
-  rw [dest_corec_apply, heq]
-  rfl
+/-! ### Corecursion -/
 
 /-- Bisimulation principle specialized to two `corec`s built from the same
 shape transformer. If at every reachable state the two seed transitions agree
@@ -83,17 +55,14 @@ theorem corec_eq_corec {α : Type v} {β : Type w} (g : α → P α) (h : β →
   · rw [dest_corec, hf']; rfl
   · intro i; exact ⟨f i, f' i, hR' i, rfl, rfl⟩
 
-/-- `M.corec dest = id`. The corecursive identity. Together with
-`M.corec_unique` it characterises `corec` as the unique solution to
-`dest ∘ f = map f ∘ g`. -/
-theorem corec_dest (u : M P) : M.corec M.dest u = u := by
-  refine M.bisim (fun a b => a = M.corec M.dest b) ?_ _ _ rfl
-  rintro a b rfl
-  refine ⟨(M.dest b).fst, (fun i => M.corec M.dest ((M.dest b).snd i)),
-    (M.dest b).snd, ?_, ?_, ?_⟩
-  · rw [dest_corec_apply]
-  · rfl
-  · intro i; rfl
+/-- A coalgebra morphism commutes with corecursion. -/
+theorem corec_comp {β : Type w} (g : α → P α) (h : β → P β) (f : α → β)
+    (hf : ∀ x, h (f x) = P.map f (g x)) : M.corec h ∘ f = M.corec g :=
+  M.corec_unique g _ (fun x => by rw [Function.comp_apply, M.dest_corec, hf, P.map_map])
+
+/-- Corecursing from the destructor reconstructs the original tree. -/
+@[simp] theorem corec_dest (u : M P) : M.corec M.dest u = u :=
+  congrFun (M.corec_unique M.dest id (fun _ => rfl)).symm u
 
 end M
 

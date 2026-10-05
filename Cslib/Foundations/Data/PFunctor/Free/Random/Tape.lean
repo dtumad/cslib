@@ -6,6 +6,7 @@ Authors: Devon Tuma
 
 module
 
+public import Cslib.Foundations.Control.Monad.MonadAttach
 public import Cslib.Foundations.Data.PFunctor.Free.Measure
 public import Cslib.Foundations.Data.PFunctor.Free.Cost
 public import Cslib.Foundations.MeasureTheory.Option
@@ -76,7 +77,8 @@ theorem canReturn_of_runFromAnswers
   | lift_bind op cont ih =>
     cases answers with
     | nil => cases h
-    | cons answer rest => exact ⟨answer, ih answer rest h⟩
+    | cons answer rest =>
+      exact (canReturn_lift_bind op cont value).mpr ⟨answer, ih answer rest h⟩
 
 /-- Every tape at least as long as the worst-case query count suffices, regardless of its
 contents. This is independent of any sampling distribution. -/
@@ -137,7 +139,7 @@ theorem bind_replicate_add (sample : P.FreeM Answer) (first second : ℕ)
   apply bind_congr_of_canReturn
   intro before hbefore
   have hlength : before.length = first := by
-    simpa only [List.length_replicate] using length_of_canReturn_mapM _ _ hbefore
+    simpa only [List.length_replicate] using List.length_of_canReturn_mapM _ _ hbefore
   apply bind_congr
   intro after
   simp [← hlength]

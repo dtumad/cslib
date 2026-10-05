@@ -1,5 +1,5 @@
 /-
-Copyright (c) 2026 Devon Tuma. All rights reserved.
+Copyright (c) 2026 PolyFun Contributors. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Devon Tuma
 -/
@@ -7,7 +7,10 @@ Authors: Devon Tuma
 module
 
 public import Cslib.Foundations.Data.PFunctor.Free.MonadAttach
+public import Cslib.Foundations.Control.Monad.ExactWP
 public import Std.WP.Monad.Basic
+public import Std.WP.Monad.Sound
+public import Std.WP.Conjunctive
 public import Std.WP.EStack
 public import Std.WP.Triple.Basic
 
@@ -55,6 +58,19 @@ def wpMonad [Assertion Pred] [Assertion EPred]
     rw [← liftM_bind]
     exact PartialOrder.rel_refl
 
+instance instExactWPMonad [Assertion Pred] [Assertion EPred]
+    (interp : (op : P.A) → PredTrans Pred EPred (P.B op))
+    (hinterp : ∀ op, (interp op).monotone) :
+    @Cslib.ExactWPMonad P.FreeM Pred EPred _ _ _ (wpMonad interp hinterp) := by
+  let : WPMonad P.FreeM Pred EPred := wpMonad interp hinterp
+  constructor
+  · intro α a post epost
+    exact PartialOrder.rel_refl
+  · intro α β x f post epost
+    change ((x >>= f).liftM interp).apply post epost ⊑ _
+    rw [liftM_bind]
+    exact PartialOrder.rel_refl
+
 /-- This interpretation is the ordinary monadic fold into `PredTrans`. -/
 theorem wpMonad_wp [Assertion Pred] [Assertion EPred]
     (interp : (op : P.A) → PredTrans Pred EPred (P.B op))
@@ -78,6 +94,19 @@ def wpMonadOfHandler {m : Type uB → Type z} [Monad m]
     rw [liftM_bind]
     exact WPMonad.bind_le_wp_bind _ _ _ _
 
+instance instExactWPMonadOfHandler {m : Type uB → Type z} [Monad m]
+    [Assertion Pred] [Assertion EPred] [WPMonad m Pred EPred]
+    [Cslib.ExactWPMonad m Pred EPred] (interp : (op : P.A) → m (P.B op)) :
+    @Cslib.ExactWPMonad P.FreeM Pred EPred _ _ _ (wpMonadOfHandler interp) := by
+  let : WPMonad P.FreeM Pred EPred := wpMonadOfHandler interp
+  constructor
+  · intro α a post epost
+    exact Cslib.ExactWPMonad.pure_wp_le (m := m) a post epost
+  · intro α β x f post epost
+    change wp ((x >>= f).liftM interp) post epost ⊑ _
+    rw [liftM_bind]
+    exact Cslib.ExactWPMonad.wp_bind_le (m := m) _ _ _ _
+
 /-- Per-operation lower bounds extend to a lower bound for the interpreted program. -/
 theorem liftM_le_wp {m : Type uB → Type z} [Monad m]
     [Assertion Pred] [Assertion EPred] [WPMonad m Pred EPred]
@@ -94,37 +123,108 @@ theorem liftM_le_wp {m : Type uB → Type z} [Monad m]
     apply PartialOrder.rel_trans (WP.wp_consequence (interp op) _ _ epost ih)
     exact WPMonad.bind_le_wp_bind _ _ _ _
 
-/-- Universal quantification over responses gives precisely structural partial correctness. -/
-theorem liftM_forall_iff (x : P.FreeM α) (post : α → Prop) :
-    (x.liftM (fun _ => (⟨fun post (_ : PUnit) => ∀ b, post b⟩ :
-      PredTrans Prop PUnit _))).apply post ⟨⟩ ↔
-        ∀ a, MonadAttach.CanReturn x a → post a := by
-  induction x with
-  | pure a => simp
-  | lift_bind op cont ih =>
-    change (∀ b, _) ↔ _
-    simp only [pure_bind, ih, canReturn_lift_bind]
-    exact ⟨fun h a ⟨b, hb⟩ => h b a hb, fun h b a hb => h a ⟨b, hb⟩⟩
-
-/-- Structural correctness: the postcondition holds for every sequence of operation responses.
-Install this reading locally to use core `vcgen` on native free programs. -/
+/-- The postcondition holds for every execution using the chosen response sets.
+Install this interpretation locally to use core `vcgen` on native free programs. -/
 @[instance_reducible]
-def forallWP : WPMonad P.FreeM Prop EStack⟨⟩ :=
-  wpMonad (fun _ => ⟨fun post _ => ∀ value, post value⟩)
-    (fun _ _ _ _ _ _ h hp value => h value (hp value))
+def forallWP (responses : (op : P.A) → Set (P.B op)) : WPMonad P.FreeM Prop EStack⟨⟩ :=
+  wpMonad (fun op => ⟨fun post _ => ∀ value ∈ responses op, post value⟩)
+    (fun _ _ _ _ _ _ h hp value hv => h value (hp value hv))
 
-/-- The structural reading is exactly the free program's reachable-output predicate. -/
-theorem forallWP_iff (x : P.FreeM α) (post : α → Prop) :
-    ((forallWP (P := P)).toWP α).wp x post () ↔
+instance instExactWPMonadForallWP (responses : (op : P.A) → Set (P.B op)) :
+    @Cslib.ExactWPMonad P.FreeM Prop EStack⟨⟩ _ _ _ (forallWP responses) :=
+  instExactWPMonad _ _
+
+/-- The universal interpretation quantifies over precisely the chosen possible outputs. -/
+theorem forallWP_iff (responses : (op : P.A) → Set (P.B op))
+    (x : P.FreeM α) (post : α → Prop) :
+    ((forallWP responses).toWP α).wp x post () ↔
+      ∀ a ∈ x.possibleOutputs responses, post a := by
+  change (x.liftM (fun op =>
+    (⟨fun post (_ : EStack⟨⟩) => ∀ b ∈ responses op, post b⟩ :
+      PredTrans Prop EStack⟨⟩ _))).apply post () ↔ _
+  induction x with
+  | pure a =>
+    change post a ↔ ∀ b, b = a → post b
+    simp
+  | lift_bind op cont ih =>
+    change (∀ b ∈ responses op, _) ↔ _
+    simp only [pure_bind, ih, possibleOutputs_lift_bind, Set.mem_iUnion, exists_prop,
+      forall_exists_index, and_imp]
+    exact ⟨fun h a b hb ha => h b hb a ha, fun h b hb a ha => h a b hb ha⟩
+
+/-- The all-responses interpretation is structural partial correctness. -/
+theorem forallWP_univ_iff (x : P.FreeM α) (post : α → Prop) :
+    ((forallWP (P := P) (fun _ => Set.univ)).toWP α).wp x post () ↔
       ∀ a, MonadAttach.CanReturn x a → post a :=
-  liftM_forall_iff x post
+  forallWP_iff _ x post
 
-/-- Structural `vcgen` treats each operation response universally, without unfolding `FreeM`. -/
 @[spec]
-theorem forallWP_lift_spec (op : P.A) (post : P.B op → Prop) (epost : EStack⟨⟩) :
-    letI : WPMonad P.FreeM Prop EStack⟨⟩ := forallWP
-    ⦃∀ value, post value⦄ lift op ⦃post; epost⦄ := by
-  let : WPMonad P.FreeM Prop EStack⟨⟩ := forallWP
+theorem forallWP_lift_spec (responses : (op : P.A) → Set (P.B op))
+    (op : P.A) (post : P.B op → Prop) (epost : EStack⟨⟩) :
+    letI : WPMonad P.FreeM Prop EStack⟨⟩ := forallWP responses
+    ⦃∀ value ∈ responses op, post value⦄ lift op ⦃post; epost⦄ := by
+  let : WPMonad P.FreeM Prop EStack⟨⟩ := forallWP responses
+  exact ⟨fun h => h⟩
+
+instance instLawfulWPMonadAttachForallWP :
+    @LawfulWPMonadAttach P.FreeM Prop EStack⟨⟩ _ _ _ _ _
+      (forallWP (P := P) (fun _ => Set.univ)) := by
+  let : WPMonad P.FreeM Prop EStack⟨⟩ := forallWP (fun _ => Set.univ)
+  refine ⟨fun hcan hwp => ?_⟩
+  have h := of_top_le_prop hwp
+  simp only [ofProp_prop_eq] at h
+  exact (forallWP_univ_iff _ _).mp h _ hcan
+
+/-- A universal interpretation preserves conjunction, for any choice of responses. -/
+theorem forallWP_conjunctive (responses : (op : P.A) → Set (P.B op))
+    (x : P.FreeM α) :
+    letI : WPMonad P.FreeM Prop EStack⟨⟩ := forallWP responses
+    WPConjunctive x := by
+  let : WPMonad P.FreeM Prop EStack⟨⟩ := forallWP responses
+  constructor
+  intro Q₁ Q₂ E₁ E₂
+  simp only [meet_prop_eq_and]
+  intro h
+  apply (forallWP_iff responses x _).mpr
+  intro a ha
+  simp only [meet_apply, meet_prop_eq_and]
+  exact ⟨(forallWP_iff responses x Q₁).mp h.1 a ha,
+    (forallWP_iff responses x Q₂).mp h.2 a ha⟩
+
+/-- Some execution using the chosen response sets establishes the postcondition. -/
+@[instance_reducible]
+def existsWP (responses : (op : P.A) → Set (P.B op)) : WPMonad P.FreeM Prop EStack⟨⟩ :=
+  wpMonad (fun op => ⟨fun post _ => ∃ value ∈ responses op, post value⟩)
+    (fun _ _ _ _ _ _ h ⟨value, hv, hp⟩ => ⟨value, hv, h value hp⟩)
+
+instance instExactWPMonadExistsWP (responses : (op : P.A) → Set (P.B op)) :
+    @Cslib.ExactWPMonad P.FreeM Prop EStack⟨⟩ _ _ _ (existsWP responses) :=
+  instExactWPMonad _ _
+
+/-- The existential interpretation selects one of the chosen possible outputs. -/
+theorem existsWP_iff (responses : (op : P.A) → Set (P.B op))
+    (x : P.FreeM α) (post : α → Prop) :
+    ((existsWP responses).toWP α).wp x post () ↔
+      ∃ a ∈ x.possibleOutputs responses, post a := by
+  change (x.liftM (fun op =>
+    (⟨fun post (_ : EStack⟨⟩) => ∃ b ∈ responses op, post b⟩ :
+      PredTrans Prop EStack⟨⟩ _))).apply post () ↔ _
+  induction x with
+  | pure a =>
+    change post a ↔ ∃ b, b = a ∧ post b
+    simp
+  | lift_bind op cont ih =>
+    change (∃ b ∈ responses op, _) ↔ _
+    simp only [pure_bind, ih, possibleOutputs_lift_bind, Set.mem_iUnion, exists_prop]
+    exact ⟨fun ⟨b, hb, a, ha, hp⟩ => ⟨a, ⟨b, hb, ha⟩, hp⟩,
+      fun ⟨a, ⟨b, hb, ha⟩, hp⟩ => ⟨b, hb, a, ha, hp⟩⟩
+
+@[spec]
+theorem existsWP_lift_spec (responses : (op : P.A) → Set (P.B op))
+    (op : P.A) (post : P.B op → Prop) (epost : EStack⟨⟩) :
+    letI : WPMonad P.FreeM Prop EStack⟨⟩ := existsWP responses
+    ⦃∃ value ∈ responses op, post value⦄ lift op ⦃post; epost⦄ := by
+  let : WPMonad P.FreeM Prop EStack⟨⟩ := existsWP responses
   exact ⟨fun h => h⟩
 
 end PFunctor.FreeM

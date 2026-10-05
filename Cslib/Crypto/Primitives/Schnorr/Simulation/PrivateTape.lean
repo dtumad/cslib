@@ -59,7 +59,8 @@ private theorem isMonadHom_interpretPrivateSignature :
       ((FreeM.isMonadHom_runTracedFromAnswers (Operation := M × G) (Answer := F)).stateT _))
   convert hf using 1
   funext α action state
-  simp [interpretPrivateSignature, repr, Option.map_map, Function.comp_def, StateT.run]
+  simp [interpretPrivateSignature, repr, Option.map_map, Function.comp_def,
+    StateT.mapMonad, StateT.mk, StateT.run]
 
 variable {F G M : Type} [Field F] [AddCommGroup G] [Module F G]
   [DecidableEq M] [DecidableEq G]
@@ -469,7 +470,7 @@ theorem toMeasure_liftM_privateSignatureHandler {α : Type}
   let handler := simulatedSignatureHandler (P := 0) (F := F) (G := G) (M := M)
     (fun op => isEmptyElim op) (FreeM.lift (P := privateEffects M G F) (.inr ()))
     (fun input => FreeM.lift (P := privateEffects M G F) (.inl input)) g pk
-  have hhandler : (fun op state => OptionT.mk (((handler op) state).run.liftM merge)) =
+  have hhandler : (fun op => StateT.mapMonad (OptionT.mapMonad (FreeM.liftM merge)) (handler op)) =
       simulatedSignatureHandler (P := 0) (fun op => isEmptyElim op) sample
         (FreeM.lift (P := PFunctor.mk (M × G) (fun _ => F))) g pk := by
     funext op state
@@ -482,11 +483,11 @@ theorem toMeasure_liftM_privateSignatureHandler {α : Type}
     | inr op =>
       cases op <;>
       simpa only [FreeM.liftM_lift (P := privateEffects M G F), merge, handler,
-        simulatedSignatureHandler, StateT.run, OptionT.run, OptionT.mk] using h
+        simulatedSignatureHandler, StateT.mapMonad, StateT.mk, OptionT.mapMonad,
+        StateT.run, OptionT.run, OptionT.mk] using h
   have h := congrFun (((FreeM.isMonadHom_liftM merge).optionT.stateT
     (List M × List ((M × G) × F))).map_pfunctorFreeMLiftM handler program) state
   change ((action state).run.liftM merge) = _ at h
-  simp only [StateT.run] at h
   rw [hhandler] at h
   apply congrArg (FreeM.denote μ)
   convert h using 1
@@ -603,7 +604,7 @@ theorem toMeasure_privateForgery_liftM {Q : PFunctor.{0, 0}} [Nonempty M]
   have h := toMeasure_privateForgery ν draw g pk program count hcount
   let handler := simulatedSignatureHandler (P := 0) (fun op => isEmptyElim op) draw
     (FreeM.lift (P := PFunctor.mk (M × G) (fun _ => F))) g pk
-  have hhandler : (fun op state => OptionT.mk (((handler op) state).run.liftM close)) =
+  have hhandler : (fun op => StateT.mapMonad (OptionT.mapMonad (FreeM.liftM close)) (handler op)) =
       simulatedSignatureHandler (P := 0) (fun op => isEmptyElim op) sample
         (fun _ => sample) g pk := by
     funext op state
@@ -621,7 +622,6 @@ theorem toMeasure_privateForgery_liftM {Q : PFunctor.{0, 0}} [Nonempty M]
       close, StateT.run, OptionT.mk] using hm
   have hstate := congrFun (((FreeM.isMonadHom_liftM close).optionT.stateT
     (List M × List ((M × G) × F))).map_pfunctorFreeMLiftM handler program.run) ([], [])
-  dsimp only [StateT.run] at hstate
   rw [hhandler] at hstate
   have hstate := congrArg OptionT.run hstate
   change ((program.run.liftM handler) ([], [])).run.liftM close =

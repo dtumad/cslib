@@ -187,7 +187,7 @@ theorem ae_canReturn (x : P.FreeM α) : ∀ᵐ a ∂denote μ x, MonadAttach.Can
     intro answer
     apply measure_mono_null _ ((ae_iff.mp (ih answer)))
     intro a ha hreturn
-    exact ha ⟨answer, hreturn⟩
+    exact ha ((canReturn_lift_bind op cont a).mpr ⟨answer, hreturn⟩)
 
 end Support
 

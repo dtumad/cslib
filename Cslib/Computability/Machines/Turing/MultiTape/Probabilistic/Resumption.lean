@@ -58,7 +58,7 @@ private theorem corec_query (machine : MultiTapePTM k Bool State Oracle)
     Resumption.corec (executionStep machine) (.inr (cfg, oracle, next)) =
       Resumption.query (p := effects Oracle) (.inr (oracle, (cfg.channels oracle).queryBuffer))
         (fun answer => machine.runUnbounded (cfg.receive oracle next answer)) := by
-  apply Resumption.eq_of_dest_eq
+  apply Resumption.dest_injective
   rw [Resumption.dest_corec, Resumption.dest_query]
   rfl
 
@@ -66,7 +66,7 @@ private theorem corec_query (machine : MultiTapePTM k Bool State Oracle)
 theorem runUnbounded_halted (machine : MultiTapePTM k Bool State Oracle)
     (cfg : Config k Bool State Oracle input) (h : cfg.tapes.state = none) :
     machine.runUnbounded cfg = Resumption.pure cfg := by
-  apply Resumption.eq_of_dest_eq
+  apply Resumption.dest_injective
   simp [runUnbounded, Resumption.dest_corec, executionStep, h]
 
 /-- One live machine transition, including a possible named request. -/
@@ -79,7 +79,7 @@ theorem runUnbounded_live (machine : MultiTapePTM k Bool State Oracle)
       | .query oracle next =>
         Resumption.query (p := effects Oracle) (.inr (oracle, (cfg.channels oracle).queryBuffer))
           (fun answer => machine.runUnbounded (cfg.receive oracle next answer))) := by
-  apply Resumption.eq_of_dest_eq
+  apply Resumption.dest_injective
   simp only [runUnbounded, Resumption.dest_corec, executionStep, h, Sum.map_inr,
     Resumption.dest_query, PFunctor.map]
   congr 2
@@ -114,7 +114,7 @@ theorem HaltsWithin.runUnbounded_eq {machine : MultiTapePTM k Bool State Oracle}
         apply (FreeM.canReturn_bind _ _ _).mpr
         refine ⟨cfg.step action symbol move, ?_, hfinal⟩
         simp only [step, hs]
-        exact (FreeM.canReturn_bind _ _ _).mpr ⟨bit, ⟨bit, rfl⟩, by simp [ha]⟩
+        exact (FreeM.canReturn_bind _ _ _).mpr ⟨bit, by simp [coin], by simp [ha]⟩
       | query oracle next =>
         simp only [FreeM.pure_bind, ha, bind_assoc]
         change Resumption.query _ _ = Resumption.query _ _
@@ -127,8 +127,8 @@ theorem HaltsWithin.runUnbounded_eq {machine : MultiTapePTM k Bool State Oracle}
         refine ⟨cfg.receive oracle next answer, ?_, hfinal⟩
         simp only [step, hs]
         apply (FreeM.canReturn_bind _ _ _).mpr
-        refine ⟨bit, ⟨bit, rfl⟩, ?_⟩
+        refine ⟨bit, by simp [coin], ?_⟩
         rw [ha]
-        exact (FreeM.canReturn_bind _ _ _).mpr ⟨answer, ⟨answer, rfl⟩, rfl⟩
+        exact (FreeM.canReturn_bind _ _ _).mpr ⟨answer, by simp [query], rfl⟩
 
 end Turing.MultiTapePTM

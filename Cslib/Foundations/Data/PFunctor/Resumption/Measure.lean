@@ -152,17 +152,17 @@ theorem returnedMeasure_bind (x : Resumption P α) (f : α → Resumption P β)
     induction k generalizing x with
     | zero =>
       rcases hx : dest x with a | ⟨op, cont⟩
-      · have heq : x = pure a := eq_of_dest_eq (by simpa using hx)
+      · have heq : x = pure a := dest_injective (by simpa using hx)
         rw [heq, bind_pure_left, returnedMeasure_pure, Measure.dirac_bind hf]
         exact le_iSup (outputMeasure μ · (f a)) 0
       · simp only [outputMeasure, dest_bind, hx]
         exact bot_le
     | succ k ih =>
       rcases hx : dest x with a | ⟨op, cont⟩
-      · have heq : x = pure a := eq_of_dest_eq (by simpa using hx)
+      · have heq : x = pure a := dest_injective (by simpa using hx)
         rw [heq, bind_pure_left, returnedMeasure_pure, Measure.dirac_bind hf]
         exact le_iSup (outputMeasure μ · (f a)) (k + 1)
-      · have heq : x = query op cont := eq_of_dest_eq (by rw [dest_query]; exact hx)
+      · have heq : x = query op cont := dest_injective (by rw [dest_query]; exact hx)
         rw [heq, bind_query, outputMeasure_query_succ, returnedMeasure_query,
           Measure.bind_bind Measurable.of_discrete.aemeasurable hf.aemeasurable]
         exact Measure.bind_mono_right_of_forall Measurable.of_discrete.aemeasurable
@@ -173,15 +173,15 @@ theorem returnedMeasure_bind (x : Resumption P α) (f : α → Resumption P β)
     induction k generalizing x with
     | zero =>
       rcases hx : dest x with a | ⟨op, cont⟩
-      · have heq : x = pure a := eq_of_dest_eq (by simpa using hx)
+      · have heq : x = pure a := dest_injective (by simpa using hx)
         simp [heq, Measure.dirac_bind hf]
       · simp only [outputMeasure, hx, Measure.bind_zero_left]
         exact bot_le
     | succ k ih =>
       rcases hx : dest x with a | ⟨op, cont⟩
-      · have heq : x = pure a := eq_of_dest_eq (by simpa using hx)
+      · have heq : x = pure a := dest_injective (by simpa using hx)
         simp [heq, Measure.dirac_bind hf]
-      · have heq : x = query op cont := eq_of_dest_eq (by rw [dest_query]; exact hx)
+      · have heq : x = query op cont := dest_injective (by rw [dest_query]; exact hx)
         rw [heq, outputMeasure_query_succ, bind_query, returnedMeasure_query,
           Measure.bind_bind Measurable.of_discrete.aemeasurable hf.aemeasurable]
         exact Measure.bind_mono_right_of_forall Measurable.of_discrete.aemeasurable

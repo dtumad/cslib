@@ -307,8 +307,8 @@ theorem map_simulatedForgery
     f (simulatedForgery ambient sample hashSample g pk adversary).run =
       (simulatedForgery (fun op => f (ambient op)) (f sample)
         (fun input => f (hashSample input)) g pk adversary).run := by
-  have hhandler : (fun op state => OptionT.mk
-      (f ((simulatedSignatureHandler ambient sample hashSample g pk op).run state).run)) =
+  have hhandler : (fun op => StateT.mapMonad (OptionT.mapMonad f)
+      (simulatedSignatureHandler ambient sample hashSample g pk op)) =
       simulatedSignatureHandler (fun op => f (ambient op)) (f sample)
         (fun input => f (hashSample input)) g pk := by
     funext op state
@@ -317,7 +317,7 @@ theorem map_simulatedForgery
     (List M × List ((M × G) × F))).map_pfunctorFreeMLiftM
       (simulatedSignatureHandler ambient sample hashSample g pk) (adversary pk)) ([], [])
   rw [hhandler] at hstate
-  dsimp only [OptionT.mk, OptionT.run, StateT.run] at hstate
+  dsimp only [StateT.mapMonad, OptionT.mapMonad, StateT.mk, OptionT.run, StateT.run] at hstate
   dsimp only [simulatedForgery, OptionT.run, Bind.bind, OptionT.bind, OptionT.mk, StateT.run]
   rw [hf.map_bind, hstate]
   congr 1
