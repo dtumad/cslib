@@ -8,6 +8,7 @@ module
 public import Cslib.Init
 
 public import Batteries.Control.AlternativeMonad
+public import Mathlib.Tactic.Attr.Core
 public import Std.Do.WP.Monad
 
 /-!

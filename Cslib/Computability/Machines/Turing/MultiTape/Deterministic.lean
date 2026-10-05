@@ -188,6 +188,19 @@ lemma step_of_halt {cfg : Cfg k Symbol State input} (h : cfg.state = none) :
 If the Turing machine halts, it will stay at the halting configuration. -/
 def runFrom (cfg : Cfg k Symbol State input) (t : ℕ) : Cfg k Symbol State input := tm.step^[t] cfg
 
+@[simp] lemma runFrom_zero (tm : MultiTapeTM k Symbol State) (cfg : Cfg k Symbol State input) :
+    tm.runFrom cfg 0 = cfg := rfl
+
+lemma runFrom_one (tm : MultiTapeTM k Symbol State) (cfg : Cfg k Symbol State input) :
+    tm.runFrom cfg 1 = tm.step cfg := rfl
+
+/-- Execution for two consecutive time intervals composes on the intermediate configuration. -/
+lemma runFrom_add (tm : MultiTapeTM k Symbol State) (cfg : Cfg k Symbol State input)
+    (first second : ℕ) :
+    tm.runFrom cfg (first + second) = tm.runFrom (tm.runFrom cfg first) second := by
+  rw [Nat.add_comm first second, runFrom, Function.iterate_add_apply]
+  rfl
+
 /-- Nothing changes after the machine has halted. -/
 lemma runFrom_eq_of_halt
     (tm : MultiTapeTM k Symbol State)

@@ -8,6 +8,7 @@ module
 
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.WordsCfg
 public import Cslib.Computability.Machines.Turing.MultiTape.TapeLemmas
+public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.ExtendTapes
 
 /-!
 # A machine that rewinds a work-tape head
@@ -54,7 +55,7 @@ public instance : Fintype RewindWorkState := ⟨{.start, .scan}, fun q => by cas
 enters state `scan`. In state `scan` it writes `write` over a symbol and moves left, staying in
 `scan`; on the first blank it moves right and halts. The input head never moves and nothing is
 ever output. -/
-public def rewindWork (Symbol : Type*) (write : Option (Option Symbol) := none) :
+@[expose] public def rewindWork (Symbol : Type*) (write : Option (Option Symbol) := none) :
     MultiTapeTM 1 Symbol RewindWorkState where
   q₀ := .start
   tr q _ work :=
@@ -180,5 +181,18 @@ public theorem workTapePos_runFrom_rewindWork (write : Option (Option Symbol))
   · have hrun := runFrom_rewindWork write ip t out hw hp
     rw [runFrom_eq_of_halt _ _ (by omega : p + 2 ≤ m + 1) (by rw [hrun]), hrun]
     simp
+
+/-- Rewinding one selected tape leaves all other tapes and heads unchanged. -/
+public theorem runFrom_rewindWork_none_tapeEmb {i : Fin k} (ip : Fin (input.length + 2))
+    (tapes : Fin k → ℤ → Option Symbol) (heads : Fin k → ℤ) (out : List Symbol)
+    {w : List Symbol} (hw : tapes i = tapeOfList w) {p : ℕ} (hp : p ≤ w.length) :
+    ((rewindWork Symbol).extendTapes (tapeEmb i)).runFrom
+        ⟨some ((rewindWork Symbol).extendTapes (tapeEmb i)).q₀, ip, tapes,
+          Function.update heads i (p : ℤ), out⟩ (p + 2) =
+      ⟨none, ip, tapes, Function.update heads i 0, out⟩ := by
+  rw [extendTapes_q₀, runFrom_tapeEmb]
+  simp only [oneTapeCfg, Function.update_self]
+  rw [runFrom_rewindWork_none ip (tapes i) out hw hp, embed_tapeEmb]
+  simp
 
 end Turing.MultiTapeTM
