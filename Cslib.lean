@@ -151,6 +151,7 @@ public import Cslib.Computability.PolynomialTime.Encoding.Oracle
 public import Cslib.Computability.PolynomialTime.Finite
 public import Cslib.Computability.PolynomialTime.Fold
 public import Cslib.Computability.PolynomialTime.Fork
+public import Cslib.Computability.PolynomialTime.Fork.Partial
 public import Cslib.Computability.PolynomialTime.Iteration
 public import Cslib.Computability.PolynomialTime.List
 public import Cslib.Computability.PolynomialTime.Machine
@@ -292,6 +293,7 @@ public import Cslib.Foundations.Data.PFunctor.Free.Fork.Measure
 public import Cslib.Foundations.Data.PFunctor.Free.Fork.Probability
 public import Cslib.Foundations.Data.PFunctor.Free.Fork.Replay
 public import Cslib.Foundations.Data.PFunctor.Free.Fork.Tape
+public import Cslib.Foundations.Data.PFunctor.Free.Fork.Tape.Partial
 public import Cslib.Foundations.Data.PFunctor.Free.Fork.Tape.Probability
 public import Cslib.Foundations.Data.PFunctor.Free.Kernel
 public import Cslib.Foundations.Data.PFunctor.Free.Kernel.Option
