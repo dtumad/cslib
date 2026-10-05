@@ -346,4 +346,25 @@ theorem IsPolyTime.list_lookup_indexed {ι : Type} {Key Value : ι → Type}
   exact (optionEncoding_map (value (parameter a)) wordEncoding (value (parameter a))
     (fun _ => rfl) ((values a).lookup (keys a))).symm
 
+/-- Membership compares encoded values, using one machine for every indexed element type. -/
+theorem IsPolyTime.list_mem_indexed {Value : α → Type} [∀ a, DecidableEq (Value a)]
+    {element : ∀ a, Value a ↪ Word} {value : ∀ a, Value a} {values : ∀ a, List (Value a)}
+    (hvalue : IsPolyTime encode (fun a => element a (value a)))
+    (hvalues : IsPolyTime encode (fun a => listEncoding (element a) (values a))) :
+    IsPolyTime encode (fun a => [decide (value a ∈ values a)]) := by
+  have hwords : IsPolyTime encode
+      (fun a => listEncoding wordEncoding ((values a).map (element a))) := by
+    simpa only [listEncoding_map (element _) wordEncoding (element _) (fun _ => rfl)] using hvalues
+  have hfiltered := hwords.list_filter_with (environment := wordEncoding) hvalue
+    ((isPolyTime_fst wordEncoding wordEncoding).beq (isPolyTime_snd wordEncoding wordEncoding))
+  have h := (hfiltered.beq (isPolyTime_const encode [])).map Bool.not
+  convert h using 1
+  funext a
+  simp only [List.map_singleton]
+  congr 1
+  apply Bool.eq_iff_iff.mpr
+  simp only [decide_eq_true_eq, Bool.not_eq_true', beq_eq_false_iff_ne]
+  rw [← listEncoding_nil wordEncoding, (listEncoding wordEncoding).injective.ne_iff]
+  simp [ne_eq, List.filter_eq_nil_iff, Bool.beq_eq_decide_eq, (element a).injective.eq_iff]
+
 end Turing.MultiTapeTM

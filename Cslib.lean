@@ -184,6 +184,8 @@ public import Cslib.Computability.URM.Execution
 public import Cslib.Computability.URM.StandardForm
 public import Cslib.Computability.URM.StraightLine
 public import Cslib.Crypto.DiscreteLog
+public import Cslib.Crypto.DiscreteLog.Probability
+public import Cslib.Crypto.DiscreteLog.Security
 public import Cslib.Crypto.Game
 public import Cslib.Crypto.Negligible
 public import Cslib.Crypto.Primitives.ElGamal
@@ -194,6 +196,7 @@ public import Cslib.Crypto.Primitives.ElGamal.PolynomialTime
 public import Cslib.Crypto.Primitives.ElGamal.PolynomialTime.Reduction
 public import Cslib.Crypto.Primitives.ElGamal.Resumption
 public import Cslib.Crypto.Primitives.ElGamal.Sampling
+public import Cslib.Crypto.Primitives.ElGamal.Security
 public import Cslib.Crypto.Primitives.PRG.Asymptotic
 public import Cslib.Crypto.Primitives.PRG.Basic
 public import Cslib.Crypto.Primitives.PRG.Defs
@@ -209,8 +212,10 @@ public import Cslib.Crypto.Primitives.Schnorr.Oracle
 public import Cslib.Crypto.Primitives.Schnorr.PFunctor
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Execution
+public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Forgery
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Handler
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.HandlerBounds
+public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Output
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Signing
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Simulation
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Verification

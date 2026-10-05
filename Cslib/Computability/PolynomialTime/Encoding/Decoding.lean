@@ -107,6 +107,16 @@ def bitOption (element : Encoding α Bool) : Encoding (Option α) Bool where
 @[simp] theorem bitOption_toEmbedding {α : Type} (element : Encoding α Bool) :
     element.bitOption.toEmbedding = Turing.MultiTapeTM.optionEncoding element.toEmbedding := rfl
 
+@[simp] theorem decodeChecked_bitOption_nil (element : Encoding α Bool) :
+    element.bitOption.decodeChecked [] = some none := rfl
+
+@[simp] theorem decodeChecked_bitOption_false (element : Encoding α Bool) (word : List Bool) :
+    element.bitOption.decodeChecked (false :: word) = none := rfl
+
+@[simp] theorem decodeChecked_bitOption_true (element : Encoding α Bool) (word : List Bool) :
+    element.bitOption.decodeChecked (true :: word) = some <$> element.decodeChecked word := by
+  cases h : element.decode word <;> simp [decodeChecked, bitOption, h, Option.filter_some]
+
 end Computability.Encoding
 
 namespace Turing.MultiTapeTM

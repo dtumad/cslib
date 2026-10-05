@@ -156,6 +156,9 @@ have explicit uniform certificates; sampling exhaustion remains visible in `Opti
 `ElGamal.PolynomialTime.Reduction` also certifies the ordinary two-phase DDH reduction from
 the adversary phases' uniform certificates and group multiplication. Dependent results retain
 their parameter through the compiled continuation, without a decoder or a default value.
+`ElGamal.Security` applies that certificate to uniform DDH hardness and proves negligible
+prediction bias. Its cutoff version derives the two-sample challenge error from local sampler
+laws; it leaves no assumed admissibility obligation for the ordinary reduction.
 `Schnorr.PolynomialTime` gives uniform certificates for key generation, response arithmetic,
 transcript checking, and special-soundness extraction. Scalar decoding checks the binary range;
 the algebra certificates use independently supplied group and field encodings.
@@ -175,6 +178,10 @@ Malformed requests, exhausted tapes, and programming collisions reject the execu
 Adaptive replay now composes three such aborting executions with certified selection and
 restart. Skipping a saved hash-answer block preserves the prefix cache and both private
 randomness sources; the correspondence with the semantic fork's selected query remains open.
+The complete first run now includes checked output decoding and final forgery verification.
+It rejects timeout, malformed output, failed interfaces, and previously signed messages.
+Final verification shares the cache and hash tape and preserves private simulator randomness;
+its typed saved-tape execution equals the original `simulatedForgery` program.
 
 Samuel's `polytime` and `ppt` tactics have been adapted to these native certificates. Tests cover
 data-dependent sampling, captured continuations, calls to certified subprograms, and the ordinary
@@ -199,9 +206,8 @@ ElGamal pays for both adaptive phases and two or three challenge exponents. Both
 concrete security theorems for the resulting cutoff implementations. A `ZMod 101` regression
 instantiates Schnorr's complete bound with the actual binary rejection sampler. Security
 transport supports polynomial loss, square-root loss, and separate negligible errors.
-Computational and asymptotic
-ElGamal security additionally require the reduction to
-preserve the chosen admissibility predicate for a parameterized group family.
+The ordinary ElGamal family theorem uses actual uniform-machine admissibility. Extending it to
+explicit adaptive encryption oracles still requires certifying their inlining.
 The machine resumption exposes one coin per transition and an additional operation per oracle
 submission; ordinary effect truncation therefore differs from a transition clock.
 
@@ -210,6 +216,9 @@ a uniform sampler, and a bijective scalar-to-public-key map. Computational and a
 security still require implementing and costing the reduction and proving admissibility for
 a group family. The cutoff theorem accounts for both fork executions, including simulator
 randomness and the final verifier. Aborting finite sampling can only remove successful forgeries.
+`DiscreteLog.Security` derives negligible inverse scalar-space size from uniform DL hardness:
+the certified always-zero guess succeeds with probability exactly `1 / |F|`. Thus the eventual
+Schnorr family theorem needs no separate asymptotic field-size assumption.
 
 ## Plans and notes
 

@@ -95,6 +95,16 @@ theorem IsPolyTime.machineSnapshot_output {snapshot : α → Snapshot k Bool Sta
     (hs : IsPolyTime input (fun a => machineSnapshotEncoding k ports control (snapshot a))) :
     IsPolyTime input (fun a => (snapshot a).output) := hs.machineSnapshot_data.snd.snd.snd.fst
 
+/-- Return output only after the source machine has halted. Clock exhaustion stays absent. -/
+theorem IsPolyTime.machineSnapshot_output? {snapshot : α → Snapshot k Bool State (Fin ports)}
+    (hs : IsPolyTime input (fun a => machineSnapshotEncoding k ports control (snapshot a))) :
+    IsPolyTime input (fun a => optionEncoding wordEncoding
+      (if (snapshot a).state.isNone then some (snapshot a).output else none)) := by
+  convert hs.machineSnapshot_state.option_isSome.cond (isPolyTime_const input [])
+    (hs.machineSnapshot_output.option_some (element := fun _ => wordEncoding)) using 1
+  funext a
+  cases (snapshot a).state <;> rfl
+
 /-- Read all communication data. -/
 theorem IsPolyTime.machineSnapshot_channels {snapshot : α → Snapshot k Bool State (Fin ports)}
     (hs : IsPolyTime input (fun a => machineSnapshotEncoding k ports control (snapshot a))) :

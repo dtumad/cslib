@@ -10,6 +10,7 @@ import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Signing
 import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Simulation
 import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Verification
 import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Execution
+import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Output
 import Cslib.Crypto.RandomOracle.PolynomialTime
 import Cslib.Computability.PolynomialTime.Finite
 import Cslib.Computability.PolynomialTime.Encoding.Decoding
@@ -181,6 +182,27 @@ noncomputable def scalarEncoding : Computability.Encoding F Bool :=
 noncomputable def simulatorStateEncoding :=
   Schnorr.seededSignatureMachineStateEncoding (fun _ => scalarEncoding) (fun _ => scalarCode)
 
+-- This certificate covers the complete run and its checked result, with unbounded input tapes,
+-- cache, and signing log. Only the fixed test field's arithmetic uses finite tables.
+example {State : Type} [Finite State] {k ports : ℕ}
+    (machine : Turing.MultiTapePTM k Bool State (Fin ports)) (control : State ↪ Word) :
+    IsPolyTime (pairEncoding wordEncoding simulatorStateEncoding) (fun arg =>
+      optionEncoding (pairEncoding wordEncoding simulatorStateEncoding)
+        (Schnorr.runCheckedSeededSignatureMachine (fun _ => scalarEncoding)
+          (fun _ => scalarEncoding) machine [] arg.1
+            (Turing.MultiTapeMachine.Snapshot.initial machine.initial) arg.2)) := by
+  obtain ⟨bound, hbound⟩ := Finite.exists_le (fun value => (scalarCode value).length)
+  apply Schnorr.isPolyTime_runCheckedSeededSignatureMachine
+    (F := fun _ => F) (G := fun _ => F) (fun _ => scalarEncoding) (fun _ => scalarEncoding)
+    (isPolyTime_const _ _) _ _ (fieldOp_poly (· • ·)) (fieldOp_poly (· + ·))
+    (fieldOp_poly (· - ·)) (control := control) machine
+    (isPolyTime_const _ _) (isPolyTime_const _ []) (isPolyTime_fst _ _) (isPolyTime_snd _ _)
+    (groupSize := fun _ => bound) (scalarSize := fun _ => bound)
+    (by fun_prop) (by fun_prop) (fun _ => hbound) (fun _ => hbound)
+  all_goals
+    exact IsPolyTime.decode_finEquiv (parameter := Sigma.fst) (fun _ => scalar)
+      (isPolyTime_const _ _) (isPolyTime_input _).sigma_snd
+
 -- All saved tapes, logs, caches, keys, and the parameter are runtime inputs. The source machine
 -- is arbitrary; three interpreter passes use an adaptive selector and a fresh hash block.
 example {State : Type} [Finite State] {k ports : ℕ}
@@ -226,6 +248,35 @@ example : (adaptiveSimulation.liftM
 -- A programming collision remains failure even when both scalar tapes have enough entries.
 example : Schnorr.seededSignatureHandler (F := F) (1 : F) 0 (.inr ([] : Word))
     (([], [(([], 1), 0)]), [0, 1], [1]) = none := by decide
+
+-- A forgery whose hash was never requested consumes the verifier's own fresh answer.
+example : Schnorr.checkSeededForgery (F := F) (1 : F) 1 (([] : Word), 1, 0)
+    (([], []), [0, 1], [1]) =
+      some (([], 1, 0), ([], [(([], 1), 1)]), [0, 1], []) := rfl
+
+example : Schnorr.checkSeededForgery (F := F) (1 : F) 1 (([] : Word), 1, 0)
+    (([], []), [0, 1], []) = none := by decide
+
+-- Cache hits need no remaining randomness, but freshness is still checked.
+example : Schnorr.checkSeededForgery (F := F) (1 : F) 1 (([] : Word), 1, 0)
+    (([], [(([], 1), 1)]), [], []) =
+      some (([], 1, 0), ([], [(([], 1), 1)]), [], []) := rfl
+
+example : Schnorr.checkSeededForgery (F := F) (1 : F) 1 (([] : Word), 1, 0)
+    (([[]], [(([], 1), 1)]), [], []) = none := by decide
+
+-- Failed interfaces and malformed tags are rejected before final hashing.
+example : Schnorr.checkSeededForgeryOutput scalarEncoding scalarEncoding (1 : F) 1 (some [])
+    (([], []), [0, 1], [1]) = none := rfl
+
+example : Schnorr.checkSeededForgeryOutput scalarEncoding scalarEncoding (1 : F) 1
+    (some [false, true]) (([], []), [0, 1], [1]) = none := rfl
+
+-- A live machine cannot make a partial output count as a forgery, even if it is canonical.
+example (word : Word) : Schnorr.checkSeededSignatureMachine
+    (fun _ => scalarEncoding) (fun _ => scalarEncoding)
+    { Turing.MultiTapeMachine.Snapshot.initial (k := 0) (Oracle := Fin 0) () with output := word }
+      ⟨0, (1 : F), 1, ([], []), [0, 1], [1]⟩ = none := rfl
 
 example : IsPPT (Oracle := Empty) unaryEncoding wordEncoding (fun parameter =>
     optionEncoding (pairEncoding scalarCode scalarCode) <$>

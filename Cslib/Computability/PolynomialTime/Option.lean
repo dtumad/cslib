@@ -63,4 +63,16 @@ theorem IsPolyTime.option_pair {γ : α → Type} {other : ∀ a, γ a ↪ Word}
   funext a
   cases left a <;> cases right a <;> rfl
 
+/-- Compose checked computations using a certified continuation on a defaulted argument.
+The default is used only to obtain a total certificate: an absent input always stays absent. -/
+theorem IsPolyTime.option_bind_getD {γ : α → Type} {output : ∀ a, γ a ↪ Word}
+    {value : ∀ a, Option (β a)} {fallback : ∀ a, β a} {cont : ∀ a, β a → Option (γ a)}
+    (hvalue : IsPolyTime encode (fun a => optionEncoding (element a) (value a)))
+    (hcont : IsPolyTime encode
+      (fun a => optionEncoding (output a) (cont a ((value a).getD (fallback a))))) :
+    IsPolyTime encode (fun a => optionEncoding (output a) ((value a).bind (cont a))) := by
+  convert hvalue.option_isSome.cond hcont (isPolyTime_const encode []) using 1
+  funext a
+  cases value a <;> rfl
+
 end Turing.MultiTapeTM
