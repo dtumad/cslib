@@ -141,6 +141,7 @@ public import Cslib.Foundations.Data.PFunctor.Free
 public import Cslib.Foundations.Data.PFunctor.Free.Fold
 public import Cslib.Foundations.Data.PFunctor.Free.MonadAttach
 public import Cslib.Foundations.Data.PFunctor.Free.W
+public import Cslib.Foundations.Data.PFunctor.Free.WP
 public import Cslib.Foundations.Data.Set.Saturation
 public import Cslib.Foundations.Data.StackTape
 public import Cslib.Foundations.Lint.Basic

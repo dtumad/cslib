@@ -31,6 +31,7 @@ import CslibTests.PACLearning
 import CslibTests.PFunctor
 import CslibTests.PFunctorAttach
 import CslibTests.PFunctorFree
+import CslibTests.PFunctorWP
 import CslibTests.PRG
 import CslibTests.Reduction
 import CslibTests.StatefulProcesses
