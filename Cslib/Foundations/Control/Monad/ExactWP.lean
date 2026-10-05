@@ -24,6 +24,30 @@ universe u v w w' z
 
 open Std.WP Lean.Order
 
+namespace Std.WP.WP
+
+-- Follow the namespace of core's `WP` class.
+set_option linter.dupNamespace false
+
+open OrderDual
+
+variable {Prog : Type u} {Value : Type v} {Pred : Type w} {EPred : Type w'}
+  [Assertion Pred] [Assertion EPred]
+
+/-- Read a weakest-precondition interpretation in the order duals. -/
+@[instance_reducible]
+def dual (inst : WP Prog Value Pred EPred) : WP Prog Value Predᵒᵈ EPredᵒᵈ where
+  wpTrans x := ⟨fun post epost => toDual (inst.wp x (fun a => ofDual (post a)) (ofDual epost))⟩
+  wp_trans_monotone x _ _ _ _ hepost hpost := inst.wp_trans_monotone x _ _ _ _ hepost hpost
+
+@[simp] theorem dual_wp (inst : WP Prog Value Pred EPred) (x : Prog)
+    (post : Value → Predᵒᵈ) (epost : EPredᵒᵈ) :
+    inst.dual.wp x post epost = toDual (inst.wp x (fun a => ofDual (post a)) (ofDual epost)) := rfl
+
+@[simp] theorem dual_dual (inst : WP Prog Value Pred EPred) : inst.dual.dual = inst := rfl
+
+end Std.WP.WP
+
 namespace Cslib
 
 /-- A weakest-precondition monad whose interpretation also satisfies the reverse, oplax, laws:
@@ -106,7 +130,7 @@ theorem wp_seqRight (x : m α) (y : m β) (post : β → Pred) (epost : EPred) :
 /-- Exactness is exactly the statement that the interpretation is a monad morphism into
 core's predicate-transformer monad. -/
 theorem isMonadHom :
-    Cslib.IsMonadHom m (PredTrans Pred EPred) (fun x => WP.wpTrans x) :=
+    Cslib.IsMonadHom m (PredTrans Pred EPred) WP.wpTrans :=
   Cslib.IsMonadHom.mk' (fun a => PredTrans.ext fun post epost => wp_pure a post epost)
     (fun x f => PredTrans.ext fun post epost => wp_bind x f post epost)
 
@@ -115,7 +139,7 @@ end Laws
 /-- An interpretation that is a monad morphism into `PredTrans Pred EPred` is exact. -/
 theorem ofIsMonadHom {m : Type u → Type v} {Pred : Type w} {EPred : Type w'} [Monad m]
     [Assertion Pred] [Assertion EPred] [WPMonad m Pred EPred]
-    (h : Cslib.IsMonadHom m (PredTrans Pred EPred) (fun x => WP.wpTrans x)) :
+    (h : Cslib.IsMonadHom m (PredTrans Pred EPred) WP.wpTrans) :
     ExactWPMonad m Pred EPred :=
   of_eq (fun a post epost => congrArg (fun t => PredTrans.apply t post epost) (h.map_pure a))
     (fun x f post epost => congrArg (fun t => PredTrans.apply t post epost) (h.map_bind x f))
@@ -129,22 +153,16 @@ open OrderDual
 variable {m : Type u → Type v} {Pred : Type w} {EPred : Type w'} [Monad m] [Assertion Pred]
   [Assertion EPred] [WPMonad m Pred EPred]
 
-/-- The interpretation read in the order duals: the same weakest precondition, with
-postconditions and preconditions compared backwards. -/
-@[instance_reducible]
-def dualWP (α : Type u) : WP (m α) α Predᵒᵈ EPredᵒᵈ where
-  wpTrans x := ⟨fun post epost => toDual (wp x (fun a => ofDual (post a)) (ofDual epost))⟩
-  wp_trans_monotone x _ _ _ _ hepost hpost := WP.wp_trans_monotone x _ _ _ _ hepost hpost
-
 /-- The dual reading of an exact interpretation: the same interpretation as a core `WPMonad` over
 the order duals, which is sound because the original satisfies the oplax laws. Its triples
 `⦃ pre ⦄ x ⦃ post ⦄` state the upper bound `wp x post epost ⊑ pre` in the original order. It is
 not an instance: core's assertion types are output parameters, so a global dual would compete
-with the original interpretation of `m`. -/
+with the original interpretation of `m`. When overriding a direct `WP` instance, install
+the chosen `WPMonad`'s `toWP α` locally as well. -/
 @[instance_reducible]
 def dual [ExactWPMonad m Pred EPred] : WPMonad m Predᵒᵈ EPredᵒᵈ where
   toLawfulMonad := inferInstance
-  toWP := dualWP
+  toWP α := (WPMonad.toWP (m := m) α).dual
   pure_le_wp_pure a post epost := pure_wp_le a (fun a => ofDual (post a)) (ofDual epost)
   bind_le_wp_bind x f post epost := wp_bind_le x f (fun a => ofDual (post a)) (ofDual epost)
 
@@ -174,18 +192,15 @@ variable {m : Type u → Type v} {Pred : Type w} {EPred : Type w'} [Monad m] [As
 `inst` and satisfies core's laws there supplies the oplax laws. -/
 theorem of_dual (inst : WPMonad m Pred EPred) (d : WPMonad m Predᵒᵈ EPredᵒᵈ)
     (h : ∀ {α : Type u} (x : m α) (post : α → Predᵒᵈ) (epost : EPredᵒᵈ),
-      (d.toWP α).wp x post epost =
-        toDual ((inst.toWP α).wp x (fun a => ofDual (post a)) (ofDual epost))) :
+      (d.toWP α).wp x post epost = (inst.toWP α).dual.wp x post epost) :
     @ExactWPMonad m Pred EPred _ _ _ inst :=
   @ExactWPMonad.mk m Pred EPred _ _ _ inst
     (fun a post epost => by
-      have hd := d.pure_le_wp_pure a (fun a => toDual (post a)) (toDual epost)
-      rw [h] at hd
-      exact hd)
+      simpa only [h, WP.dual_wp, rel_orderDual, OrderDual.ofDual_toDual] using
+        d.pure_le_wp_pure a (fun a => toDual (post a)) (toDual epost))
     (fun x f post epost => by
-      have hd := d.bind_le_wp_bind x f (fun a => toDual (post a)) (toDual epost)
-      simp only [h] at hd
-      exact hd)
+      simpa only [h, WP.dual_wp, rel_orderDual, OrderDual.ofDual_toDual] using
+        d.bind_le_wp_bind x f (fun a => toDual (post a)) (toDual epost))
 
 /-- An interpretation is exact exactly when it is also sound, as the same interpretation, on the
 order duals. -/
@@ -193,8 +208,7 @@ theorem exactWPMonad_iff_dual (inst : WPMonad m Pred EPred) :
     @ExactWPMonad m Pred EPred _ _ _ inst ↔
       ∃ d : WPMonad m Predᵒᵈ EPredᵒᵈ,
         ∀ {α : Type u} (x : m α) (post : α → Predᵒᵈ) (epost : EPredᵒᵈ),
-          (d.toWP α).wp x post epost =
-            toDual ((inst.toWP α).wp x (fun a => ofDual (post a)) (ofDual epost)) :=
+          (d.toWP α).wp x post epost = (inst.toWP α).dual.wp x post epost :=
   ⟨fun _ => ⟨dual, fun _ _ _ => rfl⟩, fun ⟨d, h⟩ => of_dual inst d h⟩
 
 end DualCharacterization
@@ -204,24 +218,23 @@ end ExactWPMonad
 /-! ## Core's concrete interpretations -/
 
 instance ExactWPMonad.instId : ExactWPMonad Id.{u} Prop EStack⟨⟩ where
-  pure_wp_le _ _ _ := PartialOrder.rel_of_eq <| rfl
-  wp_bind_le _ _ _ _ := PartialOrder.rel_of_eq <| rfl
+  pure_wp_le _ _ _ := id
+  wp_bind_le _ _ _ _ := id
 
 instance ExactWPMonad.instOption : ExactWPMonad Option.{u} Prop (Unit → Prop) where
-  pure_wp_le _ _ _ := PartialOrder.rel_of_eq <| rfl
-  wp_bind_le x _ _ _ := PartialOrder.rel_of_eq <| by cases x <;> rfl
+  pure_wp_le _ _ _ := id
+  wp_bind_le x _ _ _ := by cases x <;> exact id
 
 instance ExactWPMonad.instExcept {ε : Type u} : ExactWPMonad (Except ε) Prop (ε → Prop) where
-  pure_wp_le _ _ _ := PartialOrder.rel_of_eq <| rfl
-  wp_bind_le x _ _ _ := PartialOrder.rel_of_eq <| by cases x <;> rfl
+  pure_wp_le _ _ _ := id
+  wp_bind_le x _ _ _ := by cases x <;> exact id
 
 instance ExactWPMonad.instEStateM {ε σ : Type} :
     ExactWPMonad (EStateM ε σ) (σ → Prop) (ε → σ → Prop) where
-  pure_wp_le _ _ _ := PartialOrder.rel_of_eq <| rfl
-  wp_bind_le x f post epost := PartialOrder.rel_of_eq <| by
-    funext s
+  pure_wp_le _ _ _ _ := id
+  wp_bind_le x f post epost s := by
     simp only [WP.wp, WP.wpTrans, bind, EStateM.bind]
-    cases x s <;> rfl
+    cases x s <;> exact id
 
 /-! ## Core's transformer lifts preserve exactness -/
 
@@ -231,30 +244,20 @@ variable {m : Type u → Type v} {Pred : Type w} {EPred : Type w'} [Monad m] [As
   [Assertion EPred] [WPMonad m Pred EPred] [ExactWPMonad m Pred EPred]
 
 instance ExactWPMonad.instStateT {σ : Type u} : ExactWPMonad (StateT σ m) (σ → Pred) EPred where
-  pure_wp_le a post epost := PartialOrder.rel_of_eq <| by
-    funext s
-    simp [StateT.wp_apply_eq, StateT.run_pure]
-  wp_bind_le x f post epost := PartialOrder.rel_of_eq <| by
-    funext s
-    simp [StateT.wp_apply_eq, StateT.run_bind]
+  pure_wp_le a post epost s := pure_wp_le (a, s) (fun (a, s) => post a s) epost
+  wp_bind_le x _ _ epost s := wp_bind_le (x.run s) _ _ epost
 
 instance ExactWPMonad.instReaderT {ρ : Type u} : ExactWPMonad (ReaderT ρ m) (ρ → Pred) EPred where
-  pure_wp_le a post epost := PartialOrder.rel_of_eq <| by
-    funext r
-    simp [ReaderT.wp_apply_eq, ReaderT.run_pure]
-  wp_bind_le x f post epost := PartialOrder.rel_of_eq <| by
-    funext r
-    simp [ReaderT.wp_apply_eq, ReaderT.run_bind]
+  pure_wp_le a post epost r := pure_wp_le a (fun a => post a r) epost
+  wp_bind_le x _ _ epost r := wp_bind_le (x.run r) _ _ epost
 
 instance ExactWPMonad.instExceptT {ε : Type u} :
-    ExactWPMonad (ExceptT ε m) Pred ((ε → Pred) × EPred) where
-  pure_wp_le a post epost := PartialOrder.rel_of_eq <| by
-    simp [ExceptT.wp_apply_eq, ExceptT.run_pure]
-  wp_bind_le x f post epost := PartialOrder.rel_of_eq <| by
-    simp only [ExceptT.wp_apply_eq, ExceptT.run_bind, wp_bind]
-    congr 1
-    funext r
-    cases r <;> simp
+    ExactWPMonad (ExceptT ε m) Pred ((ε → Pred) × EPred) :=
+  .of_eq (fun a post epost => wp_pure (.ok a) (pushExcept post epost.1) epost.2)
+    (fun x f post epost => by
+      simp only [ExceptT.wp_apply_eq, ExceptT.run_bind, wp_bind]
+      congr 1
+      exact funext fun r => by cases r <;> simp)
 
 end Transformers
 
@@ -264,14 +267,12 @@ variable {m : Type u → Type v} {Pred : Type u} {EPred : Type w'} [Monad m] [As
   [Assertion EPred] [WPMonad m Pred EPred] [ExactWPMonad m Pred EPred]
 
 instance ExactWPMonad.instOptionT :
-    ExactWPMonad (OptionT m) Pred ((Unit → Pred) × EPred) where
-  pure_wp_le a post epost := PartialOrder.rel_of_eq <| by
-    simp [OptionT.wp_apply_eq, OptionT.run_pure]
-  wp_bind_le x f post epost := PartialOrder.rel_of_eq <| by
-    simp only [OptionT.wp_apply_eq, OptionT.run_bind, Option.elimM, wp_bind]
-    congr 1
-    funext o
-    cases o <;> simp
+    ExactWPMonad (OptionT m) Pred ((Unit → Pred) × EPred) :=
+  .of_eq (fun a post epost => wp_pure (some a) (pushOption post epost.1) epost.2)
+    (fun x f post epost => by
+      simp only [OptionT.wp_apply_eq, OptionT.run_bind, Option.elimM, wp_bind]
+      congr 1
+      exact funext fun o => by cases o <;> simp)
 
 end OptionTransformer
 

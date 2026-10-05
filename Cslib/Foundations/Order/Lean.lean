@@ -27,8 +27,7 @@ def Lean.Order.CompleteLattice.ofMathlib (α : Type*) [_root_.CompleteLattice α
   rel_refl := le_refl _
   rel_trans := le_trans
   rel_antisymm := le_antisymm
-  has_sup c := ⟨sSup {x | c x}, fun _ =>
-    ⟨fun h _ hy => le_trans (le_sSup hy) h, fun h => sSup_le h⟩⟩
+  has_sup c := ⟨sSup {x | c x}, fun _ => sSup_le_iff⟩
 
 namespace Lean.Order
 
