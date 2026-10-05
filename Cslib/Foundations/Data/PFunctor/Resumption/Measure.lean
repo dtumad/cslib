@@ -17,6 +17,9 @@ public import Cslib.Foundations.MeasureTheory.Monotone
 `returnedMeasure μ x` records nontermination as missing mass. Almost-sure termination is exactly
 `IsProbabilityMeasure (returnedMeasure μ x)` when the operations are lossless.
 
+`x.toMeasure μ` accepts the same explicit `PFunctor.OutputMeasure` bundle as `FreeM.toMeasure`.
+Probability responses bound its mass by one; normalization still requires termination.
+
 This extends VCVio's finite-fuel semantics. Agreement with `FreeM` needs no uniform bound on
 branch depth: well-founded, infinitely branching programs are included.
 -/
@@ -28,6 +31,8 @@ open MeasureTheory
 universe uA uB v w
 
 namespace PFunctor.Resumption
+
+section Interpretation
 
 variable {P : PFunctor.{uA, uB}} [∀ op, MeasurableSpace (P.B op)]
   {α : Type v} [MeasurableSpace α]
@@ -215,5 +220,73 @@ theorem returnedMeasure_liftM {Q : PFunctor.{uQ, v}}
     rw [returnedMeasure_bind μ _ _ Measurable.of_discrete,
       FreeM.denote_lift_bind _ _ _ Measurable.of_discrete.aemeasurable]
     exact Measure.bind_congr_right (Filter.Eventually.of_forall ih)
+
+end Interpretation
+
+section Bundled
+
+universe uQ
+
+variable {P : PFunctor.{uA, uB}} {mP : ∀ op, MeasurableSpace (P.B op)}
+  {α : Type v} {β : Type w} [MeasurableSpace α] [MeasurableSpace β]
+
+/-- Interpret a possibly infinite program using explicitly chosen response measures.
+Divergence is represented by missing mass. -/
+noncomputable def toMeasure (x : Resumption P α) (μ : OutputMeasure P) : Measure α :=
+  returnedMeasure μ x
+
+theorem toMeasure_ofMeasure (x : Resumption P α) (μ : (op : P.A) → Measure (P.B op)) :
+    x.toMeasure (.ofMeasure μ) = returnedMeasure μ x := rfl
+
+variable (μ : OutputMeasure P)
+
+@[simp]
+theorem toMeasure_pure (a : α) : (pure a : Resumption P α).toMeasure μ = Measure.dirac a :=
+  returnedMeasure_pure μ a
+
+variable [∀ op, DiscreteMeasurableSpace (P.B op)]
+
+theorem toMeasure_query (op : P.A) (cont : P.B op → Resumption P α) :
+    (query op cont).toMeasure μ = (μ op).bind fun b => (cont b).toMeasure μ :=
+  returnedMeasure_query μ op cont
+
+@[simp]
+theorem toMeasure_toResumption (x : P.FreeM α) :
+    x.toResumption.toMeasure μ = x.toMeasure μ := returnedMeasure_toResumption μ x
+
+theorem toMeasure_apply_univ_le_one [∀ op, IsProbabilityMeasure (μ op)] (x : Resumption P α) :
+    x.toMeasure μ Set.univ ≤ 1 := returnedMeasure_apply_univ_le_one μ x
+
+instance [∀ op, IsProbabilityMeasure (μ op)] (x : Resumption P α) :
+    IsFiniteMeasure (x.toMeasure μ) :=
+  inferInstanceAs (IsFiniteMeasure (returnedMeasure μ x))
+
+theorem toMeasure_bind (x : Resumption P α) (f : α → Resumption P β)
+    (hf : Measurable fun a => (f a).toMeasure μ) :
+    (x.bind f).toMeasure μ = (x.toMeasure μ).bind fun a => (f a).toMeasure μ :=
+  returnedMeasure_bind μ x f hf
+
+theorem toMeasure_bind_of_discrete [DiscreteMeasurableSpace α]
+    (x : Resumption P α) (f : α → Resumption P β) :
+    (x.bind f).toMeasure μ = (x.toMeasure μ).bind fun a => (f a).toMeasure μ :=
+  toMeasure_bind μ x f Measurable.of_discrete
+
+theorem toMeasure_map (x : Resumption P α) (f : α → β) (hf : Measurable f) :
+    (map f x).toMeasure μ = (x.toMeasure μ).map f := returnedMeasure_map μ x f hf
+
+/-- Possibly infinite handlers preserve a free program's chosen interpretation when their
+returned measures implement the specified operation laws. -/
+theorem toMeasure_liftM {Q : PFunctor.{uQ, v}} {mQ : ∀ op, MeasurableSpace (Q.B op)}
+    [∀ op, DiscreteMeasurableSpace (Q.B op)] (ν : OutputMeasure Q)
+    (handler : (op : Q.A) → Resumption P (Q.B op))
+    (hhandler : ∀ op, (handler op).toMeasure μ = ν op) (x : Q.FreeM α) :
+    (x.liftM handler).toMeasure μ = x.toMeasure ν := by
+  change returnedMeasure μ (x.liftM handler) = FreeM.denote ν x
+  rw [returnedMeasure_liftM]
+  congr 1
+  funext op
+  exact hhandler op
+
+end Bundled
 
 end PFunctor.Resumption

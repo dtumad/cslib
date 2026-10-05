@@ -40,6 +40,9 @@ is equivalent to exactly uniform output; the identity generator is a nonexpandin
 
 The new experiments use `PFunctor.FreeM` for programs and Mathlib `Measure` for their
 interpretation. An effect is a shape and its response type; a handler is a dependent function.
+`program.toMeasure model` accepts an explicit `PFunctor.OutputMeasure` for either `FreeM` or
+`Resumption`. The bundle chooses operation measures on the existing response measurable spaces;
+it introduces no new measurable-space instances or canonical probability law.
 `FreeM.liftM` inlines handlers, and `FreeM.runKernel` handles shared mutable state using Mathlib
 kernels. `Game` is `Measure Bool`, with explicit normalization hypotheses where needed.
 `Game.Secure` quantifies over whole adversaries before the security parameter, using an explicit

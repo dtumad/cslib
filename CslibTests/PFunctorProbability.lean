@@ -9,6 +9,7 @@ import Cslib.Foundations.Data.PFunctor.Resumption.Measure.Cost
 import Cslib.Foundations.Data.PFunctor.Free.Measure.WP
 import Mathlib.MeasureTheory.MeasurableSpace.Instances
 import Mathlib.Probability.UniformOn
+import Mathlib.Probability.Distributions.Bernoulli
 import Mathlib.Analysis.SpecificLimits.Basic
 import Std.WP.Triple
 import Std.Tactic.Do
@@ -35,6 +36,8 @@ instance (op : four.A) : IsProbabilityMeasure (answers op) := by
   unfold answers
   infer_instance
 
+noncomputable abbrev interpretation : OutputMeasure four := .ofMeasure answers
+
 theorem output_succ (k : ℕ) (s : Set (Fin 3)) :
     Resumption.outputMeasure answers (k + 1) sample s =
       (Measure.dirac 0 s + Measure.dirac 1 s + Measure.dirac 2 s +
@@ -58,8 +61,9 @@ theorem output_singleton (k : ℕ) (x : Fin 3) :
     simp only [pow_succ, Finset.sum_mul, pow_zero, one_mul]
     exact add_comm _ _
 
-theorem returned_uniform : Resumption.returnedMeasure answers sample =
+theorem returned_uniform : sample.toMeasure interpretation =
     uniformOn Set.univ := by
+  rw [Resumption.toMeasure_ofMeasure]
   apply Measure.ext_of_singleton
   intro x
   rw [Resumption.returnedMeasure_apply (P := four) _ _ _ (measurableSet_singleton _)]
@@ -76,12 +80,12 @@ theorem returned_uniform : Resumption.returnedMeasure answers sample =
     norm_num [NNReal.sub_def]
   all_goals norm_num [NNReal.sub_def]
 
-example : IsProbabilityMeasure (Resumption.returnedMeasure answers sample) := by
+example : IsProbabilityMeasure (sample.toMeasure interpretation) := by
   rw [returned_uniform]
   infer_instance
 
-example : Resumption.returnedMeasure answers
-    (Resumption.repeatUntil () (fun _ => (none : Option (Fin 3)))) = 0 := by simp
+example : (Resumption.repeatUntil (P := four) () (fun _ => (none : Option (Fin 3)))).toMeasure
+    interpretation = 0 := by simp [Resumption.toMeasure_ofMeasure]
 
 theorem timeout_succ (k : ℕ) :
     FreeM.denote answers (Resumption.truncate (k + 1) sample) {none} =
@@ -128,5 +132,69 @@ example : ⦃(3 / 4 : ℝ≥0∞)⦄ accepted ⦃fun b => if b then 1 else 0⦄ 
   simp [show (3 : ℝ≥0∞) = 1 + 1 + 1 by norm_num, div_eq_mul_inv, add_mul, add_assoc]
 
 end Quantitative
+
+section Bundled
+
+abbrev coin : PFunctor := .mk Unit (fun _ => Bool)
+
+noncomputable abbrev fair : OutputMeasure coin :=
+  .ofMeasure (fun _ => uniformOn (Set.univ : Set Bool))
+
+noncomputable abbrev biased : OutputMeasure coin :=
+  .ofMeasure (fun _ => bernoulliMeasure true false ⟨1 / 4, by norm_num⟩)
+
+-- The same program and response type can have different explicit probability laws.
+example : (FreeM.lift (P := coin) ()).toMeasure fair {true} = 1 / 2 := by
+  rw [FreeM.toMeasure_lift]
+  change uniformOn (Set.univ : Set Bool) {true} = _
+  rw [uniformOn_univ, Measure.count_singleton]
+  norm_num
+
+theorem biased_true : (FreeM.lift (P := coin) ()).toMeasure biased {true} = 1 / 4 := by
+  rw [FreeM.toMeasure_lift]
+  norm_num [bernoulliMeasure_apply, unitInterval.toNNReal]
+  change ((1 / 4 : NNReal) : ℝ≥0∞) = _
+  norm_num
+
+example (program : coin.FreeM Bool) : IsProbabilityMeasure (program.toMeasure biased) :=
+  inferInstance
+
+-- Normalized primitives do not normalize a diverging resumption.
+example : (Resumption.repeatUntil (P := coin) () (fun _ => (none : Option Bool))).toMeasure
+    fair = 0 := by simp [Resumption.toMeasure_ofMeasure]
+
+-- Arbitrary measures remain available, including missing mass at an operation.
+example : (FreeM.lift (P := coin) ()).toMeasure
+    (.ofMeasure (fun _ => (1 / 2 : ℝ≥0∞) • Measure.dirac true)) Set.univ = 1 / 2 := by
+  rw [FreeM.toMeasure_lift]
+  simp
+
+noncomputable abbrev combined :
+    @OutputMeasure (four + coin) (OutputMeasure.sumMeasurableSpace four coin) :=
+  interpretation.sum biased
+
+-- The sum reuses Bool's existing instance definitionally.
+example : OutputMeasure.sumMeasurableSpace four coin (.inr ()) =
+    inferInstanceAs (MeasurableSpace Bool) := rfl
+
+-- Composition retains each component's law and response measurable space.
+example : (FreeM.lift (P := four + coin) (.inl ())).toMeasure (α := Fin 4) combined =
+    uniformOn (Set.univ : Set (Fin 4)) := by
+  rw [FreeM.toMeasure_lift]
+  rfl
+
+example : (FreeM.lift (P := four + coin) (.inr ())).toMeasure (α := Bool) combined {true} =
+    1 / 4 := by
+  have h := biased_true
+  rw [FreeM.toMeasure_lift] at h ⊢
+  exact h
+
+example (program : (four + coin).FreeM Bool) :
+    IsProbabilityMeasure (program.toMeasure combined) := inferInstance
+
+example (program : (four + coin).FreeM Bool) :
+    program.toResumption.toMeasure combined = program.toMeasure combined := by simp
+
+end Bundled
 
 end PFunctorProbability

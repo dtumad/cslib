@@ -42,6 +42,8 @@ noncomputable def answers : (op : randomness.A) → Measure (randomness.B op)
 instance (op : randomness.A) : IsProbabilityMeasure (answers op) := by
   cases op <;> unfold answers <;> infer_instance
 
+noncomputable abbrev interpretation : OutputMeasure randomness := .ofMeasure answers
+
 def sample : randomness.FreeM (Fin 3) := FreeM.lift (P := randomness) false
 def coin : randomness.FreeM Bool := FreeM.lift (P := randomness) true
 
@@ -49,11 +51,9 @@ def challengeBit : PFunctorProbability.four.FreeM Bool :=
   FreeM.map (fun x : Fin 4 => decide (x.val < 2)) (FreeM.lift ())
 
 theorem challengeBit_uniform :
-    FreeM.denote PFunctorProbability.answers challengeBit = uniformOn Set.univ := by
+    challengeBit.toMeasure PFunctorProbability.interpretation = uniformOn Set.univ := by
   classical
-  rw [challengeBit, FreeM.denote_map (P := PFunctorProbability.four)
-    PFunctorProbability.answers _ _ Measurable.of_discrete]
-  rw [FreeM.denote_lift (P := PFunctorProbability.four)]
+  rw [challengeBit, FreeM.toMeasure_map _ _ _ Measurable.of_discrete, FreeM.toMeasure_lift]
   apply Measure.ext_of_singleton
   intro bit
   rw [Measure.map_apply Measurable.of_discrete (measurableSet_singleton _)]
@@ -76,34 +76,29 @@ def concreteHandler : (op : randomness.A) →
   | true => challengeBit.toResumption
 
 theorem concreteHandler_correct (op : randomness.A) :
-    Resumption.returnedMeasure PFunctorProbability.answers (concreteHandler op) = answers op := by
+    (concreteHandler op).toMeasure PFunctorProbability.interpretation = interpretation op := by
   cases op with
   | false => exact PFunctorProbability.returned_uniform
   | true =>
-    change Resumption.returnedMeasure _ challengeBit.toResumption = _
-    rw [Resumption.returnedMeasure_toResumption (P := PFunctorProbability.four)]
+    change challengeBit.toResumption.toMeasure _ = _
+    rw [Resumption.toMeasure_toResumption]
     exact challengeBit_uniform
 
 -- The actual experiment below runs rejection samplers, including their infinite rejected paths.
 example
     (choose : G → (randomness + PFunctor.mk G (fun _ => G × G)).FreeM (G × G × ℕ))
     (guess : ℕ → G × G → (randomness + PFunctor.mk G (fun _ => G × G)).FreeM Bool) :
-    |Game.winProbability (Resumption.returnedMeasure PFunctorProbability.answers
-        ((ElGamal.cpaOracleExperiment sample coin generator choose guess).liftM concreteHandler)) -
-          1 / 2| =
+    |Game.winProbability
+        (((ElGamal.cpaOracleExperiment sample coin generator choose guess).liftM
+          concreteHandler).toMeasure PFunctorProbability.interpretation) - 1 / 2| =
       Game.advantage
-        (Resumption.returnedMeasure PFunctorProbability.answers
-          ((ElGamal.ddhReal sample generator
-            (ElGamal.ddhOracleReduction sample coin generator choose guess)).liftM concreteHandler))
-        (Resumption.returnedMeasure PFunctorProbability.answers
-          ((ElGamal.ddhRandom sample generator
+        (((ElGamal.ddhReal sample generator
+          (ElGamal.ddhOracleReduction sample coin generator choose guess)).liftM
+            concreteHandler).toMeasure PFunctorProbability.interpretation)
+        (((ElGamal.ddhRandom sample generator
             (ElGamal.ddhOracleReduction sample coin generator choose guess)).liftM
-              concreteHandler)) := by
-  have hhandler : (fun op => Resumption.returnedMeasure
-      PFunctorProbability.answers (concreteHandler op)) = answers := by
-    funext op
-    exact concreteHandler_correct op
-  simp only [Resumption.returnedMeasure_liftM, hhandler]
+              concreteHandler).toMeasure PFunctorProbability.interpretation) := by
+  simp only [Resumption.toMeasure_liftM _ interpretation concreteHandler concreteHandler_correct]
   exact ElGamal.advantage_oracle_eq_ddh sample coin generator choose guess answers
     generator_bijective (FreeM.denote_lift (P := randomness) answers false)
       (FreeM.denote_lift (P := randomness) answers true)

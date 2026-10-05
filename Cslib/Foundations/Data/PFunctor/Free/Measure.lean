@@ -7,7 +7,7 @@ Authors: Devon Tuma
 module
 
 public import Cslib.Foundations.Data.PFunctor.Free
-public import Mathlib.MeasureTheory.Measure.ProbabilityMeasure
+public import Cslib.Foundations.Data.PFunctor.Measure
 public import Mathlib.MeasureTheory.Measure.Prod
 public import Cslib.Foundations.Data.PFunctor.Free.MonadAttach
 
@@ -19,9 +19,10 @@ Giry bind. A nonmeasurable continuation denotes zero; this is an invalid measura
 not nontermination. Discrete answer spaces make the internal measurability conditions automatic,
 while the result space remains arbitrary.
 
-The measures are explicit parameters. Losslessness uses Mathlib's `IsProbabilityMeasure`;
-no separate notion of a probabilistic effect signature is needed. Adapted from
-`VCVio.EvalDist.PFunctorMeasure.Core`.
+`x.toMeasure μ` uses an explicit `PFunctor.OutputMeasure` bundle on the existing response
+measurable spaces. It is definitionally the same interpretation as
+`denote`, which accepts unbundled measures on existing spaces. Losslessness uses Mathlib's
+`IsProbabilityMeasure`. Adapted from `VCVio.EvalDist.PFunctorMeasure.Core`.
 -/
 
 @[expose] public section
@@ -189,5 +190,69 @@ theorem ae_canReturn (x : P.FreeM α) : ∀ᵐ a ∂denote μ x, MonadAttach.Can
     exact ha ⟨answer, hreturn⟩
 
 end Support
+
+section Bundled
+
+open MeasureTheory
+
+universe uA uB v w uQ
+
+variable {P : PFunctor.{uA, uB}} {mP : ∀ op, MeasurableSpace (P.B op)}
+  {α : Type v} {β : Type w} [MeasurableSpace α] [MeasurableSpace β]
+
+/-- Interpret a finite program using explicitly chosen response measures. -/
+noncomputable def toMeasure (x : P.FreeM α) (μ : OutputMeasure P) : Measure α :=
+  denote μ x
+
+theorem toMeasure_ofMeasure (x : P.FreeM α) (μ : (op : P.A) → Measure (P.B op)) :
+    x.toMeasure (.ofMeasure μ) = denote μ x := rfl
+
+variable (μ : OutputMeasure P)
+
+@[simp]
+theorem toMeasure_pure (a : α) : (pure a : P.FreeM α).toMeasure μ = Measure.dirac a := rfl
+
+@[simp]
+theorem toMeasure_lift (op : P.A) : (lift op).toMeasure μ = μ op := denote_lift μ op
+
+/-- Probability responses bound the mass even without discreteness. -/
+theorem toMeasure_apply_univ_le_one [∀ op, IsProbabilityMeasure (μ op)] (x : P.FreeM α) :
+    x.toMeasure μ Set.univ ≤ 1 := denote_apply_univ_le_one μ x
+
+variable [∀ op, DiscreteMeasurableSpace (P.B op)]
+
+theorem toMeasure_lift_bind (op : P.A) (cont : P.B op → P.FreeM α) :
+    ((lift op).bind cont).toMeasure μ = (μ op).bind fun b => (cont b).toMeasure μ :=
+  denote_lift_bind μ op cont Measurable.of_discrete.aemeasurable
+
+instance [∀ op, IsProbabilityMeasure (μ op)] (x : P.FreeM α) :
+    IsProbabilityMeasure (x.toMeasure μ) := inferInstanceAs (IsProbabilityMeasure (denote μ x))
+
+theorem toMeasure_bind (x : P.FreeM α) (f : α → P.FreeM β)
+    (hf : Measurable fun a => (f a).toMeasure μ) :
+    (x.bind f).toMeasure μ = (x.toMeasure μ).bind fun a => (f a).toMeasure μ :=
+  denote_bind μ x f hf
+
+theorem toMeasure_bind_of_discrete [DiscreteMeasurableSpace α]
+    (x : P.FreeM α) (f : α → P.FreeM β) :
+    (x.bind f).toMeasure μ = (x.toMeasure μ).bind fun a => (f a).toMeasure μ :=
+  toMeasure_bind μ x f Measurable.of_discrete
+
+theorem toMeasure_map (x : P.FreeM α) (f : α → β) (hf : Measurable f) :
+    (map f x).toMeasure μ = (x.toMeasure μ).map f := denote_map μ x f hf
+
+/-- Inlining handlers that implement a chosen response law preserves that interpretation. -/
+theorem toMeasure_liftM {Q : PFunctor.{uQ, uB}} {mQ : ∀ op, MeasurableSpace (Q.B op)}
+    [∀ op, DiscreteMeasurableSpace (Q.B op)] (ν : OutputMeasure Q)
+    {α : Type uB} [MeasurableSpace α] (handler : (op : Q.A) → P.FreeM (Q.B op))
+    (hhandler : ∀ op, (handler op).toMeasure μ = ν op) (x : Q.FreeM α) :
+    (x.liftM handler).toMeasure μ = x.toMeasure ν := by
+  change denote μ (x.liftM handler) = denote ν x
+  rw [denote_liftM]
+  congr 1
+  funext op
+  exact hhandler op
+
+end Bundled
 
 end PFunctor.FreeM

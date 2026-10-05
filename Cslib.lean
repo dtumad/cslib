@@ -299,6 +299,7 @@ public import Cslib.Foundations.Data.PFunctor.Free.Trace.Handler
 public import Cslib.Foundations.Data.PFunctor.Free.W
 public import Cslib.Foundations.Data.PFunctor.Free.WP
 public import Cslib.Foundations.Data.PFunctor.M
+public import Cslib.Foundations.Data.PFunctor.Measure
 public import Cslib.Foundations.Data.PFunctor.Resumption
 public import Cslib.Foundations.Data.PFunctor.Resumption.Measure
 public import Cslib.Foundations.Data.PFunctor.Resumption.Measure.Cost
