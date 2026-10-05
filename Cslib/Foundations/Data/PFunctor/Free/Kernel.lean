@@ -11,6 +11,7 @@ public import Cslib.Foundations.Data.PFunctor.Free.MonadAttach
 public import Mathlib.Probability.Kernel.Basic
 public import Cslib.Foundations.MeasureTheory.Bind
 public import Cslib.Foundations.MeasureTheory.Option
+public import Cslib.Foundations.MeasureTheory.Abort
 public import Init.Control.Option
 public import Cslib.Foundations.Data.PFunctor.Free.Trace
 
@@ -227,6 +228,70 @@ theorem runKernel_liftM_optionT
     exact Measure.bind_congr_right (Filter.Eventually.of_forall fun out => ih out.1 out.2)
 
 end Aborting
+
+section StatefulAborting
+
+open MeasureTheory ProbabilityTheory
+
+universe u v
+
+variable {P Q : PFunctor.{u, v}} {S α : Type v}
+  [∀ op, MeasurableSpace (P.B op)] [∀ op, DiscreteMeasurableSpace (P.B op)]
+  [∀ op, Countable (P.B op)]
+  [∀ op, MeasurableSpace (Q.B op)] [∀ op, DiscreteMeasurableSpace (Q.B op)]
+  [MeasurableSpace S] [DiscreteMeasurableSpace S] [Countable S] [MeasurableSpace α]
+
+/-- Aborting stateful handlers implement subprobability kernels. Pulling back along `some`
+discards exactly the rejected mass and retains the complete successful result and state. -/
+theorem denote_liftM_stateT_optionT
+    (μ : (op : Q.A) → Measure (Q.B op))
+    (handler : (op : P.A) → StateT S (OptionT Q.FreeM) (P.B op))
+    (impl : (op : P.A) → Kernel S (P.B op × S))
+    (h : ∀ op state, (denote μ (handler op state).run).comap some = impl op state)
+    (program : P.FreeM α) (state : S) :
+    (denote μ ((program.liftM handler) state).run).comap some =
+      runKernel impl program state := by
+  induction program generalizing state with
+  | pure value =>
+    ext event hevent
+    rw [Option.measurableEmbedding_some.comap_apply]
+    simp only [liftM_pure, runKernel_pure]
+    change Measure.dirac (some (value, state)) (some '' event) =
+      Measure.dirac (value, state) event
+    rw [Measure.dirac_apply' _ (Option.measurableSet_some_image.mpr hevent),
+      Measure.dirac_apply' _ hevent]
+    by_cases hmem : (value, state) ∈ event <;> simp [Set.indicator, hmem]
+  | lift_bind op cont ih =>
+    ext event hevent
+    rw [Option.measurableEmbedding_some.comap_apply]
+    simp only [bind_eq_bind, liftM_lift_bind]
+    dsimp +instances only [Bind.bind, StateT.bind, OptionT.bind, OptionT.run, OptionT.mk]
+    rw [bind_eq_bind, denote_bind_of_discrete,
+      Measure.bind_apply (Option.measurableSet_some_image.mpr hevent)
+        Measurable.of_discrete.aemeasurable]
+    let f := fun out : P.B op × S => runKernel impl (cont out.1) out.2 event
+    calc
+      _ = ∫⁻ out, out.elim 0 f ∂denote μ (handler op state).run := by
+        apply lintegral_congr
+        intro out
+        cases out with
+        | none =>
+          rw [denote_pure, Measure.dirac_apply' _
+            (Option.measurableSet_some_image.mpr hevent)]
+          simp [Set.indicator]
+        | some out =>
+          simpa only [Option.elim_some, f, Option.measurableEmbedding_some.comap_apply,
+            OptionT.run] using
+            congrArg (fun measure => measure event) (ih out.1 out.2)
+      _ = ∫⁻ out, f out ∂(denote μ (handler op state).run).comap some :=
+        (lintegral_comap_some _ f).symm
+      _ = _ := by
+        rw [h]
+        exact (Measure.bind_apply hevent
+          (measurable_runKernel_continuation impl cont).aemeasurable).symm
+
+end StatefulAborting
+
 
 section Support
 

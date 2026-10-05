@@ -150,8 +150,8 @@ preserves the complete two-run program, and tracing and replay use ordinary stat
 compatible with the snapshot interpreter. Forking doubles the source query budget at most.
 Presampling a sufficient finite answer tape preserves the whole result measure, including the
 adaptive second run; exhaustion remains explicit. Averaging over a private seed shared by both
-runs preserves the forking inequality. Applying these laws to the complete typed Schnorr
-simulator and its machine certificate is still required.
+runs preserves the forking inequality. The checked Schnorr machine now satisfies this inequality
+with a hash budget derived from its saved transition clock.
 `ElGamal.PolynomialTime` certifies honest key generation, encryption, and decryption uniformly
 across an indexed group family. It derives binary exponentiation from certified multiplication
 and polynomial bounds on element encodings. The parameter data and remaining group primitives
@@ -213,8 +213,13 @@ coins and simulator scalars now gives an ordinary hash-only `FreeM` source. Its 
 equals the complete checked machine run pointwise in both saved tapes, including timeout,
 malformed interfaces, signing collisions, cache hits, and final verification. The corresponding
 two-run replay has one uniform polynomial-time certificate derived from the existing primitive
-certificates and representation bounds. The shared-seed distribution argument, source tape
-budget, extraction postprocessing, and final Schnorr family hardness theorem remain open.
+certificates and representation bounds. Its whole two-run measure agrees with the semantic fork
+of the source after fixing the machine coins and simulator scalars. Every accepted first run has
+a selected hash within `clock + 1` positions. Sampling `2 * clock` private simulator scalars in
+advance preserves the full first-run simulator law, including its log, cache, and final verifier.
+The clock is itself efficiently computable, and the chosen machine also bounds typed source
+requests. Connecting this first run to the original adversary's probability law, extraction
+postprocessing, binary tape preparation, and the final Schnorr family hardness theorem remain open.
 
 Samuel's `polytime` and `ppt` tactics have been adapted to these native certificates. Tests cover
 data-dependent sampling, captured continuations, calls to certified subprograms, and the ordinary
@@ -225,9 +230,9 @@ of an honest Schnorr transcript, leaving its algebraic identity as the final obl
 Reachability reflection transfers that postcondition to every completed path of a realizing machine.
 The tactics do not infer efficiency for arbitrary Lean functions or supply loop-size invariants.
 
-The remaining runtime work connects the shared-seed sampling measure to the semantic fork,
-bounds the source answer tape, and certifies Schnorr's complete reduction. Group and field
-primitives and family parameter data require explicit uniform certificates.
+The remaining runtime work connects the original adversary to the saved-machine simulator and
+certifies Schnorr's complete binary reduction. Group and field primitives and family parameter
+data require explicit uniform certificates.
 Adaptive finite-sampling programs now have a whole-experiment cutoff bound
 `draws * 2⁻ᵃᵗᵗᵉᵐᵖᵗˢ` for every payoff in `[0, 1]`. Successful bounded executions are dominated
 by the ideal measure. Polynomially many draws and an attempt budget at least the security

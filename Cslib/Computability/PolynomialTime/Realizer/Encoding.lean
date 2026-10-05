@@ -142,6 +142,24 @@ end Typed
 
 variable {Input Output : Type} [MeasurableSpace Word] [DiscreteMeasurableSpace Word]
 
+/-- A chosen uniform machine's clock bounds the original typed requests. The signature and
+result encoding may vary with the input; private source coins are left uncounted. -/
+theorem Realizer.queryBoundP_typed {input : Input ↪ Word} {output : Output ↪ Word}
+    {signature : Input → PFunctor.{0, 0}} {Result : Input → Type}
+    (request : ∀ a, Computability.Encoding (signature a).A Bool)
+    (response : ∀ a op, Computability.Encoding ((signature a).B op) Bool)
+    (result : ∀ a, Option (Result a) → Output)
+    (program : ∀ a, (PFunctor.mk Unit (fun _ => Bool) + signature a).FreeM (Result a))
+    (implementation : Realizer input output (fun a => result a <$>
+      ((program a).liftM (encodeEffects (request a) (response a))).run))
+    (a : Input) (select : (signature a).A → Bool) :
+    FreeM.queryBoundP (Sum.elim (fun _ => false) select) (program a) ≤
+      implementation.clock (input a).length := by
+  apply (queryBoundP_le_encodeEffects (request a) (response a) select (program a)).trans
+  simpa only [FreeM.queryBoundP_map] using implementation.queryBoundP_le a
+    (Sum.elim (fun _ => false) (fun query => ((request a).decodeChecked query.2).any select)) rfl
+
+
 /-- A uniform certificate at the word interface bounds selected typed requests, even when
 the signature, result type, and their encodings vary with the input parameter. -/
 theorem IsPPT.queryBoundP_typed {input : Input ↪ Word} {output : Output ↪ Word}
@@ -155,10 +173,8 @@ theorem IsPPT.queryBoundP_typed {input : Input ↪ Word} {output : Output ↪ Wo
     ∃ c d : ℕ, ∀ a (select : (signature a).A → Bool),
       FreeM.queryBoundP (Sum.elim (fun _ => false) select) (program a) ≤
         (c * ((input a).length + 1) ^ d : ℕ) := by
-  obtain ⟨c, d, hbound⟩ := h.queryBoundP_le
-  refine ⟨c, d, fun a select => ?_⟩
-  apply (queryBoundP_le_encodeEffects (request a) (response a) select (program a)).trans
-  simpa only [FreeM.queryBoundP_map] using hbound a
-    (Sum.elim (fun _ => false) (fun query => ((request a).decodeChecked query.2).any select)) rfl
+  obtain ⟨implementation⟩ := isPPT_iff_nonempty_realizer.mp h
+  exact ⟨implementation.coefficient, implementation.degree,
+    implementation.queryBoundP_typed request response result program⟩
 
 end Turing.MultiTapePTM

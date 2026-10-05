@@ -8,6 +8,8 @@ module
 
 public import Cslib.Crypto.Primitives.Schnorr.Simulation.PrivateTape
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.TracedExecution
+public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Cost
+public import Cslib.Foundations.Data.PFunctor.Free.Fork.Tape
 
 /-!
 # The typed source of a saved-coin Schnorr machine
@@ -43,6 +45,37 @@ def signatureMachineProgram {k ports : ℕ} {State : Type}
     let candidate ← ((Computability.encodingList Bool).bitPair
       (element.bitPair scalar)).bitOption.decodeChecked output
     candidate))
+
+omit [Field F] [AddCommGroup G] [Module F G] [DecidableEq G] in
+/-- Each saved machine transition makes at most one typed request. Canonical decoding,
+output checking, and rejection add no source operations. -/
+theorem queryBound_signatureMachineProgram_le {k ports : ℕ} {State : Type}
+    (machine : Turing.MultiTapePTM k Bool State (Fin ports)) (word coins : Word)
+    (snapshot : Snapshot k Bool State (Fin ports)) :
+    FreeM.queryBound (signatureMachineProgram element scalar machine word coins snapshot).run ≤
+      coins.length := by
+  apply (FreeM.queryBound_optionT_bind_le _ _ 0 (fun _ => le_rfl)).trans
+  simp only [add_zero]
+  apply (queryBound_runSnapshotFromCoins_optionT_le machine word _ 1 ?_ coins snapshot).trans_eq
+  · exact mul_one _
+  · intro port request
+    simp only [decodeQuery, OptionT.run_bind, OptionT.run_mk, Option.elimM, bind_pure_comp,
+      pure_bind]
+    cases (signatureRequestEncoding (Computability.encodingList Bool) element).decodeChecked
+      request <;>
+      simp [FreeM.queryBound_lift (P := signatureEffects 0 Word G F)]
+
+/-- A saved execution and its final verifier fit in a hash tape one longer than the clock. -/
+theorem queryBound_privateForgery_signatureMachineProgram_le {k ports : ℕ} {State : Type}
+    (machine : Turing.MultiTapePTM k Bool State (Fin ports)) (word coins : Word)
+    (snapshot : Snapshot k Bool State (Fin ports)) (g pk : G) (privateScalars : List F) :
+    FreeM.queryBound (privateForgery g pk
+      (signatureMachineProgram element scalar machine word coins snapshot) privateScalars) ≤
+      (coins.length + 1 : ℕ) := by
+  apply (queryBound_privateForgery_le g pk _ privateScalars).trans
+  simpa only [Nat.cast_add, Nat.cast_one] using
+    add_le_add (queryBound_signatureMachineProgram_le element scalar machine word coins
+      snapshot) (le_rfl : (1 : ℕ∞) ≤ 1)
 
 private def interpretSignature {α : Type} (g pk : G)
     (program : OptionT (signatureEffects 0 Word G F).FreeM α) :
@@ -218,6 +251,186 @@ theorem runSignatureFromAnswers_eq {k ports : ℕ} {State : Type}
     cases op with
     | inl op => exact isEmptyElim op
     | inr op => rfl
+
+/-- Every successful checked run selects an accepting hash within its clock-derived budget.
+The final verifier supplies a position even when the adversary never requested that hash. -/
+theorem runSignatureFromAnswers_forkPoint {k ports : ℕ} {State : Type}
+    (machine : Turing.MultiTapePTM k Bool State (Fin ports)) (word coins : Word)
+    (snapshot : Snapshot k Bool State (Fin ports)) (g pk : G)
+    (privateScalars hashScalars : List F)
+    {out : (Word × G × F) × List (Sigma (PFunctor.mk (Word × G) (fun _ => F)).B)}
+    (h : runSignatureFromAnswers element scalar machine word coins snapshot g pk
+      privateScalars hashScalars = some out) :
+    ∃ n < coins.length + 1, findForkPoint g pk (some out.1)
+      (out.2.map (fun event => (event.1, event.2))) = some n := by
+  have hlength : out.2.length ≤ coins.length + 1 := by
+    rw [runSignatureFromAnswers_eq] at h
+    obtain ⟨⟨candidate, events⟩, htrace, h⟩ := Option.bind_eq_some_iff.mp h
+    cases candidate with
+    | none => cases h
+    | some candidate =>
+      cases h
+      have hreturn := FreeM.canReturn_of_runFromAnswers _ _ htrace
+      have hcost := (FreeM.countP_trace_le_queryBoundP (fun _ => true) _ hreturn).trans
+        (by
+          simpa only [FreeM.queryBoundP_true] using
+            (queryBound_privateForgery_signatureMachineProgram_le element scalar machine word
+              coins snapshot g pk privateScalars))
+      simpa only [List.countP_true, ENat.natCast_le_natCast] using hcost
+  unfold runSignatureFromAnswers at h
+  obtain ⟨result, hrun, h⟩ := Option.bind_eq_some_iff.mp h
+  obtain ⟨checked, hcheck, h⟩ := Option.bind_eq_some_iff.mp h
+  cases h
+  have hrecorded := runSnapshotFromCoins_preserves machine word
+    (fun _ request => traceSeededCall
+      (seededSignatureWordHandler element scalar.toEmbedding g pk request))
+    (fun state => ∀ input challenge, state.1.1.2.lookup input = some challenge →
+      input.1 ∈ state.1.1.1 ∨ (input, challenge) ∈ state.2)
+    (fun _ request state hstate result hresult =>
+      traceSeededSignatureWordHandler_recorded element scalar.toEmbedding g pk request
+        state.1 state.2 hstate hresult) coins snapshot
+    ((([], []), privateScalars, hashScalars), []) (by simp) hrun
+  have hplain := congrArg (Option.map (fun out => (out.1, out.2.1))) hcheck
+  rw [traceSeededCall_forget] at hplain
+  obtain ⟨candidate, houtput, _⟩ := (checkSeededForgeryOutput_eq_some_iff
+    element scalar g pk _ _ _).mp hplain
+  rw [houtput, checkSeededForgeryOutput_encode] at hcheck
+  obtain ⟨heq, challenge, haccepts, hmem⟩ := traceSeededCall_check_recorded g pk candidate
+    result.2.1 result.2.2 (fun input challenge hlookup => hrecorded input challenge (by
+      simpa only [List.lookup_eq_some_iff, bne_iff_ne] using hlookup)) hcheck
+  have hexists : (findForkPoint g pk (some checked.1) checked.2.2).isSome := by
+    simp only [heq, findForkPoint,
+      List.findIdx?_isSome, List.any_eq_true, decide_eq_true_eq]
+    exact ⟨((candidate.1, candidate.2.1), challenge), hmem, rfl, haccepts⟩
+  obtain ⟨n, hn⟩ := Option.isSome_iff_exists.mp hexists
+  refine ⟨n, ?_, ?_⟩
+  · exact lt_of_lt_of_le (List.findIdx?_eq_some_iff_findIdx_eq.mp hn).1
+      (by simpa only [List.length_map] using hlength)
+  · simpa [List.map_map, Function.comp_def] using hn
+
+
+section Measures
+
+open MeasureTheory
+
+variable {P : PFunctor.{0, 0}}
+  [∀ op, MeasurableSpace (P.B op)] [∀ op, DiscreteMeasurableSpace (P.B op)]
+  [MeasurableSpace Word] [DiscreteMeasurableSpace Word]
+  [MeasurableSpace F] [DiscreteMeasurableSpace F] [Countable F]
+  [MeasurableSpace G] [DiscreteMeasurableSpace G] [Countable G]
+  [MeasurableSpace (List F)] [DiscreteMeasurableSpace (List F)]
+  [MeasurableSpace (List (Sigma (PFunctor.mk (Word × G) (fun _ => F)).B))]
+  [DiscreteMeasurableSpace (List (Sigma (PFunctor.mk (Word × G) (fun _ => F)).B))]
+  (μ : OutputMeasure P) [∀ op, IsProbabilityMeasure (μ op)]
+
+/-- Sampling one private seed and two hash tapes implements the complete semantic fork of
+the fixed-seed machine source. The same coins and simulator scalars are reused by both runs;
+all rejections retain their mass at `none`. -/
+theorem toMeasure_forkSignatureFromAnswers {k ports : ℕ} {State : Type}
+    (machine : Turing.MultiTapePTM k Bool State (Fin ports)) (word : Word)
+    (snapshot : Snapshot k Bool State (Fin ports)) (g pk : G)
+    (seed : P.FreeM (Word × List F)) (sample : P.FreeM F) (clock : ℕ)
+    (hcoins : ∀ saved, MonadAttach.CanReturn seed saved → saved.1.length ≤ clock) :
+    let run saved := runSignatureFromAnswers element scalar machine word saved.1 snapshot
+      g pk saved.2
+    let choose (out : (Word × G × F) ×
+        List (Sigma (PFunctor.mk (Word × G) (fun _ => F)).B)) :=
+      findForkPoint g pk (some out.1) (out.2.map (fun event => (event.1, event.2)))
+    let source saved := privateForgery g pk
+      (signatureMachineProgram element scalar machine word saved.1 snapshot) saved.2
+    let tape := (List.replicate (clock + 1) ()).mapM (fun _ => sample)
+    (do
+      let saved ← seed
+      let answers ← tape
+      let fresh ← tape
+      pure (FreeM.forkFromTracedAnswers (run saved) choose answers fresh)).toMeasure μ =
+        (seed.toMeasure μ).bind (fun saved =>
+          ((FreeM.fork (fun _ => true)
+            (fun out => out.1.bind (fun value => choose (value, out.2)))
+            (FreeM.trace (source saved))).toMeasure
+              (.ofMeasure (fun _ => sample.toMeasure μ))).map (fun out => do
+                let first ← out.1.1
+                let ⟨op, answer, answer', second, events⟩ ← out.2
+                let second ← second
+                pure ((first, out.1.2), (⟨op, answer, answer', second, events⟩ :
+                  (_ : Word × G) × F × F ×
+                    ((Word × G × F) × List (Sigma (PFunctor.mk (Word × G) (fun _ => F)).B))))))
+    := by
+  intro run choose source tape
+  change FreeM.denote μ _ = _
+  rw [FreeM.denote_bind_of_discrete]
+  apply Measure.bind_congr_right
+  filter_upwards [FreeM.ae_canReturn μ seed] with saved hsaved
+  apply FreeM.denote_forkFromTracedAnswers μ sample (source saved) (run saved)
+    (runSignatureFromAnswers_eq element scalar machine word saved.1 snapshot g pk saved.2)
+    choose (clock + 1)
+  exact (queryBound_privateForgery_signatureMachineProgram_le element scalar machine word
+    saved.1 snapshot g pk saved.2).trans (by
+      exact_mod_cast Nat.add_le_add_right (hcoins saved hsaved) 1)
+
+open scoped ENNReal
+
+/-- The actual two-run machine interpreter satisfies the shared-seed forking inequality.
+Every checked first-run forgery is covered by the clock-derived hash budget. -/
+theorem le_toMeasure_forkSignatureFromAnswers {k ports : ℕ} {State : Type}
+    (machine : Turing.MultiTapePTM k Bool State (Fin ports)) (word : Word)
+    (snapshot : Snapshot k Bool State (Fin ports)) (g pk : G)
+    (seed : P.FreeM (Word × List F)) (sample : P.FreeM F) (clock : ℕ) (r : ℝ≥0∞)
+    (hcoins : ∀ saved, MonadAttach.CanReturn seed saved → saved.1.length ≤ clock)
+    (hanswer : ∀ answer, sample.toMeasure μ {answer} ≤ r) :
+    let run saved := runSignatureFromAnswers element scalar machine word saved.1 snapshot
+      g pk saved.2
+    let choose (out : (Word × G × F) ×
+        List (Sigma (PFunctor.mk (Word × G) (fun _ => F)).B)) :=
+      findForkPoint g pk (some out.1) (out.2.map (fun event => (event.1, event.2)))
+    let tape := (List.replicate (clock + 1) ()).mapM (fun _ => sample)
+    let ε := (seed >>= fun saved => run saved <$> tape).toMeasure μ
+      {out | out.isSome}
+    ε * (ε / (clock + 1 : ℕ) - r) ≤ (do
+      let saved ← seed
+      let answers ← tape
+      let fresh ← tape
+      pure (FreeM.forkFromTracedAnswers (run saved) choose answers fresh)).toMeasure μ
+        {out | ∃ value, out = some value ∧ (value.1, some value.2) ∈ ⋃ n,
+          FreeM.forkSuccess (P := PFunctor.mk (Word × G) (fun _ => F)) choose n} := by
+  intro run choose tape
+  have hfork := FreeM.le_denote_forkFromTracedAnswers_bind μ seed sample
+    (fun saved => privateForgery g pk
+      (signatureMachineProgram element scalar machine word saved.1 snapshot) saved.2)
+    run (fun saved _ => runSignatureFromAnswers_eq element scalar machine word saved.1
+      snapshot g pk saved.2) choose (clock + 1) (clock + 1) r
+    (fun saved hsaved =>
+      (queryBound_privateForgery_signatureMachineProgram_le element scalar machine word
+        saved.1 snapshot g pk saved.2).trans (by
+          exact_mod_cast Nat.add_le_add_right (hcoins saved hsaved) 1)) hanswer (by
+      intro saved hsaved out hout n hn
+      have h := (List.findIdx?_eq_some_iff_findIdx_eq.mp hn).1
+      simpa only [List.length_map] using h)
+  have hprob : FreeM.denote μ (seed >>= fun saved => run saved <$> tape)
+      {out | ∃ value, out = some value ∧ ∃ n < clock + 1, choose value = some n} =
+      FreeM.denote μ (seed >>= fun saved => run saved <$> tape) {out | out.isSome} := by
+    apply measure_congr
+    filter_upwards [FreeM.ae_canReturn μ (seed >>= fun saved => run saved <$> tape)] with out hout
+    apply propext
+    constructor
+    · rintro ⟨value, rfl, _⟩
+      rfl
+    · intro hsuccess
+      obtain ⟨saved, hsaved, hout⟩ := (FreeM.canReturn_bind _ _ _).mp hout
+      obtain ⟨answers, _, rfl⟩ := (FreeM.canReturn_map _ _ _).mp hout
+      cases hr : run saved answers with
+      | none => simp only [hr, Option.isSome_none, Bool.false_eq_true] at hsuccess
+      | some result =>
+        obtain ⟨n, hn, hchoose⟩ := runSignatureFromAnswers_forkPoint element scalar machine word
+          saved.1 snapshot g pk saved.2 answers hr
+        exact ⟨result, rfl, n, hn.trans_le (Nat.add_le_add_right (hcoins saved hsaved) 1),
+          hchoose⟩
+  dsimp only at hfork ⊢
+  rw [hprob] at hfork
+  exact hfork
+
+end Measures
+
 
 section Indexed
 

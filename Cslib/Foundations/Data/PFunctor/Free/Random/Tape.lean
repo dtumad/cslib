@@ -140,6 +140,124 @@ theorem denote_runFromAnswers (sample : P.FreeM Answer)
 
 end Answers
 
+section PrivateAnswers
+
+open Cslib MeasureTheory
+
+universe u
+
+variable {P : PFunctor.{u, u}} {Answer α : Type u}
+
+/-- Supply saved answers to the right summand while retaining the left summand's effects.
+The remaining tape is ordinary state, and exhaustion is an explicit failure. -/
+def withAnswerTape (program : (P + PFunctor.mk Unit (fun _ => Answer)).FreeM α) :
+    StateT (List Answer) (OptionT P.FreeM) α :=
+  program.liftM (P := P + PFunctor.mk Unit (fun _ => Answer)) (fun
+    | .inl op => fun answers => OptionT.mk
+      ((fun answer => some (answer, answers)) <$> lift op)
+    | .inr _ => fun answers => OptionT.mk (pure (readAnswer answers)))
+
+/-- Supplying a private tape commutes with monadic sequencing, keeping its unused suffix. -/
+theorem isMonadHom_withAnswerTape :
+    IsMonadHom (P + PFunctor.mk Unit (fun _ => Answer)).FreeM
+      (StateT (List Answer) (OptionT P.FreeM)) withAnswerTape :=
+  isMonadHom_liftM _
+
+@[simp] theorem withAnswerTape_pure (value : α) :
+    withAnswerTape (P := P) (Answer := Answer) (pure value) = pure value := rfl
+
+@[simp] theorem withAnswerTape_lift_left (op : P.A) (answers : List Answer) :
+    (withAnswerTape (lift (P := P + PFunctor.mk Unit (fun _ => Answer)) (.inl op)) answers).run =
+      (fun answer => some (answer, answers)) <$> lift op := by
+  simp [withAnswerTape, liftM_lift (P := P + PFunctor.mk Unit (fun _ => Answer))]
+
+@[simp] theorem withAnswerTape_lift_right (answers : List Answer) :
+    (withAnswerTape (lift (P := P + PFunctor.mk Unit (fun _ => Answer)) (.inr ())) answers).run =
+      (pure (readAnswer answers) : P.FreeM (Option (Answer × List Answer))) := by
+  simp [withAnswerTape, liftM_lift (P := P + PFunctor.mk Unit (fun _ => Answer))]
+
+theorem withAnswerTape_lift_bind_left (op : P.A)
+    (cont : P.B op → (P + PFunctor.mk Unit (fun _ => Answer)).FreeM α)
+    (answers : List Answer) :
+    ((withAnswerTape (lift (P := P + PFunctor.mk Unit (fun _ => Answer))
+      (.inl op) >>= cont)).run' answers).run = lift op >>= fun answer =>
+        ((withAnswerTape (cont answer)).run' answers).run := by
+  rw [isMonadHom_withAnswerTape.map_bind]
+  simp only [StateT.run', OptionT.run_map]
+  dsimp +instances only [Bind.bind, StateT.bind, OptionT.bind, OptionT.run, OptionT.mk]
+  have h := withAnswerTape_lift_left (P := P) op answers
+  dsimp only [OptionT.run] at h
+  rw [h]
+  simp [bind_eq_bind, _root_.bind_map_left, _root_.map_bind]
+
+theorem withAnswerTape_lift_bind_right (cont : Answer →
+    (P + PFunctor.mk Unit (fun _ => Answer)).FreeM α) (answer : Answer) (answers : List Answer) :
+    ((withAnswerTape (lift (P := P + PFunctor.mk Unit (fun _ => Answer))
+      (.inr ()) >>= cont)).run' (answer :: answers)).run =
+        ((withAnswerTape (cont answer)).run' answers).run := by
+  rw [isMonadHom_withAnswerTape.map_bind]
+  simp only [StateT.run', OptionT.run_map]
+  dsimp +instances only [Bind.bind, StateT.bind, OptionT.bind, OptionT.run, OptionT.mk]
+  have h := withAnswerTape_lift_right (P := P) (answer :: answers)
+  dsimp only [OptionT.run] at h
+  rw [h]
+  simp [readAnswer]
+
+variable [∀ op, MeasurableSpace (P.B op)] [∀ op, DiscreteMeasurableSpace (P.B op)]
+  [∀ op, Countable (P.B op)]
+  [MeasurableSpace Answer] [DiscreteMeasurableSpace Answer] [Countable Answer]
+  [MeasurableSpace α]
+  (μ : (op : P.A) → Measure (P.B op)) [∀ op, IsProbabilityMeasure (μ op)]
+
+/-- A sufficient private tape may be sampled before an adaptive computation. Visible effects
+keep their order, unused private entries integrate out, and the whole output law is preserved. -/
+theorem denote_withAnswerTape (sample : P.FreeM Answer)
+    (program : (P + PFunctor.mk Unit (fun _ => Answer)).FreeM α)
+    (count : ℕ) (hcount : queryBoundP Sum.isRight program ≤ count) :
+    denote μ (do
+      let answers ← (List.replicate count ()).mapM (fun _ => sample)
+      (withAnswerTape program).run' answers |>.run) =
+      denote μ (some <$> program.liftM (P := P + PFunctor.mk Unit (fun _ => Answer)) (fun
+        | .inl op => lift op
+        | .inr _ => sample)) := by
+  let : MeasurableSpace (List Answer) := ⊤
+  let : ∀ op, MeasurableSpace ((P + PFunctor.mk Unit (fun _ => Answer)).B op) :=
+    OutputMeasure.sumMeasurableSpace P (PFunctor.mk Unit (fun _ => Answer))
+  induction program generalizing count with
+  | pure value =>
+    simp only [withAnswerTape_pure, StateT.run', OptionT.run_map, liftM_pure]
+    dsimp +instances only [Pure.pure, StateT.pure, OptionT.pure, OptionT.run, OptionT.mk]
+    simp only [pure_eq_pure, Functor.map, map_pure, Option.map_some]
+    rw [denote_bind_of_discrete μ]
+    simp
+  | lift_bind op cont ih =>
+    have hcost := queryBoundP_cont_le Sum.isRight op cont count hcount
+    rw [bind_eq_bind]
+    cases op with
+    | inl op =>
+      simp only [withAnswerTape_lift_bind_left (P := P), liftM_bind,
+        liftM_lift (P := P + PFunctor.mk Unit (fun _ => Answer)),
+        _root_.map_bind, denote_bind_of_discrete, denote_lift]
+      rw [Measure.bind_comm (Measurable.of_discrete)]
+      apply Measure.bind_congr_right (Filter.Eventually.of_forall fun answer => ?_)
+      simpa only [denote_bind_of_discrete] using
+        ih answer count (by simpa using hcost.2 answer)
+    | inr token =>
+      cases token
+      cases count with
+      | zero => simp at hcost
+      | succ count =>
+        simp only [List.replicate_succ, List.mapM_cons, LawfulMonad.bind_assoc,
+          LawfulMonad.pure_bind,
+          withAnswerTape_lift_bind_right (P := P), liftM_bind,
+          liftM_lift (P := P + PFunctor.mk Unit (fun _ => Answer)),
+          _root_.map_bind, denote_bind_of_discrete]
+        apply Measure.bind_congr_right (Filter.Eventually.of_forall fun answer => ?_)
+        simpa only [denote_bind_of_discrete] using
+          ih answer count (by simpa using hcost.2 answer)
+
+end PrivateAnswers
+
 section Tracing
 
 variable {Operation Answer α : Type}

@@ -125,4 +125,36 @@ theorem isMonadHom_stateT_optionT_stateT (State Tape : Type) :
       | none => rfl
       | some out => rfl
 
+/-- Flatten private state and two possible failures while retaining the ambient effects.
+Either failure rejects the result together with both states. -/
+theorem isMonadHom_stateT_optionT_stateT_optionT {m : Type → Type*}
+    [Monad m] [LawfulMonad m] (State Tape : Type) :
+    IsMonadHom (StateT State (OptionT (StateT Tape (OptionT m))))
+      (StateT (State × Tape) (OptionT m))
+      (fun action (state, tape) => do
+        let (out, tape') ← (action state).run tape
+        let (value, state') ← OptionT.mk (pure out)
+        pure (value, state', tape')) := by
+  apply IsMonadHom.mk'
+  · intro α value
+    funext ⟨state, tape⟩
+    simp [Pure.pure, StateT.pure, OptionT.pure, OptionT.run, OptionT.mk,
+      Bind.bind, OptionT.bind]
+  · intro α β action cont
+    funext ⟨state, tape⟩
+    dsimp +instances only [Bind.bind, StateT.bind, OptionT.bind, OptionT.mk, OptionT.run,
+      Pure.pure, StateT.pure, OptionT.pure]
+    simp only [LawfulMonad.bind_assoc]
+    congr 1
+    funext out
+    cases out with
+    | none => simp
+    | some out =>
+      rcases out with ⟨out, tape'⟩
+      cases out with
+      | none =>
+        dsimp +instances only [StateT.pure, Pure.pure, OptionT.pure, OptionT.mk]
+        simp
+      | some out => simp
+
 end Cslib

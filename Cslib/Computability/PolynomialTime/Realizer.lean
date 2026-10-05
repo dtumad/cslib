@@ -7,6 +7,7 @@ Authors: Devon Tuma
 module
 
 public import Cslib.Computability.PolynomialTime.Support
+public import Cslib.Computability.PolynomialTime.Arithmetic
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Rename
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Cost
 public import Cslib.Foundations.Data.Nat.PolynomialBound
@@ -89,6 +90,19 @@ def clock (length : ℕ) : ℕ := implementation.coefficient * (length + 1) ^ im
 theorem polynomiallyBounded_clock : Cslib.PolynomiallyBounded implementation.clock := by
   unfold clock
   fun_prop
+
+/-- Computing the unary transition budget has one uniform polynomial-time machine. -/
+theorem isPolyTime_clock : IsPolyTime unaryEncoding
+    (fun length => unaryEncoding (implementation.clock length)) :=
+  (isPolyTime_const unaryEncoding (unaryEncoding implementation.coefficient)).unary_mul
+    (((isPolyTime_input unaryEncoding).unary_add (g := fun _ => 1)
+      (isPolyTime_const unaryEncoding [true])).unary_pow implementation.degree)
+
+/-- The same clock is monotone in the input length. -/
+theorem clock_mono : Monotone implementation.clock := by
+  intro a b hab
+  dsimp only [clock]
+  gcongr
 
 /-- Execute the chosen machine, translating its ports to the original operation names. -/
 def run (a : α) : (effects Oracle).FreeM (Option Word) :=

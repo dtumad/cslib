@@ -33,6 +33,43 @@ theorem cost_coin : FreeM.queryBound coin = 1 := FreeM.queryBound_lift (P := bit
 
 abbrev requests : PFunctor := ⟨Bool, fun _ => Fin 2⟩
 
+-- A visible answer determines whether a second private scalar is needed.
+def adaptivePrivate : (requests + bits).FreeM (Option (Fin 2 × Fin 2)) := do
+  let first : Fin 2 ← FreeM.lift (P := requests + bits) (.inr ())
+  let answer : Fin 2 ← FreeM.lift (P := requests + bits) (.inl (first == 0))
+  if answer == 0 then
+    let second : Fin 2 ← FreeM.lift (P := requests + bits) (.inr ())
+    pure (some (first, second))
+  else pure none
+
+-- Program rejection and private-tape exhaustion are different optional layers.
+#guard FreeM.runFromAnswers (FreeM.withAnswerTape adaptivePrivate [0, 1]).run [1] ==
+  some (some (none, [1]))
+#guard FreeM.runFromAnswers (FreeM.withAnswerTape adaptivePrivate [0]).run [0] == some none
+#guard FreeM.runFromAnswers (FreeM.withAnswerTape adaptivePrivate [0, 1]).run [0] ==
+  some (some (some (0, 1), []))
+
+example :
+    FreeM.denote (P := requests) (fun _ => uniformOn Set.univ) (do
+      let tape ← (List.replicate 2 ()).mapM (fun _ => FreeM.lift false)
+      (FreeM.withAnswerTape adaptivePrivate).run' tape |>.run) =
+    FreeM.denote (P := requests) (fun _ => uniformOn Set.univ)
+      (some <$> adaptivePrivate.liftM (P := requests + bits) (fun
+        | .inl op => FreeM.lift op
+        | .inr _ => FreeM.lift false)) := by
+  convert FreeM.denote_withAnswerTape (P := requests) (fun _ => uniformOn Set.univ)
+    (FreeM.lift false) adaptivePrivate 2 ?_ using 1
+  · congr 3
+    funext op
+    cases op <;> rfl
+  norm_num [adaptivePrivate, FreeM.queryBoundP_lift_bind (P := requests + bits),
+    FreeM.queryBoundP_map]
+  refine (add_le_add (le_rfl : (1 : ℕ∞) ≤ 1)
+    (iSup_le fun first => iSup_le fun answer => ?_)).trans
+      (show (1 : ℕ∞) + 1 ≤ 2 by norm_num)
+  split <;> simp [FreeM.queryBoundP_lift (P := requests + bits)]
+
+
 def savedPrefix : requests.FreeM (Fin 2 × Fin 2) := do
   let saved ← FreeM.lift false
   let challenge ← FreeM.lift true
