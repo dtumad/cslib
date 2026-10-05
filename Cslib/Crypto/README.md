@@ -205,9 +205,13 @@ only the existing arithmetic, parser, and representation-size certificates. Reje
 remain `none` and expose no transcript. `FreeM.forkFromTracedAnswers` now supports this rejection
 behavior: its whole-measure equality and general forking bound allow failed-run logs to be
 discarded, with one private seed shared by both runs. Its machine certificate is uniform across
-indexed result, operation, and answer families and needs no default result. Instantiating the
-source-program correspondence with the complete Schnorr recorder remains part of the reduction
-proof.
+indexed result, operation, and answer families and needs no default result. Fixing the machine
+coins and simulator scalars now gives an ordinary hash-only `FreeM` source. Its successful trace
+equals the complete checked machine run pointwise in both saved tapes, including timeout,
+malformed interfaces, signing collisions, cache hits, and final verification. The corresponding
+two-run replay has one uniform polynomial-time certificate derived from the existing primitive
+certificates and representation bounds. The shared-seed distribution argument, source tape
+budget, extraction postprocessing, and final Schnorr family hardness theorem remain open.
 
 Samuel's `polytime` and `ppt` tactics have been adapted to these native certificates. Tests cover
 data-dependent sampling, captured continuations, calls to certified subprograms, and the ordinary

@@ -56,6 +56,21 @@ theorem queryBoundP_true (x : P.FreeM α) : queryBoundP (fun _ => true) x = quer
   | lift_bind op cont ih =>
     simp only [bind_eq_bind, queryBoundP_lift_bind, queryBound_lift_bind, ↓reduceIte, ih]
 
+/-- Counting only selected operations never exceeds the total operation bound. -/
+theorem queryBoundP_le_queryBound (select : P.A → Bool) (x : P.FreeM α) :
+    queryBoundP select x ≤ queryBound x := by
+  induction x with
+  | pure a => exact le_rfl
+  | lift_bind op cont ih =>
+    simp only [bind_eq_bind, queryBoundP_lift_bind, queryBound_lift_bind]
+    apply add_le_add _ (iSup_mono ih)
+    cases select op <;> simp
+
+/-- Finite response types also give a finite bound on every selected family of operations. -/
+theorem queryBoundP_ne_top [∀ op, Finite (P.B op)] (select : P.A → Bool) (x : P.FreeM α) :
+    queryBoundP select x ≠ ⊤ :=
+  ne_top_of_le_ne_top (queryBound_ne_top x) (queryBoundP_le_queryBound select x)
+
 /-- Bounds on selected operations add under sequential composition. -/
 theorem queryBoundP_bind_le (select : P.A → Bool) (x : P.FreeM α) (f : α → P.FreeM β)
     (bound : ℕ∞) (hf : ∀ a, queryBoundP select (f a) ≤ bound) :

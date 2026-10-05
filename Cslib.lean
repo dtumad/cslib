@@ -226,8 +226,10 @@ public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Fork
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Handler
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.HandlerBounds
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Output
+public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Replay
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Signing
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Simulation
+public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Source
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Trace
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.TraceBounds
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.TracedExecution
@@ -237,6 +239,7 @@ public import Cslib.Crypto.Primitives.Schnorr.Sampling
 public import Cslib.Crypto.Primitives.Schnorr.Security
 public import Cslib.Crypto.Primitives.Schnorr.Simulation
 public import Cslib.Crypto.Primitives.Schnorr.Simulation.LiftM
+public import Cslib.Crypto.Primitives.Schnorr.Simulation.PrivateTape
 public import Cslib.Crypto.Primitives.Schnorr.Simulation.Probability
 public import Cslib.Crypto.Primitives.Schnorr.Simulation.Seeded
 public import Cslib.Crypto.Primitives.Schnorr.Simulation.Trace
@@ -308,6 +311,7 @@ public import Cslib.Foundations.Data.PFunctor.Free.MonadAttach
 public import Cslib.Foundations.Data.PFunctor.Free.Random
 public import Cslib.Foundations.Data.PFunctor.Free.Random.Approximation
 public import Cslib.Foundations.Data.PFunctor.Free.Random.Tape
+public import Cslib.Foundations.Data.PFunctor.Free.Random.Tape.Trace
 public import Cslib.Foundations.Data.PFunctor.Free.Resumption
 public import Cslib.Foundations.Data.PFunctor.Free.Trace
 public import Cslib.Foundations.Data.PFunctor.Free.Trace.Handler

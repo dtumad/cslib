@@ -16,6 +16,10 @@ public import Mathlib.Data.ENat.Monoid
 `queryBound` counts visible operations, taking a supremum over all responses. It can be infinite
 even for a well-founded program if branches have unbounded finite lengths. It does not charge
 local computation. A machine runtime certificate must additionally account for that work.
+
+For example, reading a natural number `n` and then making `n` further calls always terminates,
+but has no uniform finite bound. Finite response types rule this out: `queryBound_ne_top` proves
+that every program with finite branching has a finite bound.
 -/
 
 @[expose] public section
@@ -43,6 +47,16 @@ theorem queryBound_lift (op : P.A) : queryBound (lift (P := P) op) = 1 := by
   change 1 + ⨆ _ : P.B op, (0 : ℕ∞) = 1
   simp
 
+/-- A well-founded program with finite response types has a finite worst-case operation count. -/
+theorem queryBound_ne_top [∀ op, Finite (P.B op)] (x : P.FreeM α) : queryBound x ≠ ⊤ := by
+  induction x with
+  | pure a => simp
+  | lift_bind op cont ih =>
+    intro h
+    rcases ENat.add_eq_top.mp h with h | h
+    · exact ENat.one_ne_top h
+    · exact iSup_ne_top ih h
+
 /-- Sequential composition adds worst-case bounds. -/
 theorem queryBound_bind_le (x : P.FreeM α) (f : α → P.FreeM β) (bound : ℕ∞)
     (hf : ∀ a, queryBound (f a) ≤ bound) :
@@ -65,6 +79,17 @@ theorem queryBound_map (f : α → β) (x : P.FreeM α) :
   | lift_bind op cont ih =>
     change (1 + ⨆ b, queryBound (f <$> cont b)) = 1 + ⨆ b, queryBound (cont b)
     simp only [ih]
+
+/-- Aborting sequential composition does not charge for an unexecuted continuation. -/
+theorem queryBound_optionT_bind_le (x : OptionT P.FreeM α) (f : α → OptionT P.FreeM β)
+    (bound : ℕ∞) (hf : ∀ a, queryBound (f a).run ≤ bound) :
+    queryBound (x >>= f).run ≤ queryBound x.run + bound := by
+  simp only [OptionT.run_bind]
+  apply queryBound_bind_le
+  intro value
+  cases value with
+  | none => exact bot_le
+  | some value => exact hf value
 
 /-- Inlining handlers charges their implementation, rather than treating them as unit-cost. -/
 theorem queryBound_liftM_le (handler : (op : P.A) → Q.FreeM (P.B op))

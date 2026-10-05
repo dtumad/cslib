@@ -63,6 +63,30 @@ theorem IsPolyTime.option_pair {γ : α → Type} {other : ∀ a, γ a ↪ Word}
   funext a
   cases left a <;> cases right a <;> rfl
 
+/-- Project the first field of a present pair without a default for either type. -/
+theorem IsPolyTime.option_fst {γ : α → Type} {other : ∀ a, γ a ↪ Word}
+    {value : ∀ a, Option (β a × γ a)}
+    (hvalue : IsPolyTime encode (fun a =>
+      optionEncoding (pairEncoding (element a) (other a)) (value a))) :
+    IsPolyTime encode (fun a => optionEncoding (element a) ((value a).map Prod.fst)) := by
+  convert hvalue.option_isSome.cond
+    (hvalue.tail.bitPair_fst.option_some (element := fun _ => wordEncoding))
+    (isPolyTime_const encode []) using 1
+  funext a
+  cases value a <;> simp [pairEncoding_apply, wordEncoding]
+
+/-- Project the second field of a present pair without a default for either type. -/
+theorem IsPolyTime.option_snd {γ : α → Type} {other : ∀ a, γ a ↪ Word}
+    {value : ∀ a, Option (β a × γ a)}
+    (hvalue : IsPolyTime encode (fun a =>
+      optionEncoding (pairEncoding (element a) (other a)) (value a))) :
+    IsPolyTime encode (fun a => optionEncoding (other a) ((value a).map Prod.snd)) := by
+  convert hvalue.option_isSome.cond
+    (hvalue.tail.bitPair_snd.option_some (element := fun _ => wordEncoding))
+    (isPolyTime_const encode []) using 1
+  funext a
+  cases value a <;> simp [pairEncoding_apply, wordEncoding]
+
 /-- Compose checked computations using a certified continuation on a defaulted argument.
 The default is used only to obtain a total certificate: an absent input always stays absent. -/
 theorem IsPolyTime.option_bind_getD {γ : α → Type} {output : ∀ a, γ a ↪ Word}

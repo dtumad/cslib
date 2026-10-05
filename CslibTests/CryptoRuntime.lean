@@ -11,6 +11,7 @@ import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Simulation
 import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Verification
 import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Execution
 import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.TracedExecution
+import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Replay
 import Cslib.Crypto.RandomOracle.PolynomialTime
 import Cslib.Computability.PolynomialTime.Finite
 import Cslib.Computability.PolynomialTime.Encoding.Decoding
@@ -285,17 +286,20 @@ def queryOnce : Turing.MultiTapePTM 0 Bool Bool (Fin 1) where
     .step ⟨0, Fin.elim0, none, none⟩ (fun _ => none) (fun _ => 0)
     else .query 0 true
 
-noncomputable def tracedRun (message : Word) (hashes : List F) (coins : Word) :=
+noncomputable def querySnapshot (message : Word) :=
   let candidate := ((Computability.encodingList Bool).bitPair
     (scalarEncoding.bitPair scalarEncoding)).bitOption.encode (some ([], (1 : F), (1 : F)))
   let request := (Schnorr.signatureRequestEncoding (Computability.encodingList Bool)
     scalarEncoding).encode (.inl (message, 1))
-  let snapshot : Turing.MultiTapeMachine.Snapshot 0 Bool Bool (Fin 1) :=
-    { Turing.MultiTapeMachine.Snapshot.initial (Oracle := Fin 1) false with
+  ({ Turing.MultiTapeMachine.Snapshot.initial (Oracle := Fin 1) false with
       output := candidate
-      channels := fun _ => ⟨request, Turing.Tape.Snapshot.ofList []⟩ }
+      channels := fun _ => ⟨request, Turing.Tape.Snapshot.ofList []⟩ } :
+        Turing.MultiTapeMachine.Snapshot 0 Bool Bool (Fin 1))
+
+noncomputable def tracedRun (message : Word) (hashes : List F) (coins : Word) :=
   (Schnorr.runCheckedTracedSignatureMachine (fun _ => scalarEncoding) (fun _ => scalarEncoding)
-    queryOnce [] coins snapshot ⟨0, ((1 : F), 0, ([], []), [1, 0, 1], hashes), []⟩).map
+    queryOnce [] coins (querySnapshot message)
+      ⟨0, ((1 : F), 0, ([], []), [1, 0, 1], hashes), []⟩).map
       (fun out => (out.2.2.1.2.2.2.1, out.2.2.1.2.2.2.2, out.2.2.2))
 
 -- The final verifier reuses an exhausted cached answer and leaves private randomness untouched.
@@ -308,6 +312,27 @@ example : tracedRun [true] [0, 1] [false, false] =
 -- A live snapshot and an exhausted verifier both reject, even after a successful first query.
 example : tracedRun [] [0] [false] = none := by decide
 example : tracedRun [true] [0] [false, false] = none := by decide
+
+-- The source has only fresh hash operations, even across a simulated signature and a cache hit.
+example : FreeM.runFromAnswers (FreeM.trace (Schnorr.privateForgery (1 : F) 0
+    (OptionT.mk ((fun _ => some (([] : Word), (1 : F), (1 : F))) <$> adaptiveSimulation))
+    [0, 1, 0])) [0] = some (some ([], 1, 1), [⟨([], 1), 0⟩]) := rfl
+
+-- Restart copies the hash before the selected verifier query and changes only its suffix.
+-- The checked machine and its saved private tapes are shared by both runs.
+example : FreeM.forkFromTracedAnswers
+    (Schnorr.runSignatureFromAnswers scalarEncoding scalarEncoding queryOnce [] [false, false]
+      (querySnapshot [true]) (1 : F) 0 [1, 0, 1])
+    (fun out => Schnorr.findForkPoint (1 : F) 0 (some out.1)
+      (out.2.map (fun event => (event.1, event.2)))) [0, 1] [0, 1] =
+      some ((([], 1, 1), [⟨([true], 1), 0⟩, ⟨([], 1), 1⟩]),
+        ⟨([], 1), 1, 0, (([], 1, 1), [⟨([true], 1), 0⟩, ⟨([], 1), 0⟩])⟩) := rfl
+
+-- A short fresh suffix cannot turn a rejected second run into a successful extraction.
+example : FreeM.forkFromTracedAnswers
+    (Schnorr.runSignatureFromAnswers scalarEncoding scalarEncoding queryOnce [] [false, false]
+      (querySnapshot [true]) (1 : F) 0 [1, 0, 1])
+    (fun _ => some 0) [0, 1] [0] = none := rfl
 
 -- A programming collision remains failure even when both scalar tapes have enough entries.
 example : Schnorr.seededSignatureHandler (F := F) (1 : F) 0 (.inr ([] : Word))
