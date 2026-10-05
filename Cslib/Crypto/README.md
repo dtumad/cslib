@@ -157,6 +157,10 @@ The cached hash query, Schnorr signing, and hash-based verification also have un
 certificates. They retain the complete cache and preserve sampling exhaustion explicitly;
 an exhausted unused hash draw cannot invalidate a cache hit. Indexed sampling retains its input
 in an ordinary dependent pair, so subsequent arithmetic uses the sampled scalar directly.
+The signing simulator now has the same uniform guarantee, including both binary samplers,
+commitment arithmetic, cache lookup, and cache update. Its output distinguishes exhaustion
+from a programming collision, and its machine proof uses the same `simulateSign` definition
+as the security proof.
 
 Samuel's `polytime` and `ppt` tactics have been adapted to these native certificates. Tests cover
 data-dependent sampling, captured continuations, calls to certified subprograms, and the ordinary

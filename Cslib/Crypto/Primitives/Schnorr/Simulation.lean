@@ -34,9 +34,15 @@ variable {F G M : Type} [Field F] [AddCommGroup G] [Module F G]
 /-- Program a fresh hash input with a simulated transcript, aborting if it was already queried. -/
 def simulateSign {m : Type → Type*} [Monad m] (sample : m F) (g pk : G) (message : M) :
     StateT (List ((M × G) × F)) (OptionT m) (G × F) := fun cache => OptionT.mk do
-  let (commitment, challenge, response) ← simulateTranscript sample g pk
-  pure (if cache.lookup (message, commitment) = none then
-    some ((commitment, response), ((message, commitment), challenge) :: cache) else none)
+  let transcript ← simulateTranscript sample g pk
+  pure (finish message cache transcript)
+where
+  /-- Program the simulated transcript if its commitment is fresh. -/
+  finish (message : M) (cache : List ((M × G) × F)) (transcript : G × F × F) :
+      Option ((G × F) × List ((M × G) × F)) :=
+    if cache.lookup (message, transcript.1) = none then
+      some ((transcript.1, transcript.2.2), ((message, transcript.1), transcript.2.1) :: cache)
+    else none
 
 variable {P : PFunctor.{0, 0}}
 
@@ -48,8 +54,8 @@ theorem simulateSign_sound (sample : P.FreeM F) (g pk : G) (message : M)
     ∃ challenge, cache.lookup (message, signature.1) = none ∧
       cache' = ((message, signature.1), challenge) :: cache ∧
       Accepts g pk signature.1 challenge signature.2 := by
-  simp only [simulateSign, simulateTranscript, StateT.run, OptionT.run, OptionT.mk,
-    bind_assoc, pure_bind] at h
+  simp only [simulateSign, simulateSign.finish, simulateTranscript, StateT.run, OptionT.run,
+    OptionT.mk, bind_assoc, pure_bind] at h
   obtain ⟨challenge, _, h⟩ := (FreeM.canReturn_bind _ _ _).mp h
   obtain ⟨response, _, h⟩ := (FreeM.canReturn_bind _ _ _).mp h
   simp only [FreeM.canReturn_pure] at h

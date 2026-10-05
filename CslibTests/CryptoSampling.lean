@@ -50,6 +50,21 @@ def accepted (_ : bits.A) : StateM ℕ (Fin 2) := fun count =>
 
 def rejected (_ : bits.A) : StateM ℕ (Fin 2) := fun count => (1, count + 1)
 
+def simulated (attempts : ℕ) (cache : List ((String × F) × F)) :
+    bits.FreeM (Option (Option ((F × F) × List ((String × F) × F)))) :=
+  ((Schnorr.simulateSign (scalar attempts) (1 : F) (7 : F) "message").run cache).run.run
+
+-- The simulator distinguishes a programming collision from exhausted sampling.
+#guard ((simulated 1 [(("message", 0), 42)]).liftM (fun _ => (pure 0 : Id (Fin 2)))).run ==
+  some none
+#guard ((simulated 0 []).liftM (fun _ => (pure 0 : Id (Fin 2)))).run == none
+#guard ((simulated 1 []).liftM (fun _ => (pure 0 : Id (Fin 2)))).run ==
+  some (some ((0, 0), [(("message", 0), 0)]))
+
+-- Exhausting the second scalar draw also propagates as sampling failure.
+#guard (((simulated 1 []).liftM (P := bits) (m := StateM ℕ) (fun _ count =>
+  (if count < 7 then 0 else 1, count + 1))).run 0).run == (none, 14)
+
 #guard ((((elgamal 2).run.liftM accepted).run 0).run ==
   (some (Multiplicative.ofAdd (42 : F)), 14))
 #guard ((((schnorr 2).run.liftM accepted).run 0).run == (some true, 21))

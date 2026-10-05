@@ -203,6 +203,7 @@ public import Cslib.Crypto.Primitives.Schnorr.Oracle
 public import Cslib.Crypto.Primitives.Schnorr.PFunctor
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Signing
+public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Simulation
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Verification
 public import Cslib.Crypto.Primitives.Schnorr.Reduction
 public import Cslib.Crypto.Primitives.Schnorr.Sampling

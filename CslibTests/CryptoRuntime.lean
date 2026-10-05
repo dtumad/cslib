@@ -7,6 +7,7 @@ Authors: Devon Tuma
 import Cslib.Crypto.Primitives.ElGamal.PolynomialTime
 import Cslib.Crypto.Primitives.Schnorr.PolynomialTime
 import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Signing
+import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Simulation
 import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Verification
 import Cslib.Crypto.RandomOracle.PolynomialTime
 import Cslib.Computability.PolynomialTime.Finite
@@ -117,6 +118,21 @@ example : IsPPT (Oracle := Empty) unaryEncoding wordEncoding (fun parameter =>
     (fun _ => scalarCode) (fun _ => 2) (fun parameter => parameter + 1) (fun _ => scalar)
     (fun _ => 1) (isPolyTime_const _ _) attempts_poly (isPolyTime_const _ _)
     (isPolyTime_const _ _) (fieldOp_poly (· • ·))
+
+-- The whole signing simulator is compiled, including bounded draws and its collision check.
+example : IsPPT (Oracle := Empty) unaryEncoding wordEncoding (fun parameter =>
+    optionEncoding (optionEncoding (pairEncoding (pairEncoding scalarCode scalarCode)
+      (listEncoding (pairEncoding (pairEncoding (finiteEncoding Unit) scalarCode) scalarCode)))) <$>
+        ((Schnorr.simulateSign (m := OptionT (effects Empty).FreeM)
+          (OptionT.mk (Option.map scalar.symm <$> FreeM.sampleFin
+            ((fun bit => (⟨bit.toNat, Bool.toNat_lt bit⟩ : Fin 2)) <$> coin)
+            2 2 (parameter + 1))) (1 : F) (0 : F) ()).run []).run.run) :=
+  Schnorr.isPPT_simulateSign (F := fun _ => F) (G := fun _ => F) (M := fun _ => Unit)
+    (parameter := id) (fun _ => scalarCode) (fun _ => finiteEncoding Unit) (fun _ => 2)
+    (fun parameter => parameter + 1) (fun _ => scalar)
+    (isPolyTime_input unaryEncoding) (isPolyTime_const _ _) (isPolyTime_const _ _)
+    (isPolyTime_const _ _) (isPolyTime_const _ _) (isPolyTime_const _ _) attempts_poly
+    (isPolyTime_const _ _) (fieldOp_poly (· • ·)) (fieldOp_poly (· - ·))
 
 example : IsPolyTime (sigmaEncoding unaryEncoding
     (fun _ => pairEncoding scalarCode (pairEncoding scalarCode scalarCode)))
