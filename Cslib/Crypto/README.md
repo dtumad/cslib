@@ -196,8 +196,14 @@ adaptive selection and different paths after the fork. The general forking bound
 one private seed shared by both runs. A traced interpreter and selector give a uniform machine
 for this replay construction, charging for both executions and prefix copying. Schnorr's
 fresh-hash selector has a uniform certificate, using ordinary `List.findIdx?`, scalar
-decoding, and the certified group operations. Connecting the actual machine interpreter's fresh-hash
-transcript to these results remains part of the complete reduction certificate.
+decoding, and the certified group operations. The checked machine interpreter now records its
+fresh-hash transcript, including the final verifier's query. Cache hits and simulated signatures
+add no positions. Forgetting the transcript recovers the original execution exactly, and every
+accepted forgery has an accepting recorded hash. Recorded answers form precisely the consumed
+hash-tape prefix. The uniform certificate charges for growing and copying the transcript, using
+only the existing arithmetic, parser, and representation-size certificates. Rejected executions
+remain `none` and expose no transcript. Identifying this successful-run recorder with the semantic
+two-run fork, including its rejection behavior, remains part of the complete reduction proof.
 
 Samuel's `polytime` and `ppt` tactics have been adapted to these native certificates. Tests cover
 data-dependent sampling, captured continuations, calls to certified subprograms, and the ordinary

@@ -10,7 +10,7 @@ import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Signing
 import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Simulation
 import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Verification
 import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Execution
-import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Output
+import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.TracedExecution
 import Cslib.Crypto.RandomOracle.PolynomialTime
 import Cslib.Computability.PolynomialTime.Finite
 import Cslib.Computability.PolynomialTime.Encoding.Decoding
@@ -182,6 +182,30 @@ noncomputable def scalarEncoding : Computability.Encoding F Bool :=
 noncomputable def simulatorStateEncoding :=
   Schnorr.seededSignatureMachineStateEncoding (fun _ => scalarEncoding) (fun _ => scalarCode)
 
+noncomputable def tracedStateEncoding :=
+  Schnorr.tracedSignatureMachineStateEncoding (fun _ => scalarEncoding) (fun _ => scalarCode)
+
+-- The log is runtime data too. The certificate covers every source machine and arbitrary
+-- input tapes, caches, and previously recorded events, including all rejection paths.
+example {State : Type} [Finite State] {k ports : ℕ}
+    (machine : Turing.MultiTapePTM k Bool State (Fin ports)) (control : State ↪ Word) :
+    IsPolyTime (pairEncoding wordEncoding tracedStateEncoding) (fun arg =>
+      optionEncoding (pairEncoding wordEncoding tracedStateEncoding)
+        (Schnorr.runCheckedTracedSignatureMachine (fun _ => scalarEncoding)
+          (fun _ => scalarEncoding) machine [] arg.1
+            (Turing.MultiTapeMachine.Snapshot.initial machine.initial) arg.2)) := by
+  obtain ⟨bound, hbound⟩ := Finite.exists_le (fun value => (scalarCode value).length)
+  apply Schnorr.isPolyTime_runCheckedTracedSignatureMachine
+    (F := fun _ => F) (G := fun _ => F) (fun _ => scalarEncoding) (fun _ => scalarEncoding)
+    (isPolyTime_const _ _) _ _ (fieldOp_poly (· • ·)) (fieldOp_poly (· + ·))
+    (fieldOp_poly (· - ·)) (control := control) machine
+    (isPolyTime_const _ _) (isPolyTime_const _ []) (isPolyTime_fst _ _) (isPolyTime_snd _ _)
+    (groupSize := fun _ => bound) (scalarSize := fun _ => bound)
+    (by fun_prop) (by fun_prop) (fun _ => hbound) (fun _ => hbound)
+  all_goals
+    exact IsPolyTime.decode_finEquiv (parameter := Sigma.fst) (fun _ => scalar)
+      (isPolyTime_const _ _) (isPolyTime_input _).sigma_snd
+
 -- This certificate covers the complete run and its checked result, with unbounded input tapes,
 -- cache, and signing log. Only the fixed test field's arithmetic uses finite tables.
 example {State : Type} [Finite State] {k ports : ℕ}
@@ -244,6 +268,46 @@ example : (adaptiveSimulation.liftM
          | .inr op => Schnorr.seededSignatureHandler (1 : F) 0 op)).run
       (([], []), [0, 1, 0], [1]) =
     some (1, ([[true]], [(([true], 1), 0), (([], 1), 1)]), [0], []) := rfl
+
+-- Only the fresh hash is recorded. Signing and the repeated cache hit do not create positions.
+example : (adaptiveSimulation.liftM
+    (P := Schnorr.signatureEffects 0 Word F F)
+    (m := StateT (((List Word × List ((Word × F) × F)) ×
+      (List F × List F)) × List ((Word × F) × F)) Option)
+    (fun | .inl op => isEmptyElim op
+         | .inr op => Schnorr.traceSeededCall (Schnorr.seededSignatureHandler (1 : F) 0 op))).run
+      ((([], []), [0, 1, 0], [1]), []) =
+    some (1, (([[true]], [(([true], 1), 0), (([], 1), 1)]), [0], []), [(([], 1), 1)]) := rfl
+
+def queryOnce : Turing.MultiTapePTM 0 Bool Bool (Fin 1) where
+  initial := false
+  tr state _ _ _ _ := if state then
+    .step ⟨0, Fin.elim0, none, none⟩ (fun _ => none) (fun _ => 0)
+    else .query 0 true
+
+noncomputable def tracedRun (message : Word) (hashes : List F) (coins : Word) :=
+  let candidate := ((Computability.encodingList Bool).bitPair
+    (scalarEncoding.bitPair scalarEncoding)).bitOption.encode (some ([], (1 : F), (1 : F)))
+  let request := (Schnorr.signatureRequestEncoding (Computability.encodingList Bool)
+    scalarEncoding).encode (.inl (message, 1))
+  let snapshot : Turing.MultiTapeMachine.Snapshot 0 Bool Bool (Fin 1) :=
+    { Turing.MultiTapeMachine.Snapshot.initial (Oracle := Fin 1) false with
+      output := candidate
+      channels := fun _ => ⟨request, Turing.Tape.Snapshot.ofList []⟩ }
+  (Schnorr.runCheckedTracedSignatureMachine (fun _ => scalarEncoding) (fun _ => scalarEncoding)
+    queryOnce [] coins snapshot ⟨0, ((1 : F), 0, ([], []), [1, 0, 1], hashes), []⟩).map
+      (fun out => (out.2.2.1.2.2.2.1, out.2.2.1.2.2.2.2, out.2.2.2))
+
+-- The final verifier reuses an exhausted cached answer and leaves private randomness untouched.
+example : tracedRun [] [0] [false, false] = some ([1, 0, 1], [], [(([], 1), 0)]) := rfl
+
+-- A distinct adversary request precedes the verifier's new forkable position.
+example : tracedRun [true] [0, 1] [false, false] =
+    some ([1, 0, 1], [], [(([true], 1), 0), (([], 1), 1)]) := rfl
+
+-- A live snapshot and an exhausted verifier both reject, even after a successful first query.
+example : tracedRun [] [0] [false] = none := by decide
+example : tracedRun [true] [0] [false, false] = none := by decide
 
 -- A programming collision remains failure even when both scalar tapes have enough entries.
 example : Schnorr.seededSignatureHandler (F := F) (1 : F) 0 (.inr ([] : Word))

@@ -37,6 +37,89 @@ def totalizeHandler (handler : Oracle → List Bool → StateT S (OptionT m) (Li
 variable {k : ℕ} {State : Type} [DecidableEq Oracle] [LawfulMonad m]
 
 omit [Monad m] [LawfulMonad m] in
+/-- Forgetting auxiliary handler state commutes with an entire clocked execution whenever it
+commutes with each call. The equality preserves rejection as well as completed snapshots. -/
+theorem runSnapshotFromCoins_map_state {T : Type}
+    (machine : MultiTapePTM k Bool State Oracle) (input : List Bool)
+    (handler : Oracle → List Bool → StateT S Option (List Bool))
+    (record : Oracle → List Bool → StateT T Option (List Bool)) (forget : T → S)
+    (hcall : ∀ port request state,
+      (record port request state).map (fun out => (out.1, forget out.2)) =
+        handler port request (forget state))
+    (coins : List Bool) (snapshot : Snapshot k Bool State Oracle) (state : T) :
+    (machine.runSnapshotFromCoins input record coins snapshot state).map
+      (fun out => (out.1, forget out.2)) =
+        machine.runSnapshotFromCoins input handler coins snapshot (forget state) := by
+  induction coins generalizing snapshot state with
+  | nil => rfl
+  | cons bit coins ih =>
+    change (((machine.stepSnapshot input record bit snapshot >>=
+      machine.runSnapshotFromCoins input record coins) state).map
+        (fun out => (out.1, forget out.2))) =
+      (machine.stepSnapshot input handler bit snapshot >>=
+        machine.runSnapshotFromCoins input handler coins) (forget state)
+    cases hs : snapshot.state with
+    | none =>
+      simpa only [stepSnapshot, hs, pure_bind] using ih snapshot state
+    | some q =>
+      simp only [stepSnapshot, hs]
+      cases machine.tr q (snapshot.inputSymbol input) snapshot.workSymbols
+        snapshot.answerSymbols bit with
+      | step action symbol move =>
+        simpa only [pure_bind] using ih (snapshot.step input action symbol move) state
+      | query port next =>
+        simp only [bind_assoc, pure_bind]
+        change ((record port (snapshot.channels port).queryBuffer state).bind
+          (fun out => machine.runSnapshotFromCoins input record coins
+            (snapshot.receive port next out.1) out.2)).map (fun out => (out.1, forget out.2)) =
+          (handler port (snapshot.channels port).queryBuffer (forget state)).bind
+            (fun out => machine.runSnapshotFromCoins input handler coins
+              (snapshot.receive port next out.1) out.2)
+        rw [← hcall port (snapshot.channels port).queryBuffer state]
+        cases hc : record port (snapshot.channels port).queryBuffer state with
+        | none => rfl
+        | some out =>
+          simpa only [Option.map_some, Option.bind_some] using
+            ih (snapshot.receive port next out.1) out.2
+
+omit [Monad m] [LawfulMonad m] in
+/-- An invariant preserved by every successful handler call holds after every successful
+clocked execution. Rejected calls cannot establish a completed result. -/
+theorem runSnapshotFromCoins_preserves
+    (machine : MultiTapePTM k Bool State Oracle) (input : List Bool)
+    (handler : Oracle → List Bool → StateT S Option (List Bool)) (invariant : S → Prop)
+    (hcall : ∀ port request state, invariant state → ∀ out,
+      handler port request state = some out → invariant out.2)
+    (coins : List Bool) (snapshot : Snapshot k Bool State Oracle) (state : S)
+    (hstate : invariant state) {out : Snapshot k Bool State Oracle × S}
+    (h : machine.runSnapshotFromCoins input handler coins snapshot state = some out) :
+    invariant out.2 := by
+  induction coins generalizing snapshot state with
+  | nil => cases h; exact hstate
+  | cons bit coins ih =>
+    change (machine.stepSnapshot input handler bit snapshot >>=
+      machine.runSnapshotFromCoins input handler coins) state = some out at h
+    cases hs : snapshot.state with
+    | none =>
+      simp only [stepSnapshot, hs, pure_bind] at h
+      exact ih snapshot state hstate h
+    | some q =>
+      simp only [stepSnapshot, hs] at h
+      cases ha : machine.tr q (snapshot.inputSymbol input) snapshot.workSymbols
+        snapshot.answerSymbols bit with
+      | step action symbol move =>
+        simp only [ha, pure_bind] at h
+        exact ih (snapshot.step input action symbol move) state hstate h
+      | query port next =>
+        simp only [ha, bind_assoc, pure_bind] at h
+        change ((handler port (snapshot.channels port).queryBuffer state).bind
+          (fun result => machine.runSnapshotFromCoins input handler coins
+            (snapshot.receive port next result.1) result.2)) = some out at h
+        obtain ⟨result, hresult, h⟩ := Option.bind_eq_some_iff.mp h
+        exact ih (snapshot.receive port next result.1) result.2
+          (hcall port _ state hstate result hresult) h
+
+omit [Monad m] [LawfulMonad m] in
 /-- Removing the identity base monad does not change any optional result or handler state. -/
 theorem runSnapshotFromCoins_optionT_id
     (machine : MultiTapePTM k Bool State Oracle) (input : List Bool)

@@ -288,6 +288,28 @@ theorem IsPolyTime.list_tail_indexed {Value : α → Type}
   | nil => rfl
   | cons value values => exact (List.BitPair.snd_encode _ _).symm
 
+/-- Count an indexed collection without decoding its elements. -/
+theorem IsPolyTime.list_unaryLength_indexed {Value : α → Type}
+    {element : ∀ a, Value a ↪ Word} {values : ∀ a, List (Value a)}
+    (hvalues : IsPolyTime encode (fun a => listEncoding (element a) (values a))) :
+    IsPolyTime encode (fun a => unaryEncoding (values a).length) := by
+  have hw : IsPolyTime encode
+      (fun a => listEncoding wordEncoding ((values a).map (element a))) := by
+    simpa only [listEncoding_map (element _) wordEncoding (element _) (fun _ => rfl)] using hvalues
+  simpa only [List.length_map, unaryEncoding_apply] using hw.list_unaryLength
+
+/-- Take a prefix of an indexed collection, charging for the unary index and copied elements. -/
+theorem IsPolyTime.list_take_indexed {Value : α → Type}
+    {element : ∀ a, Value a ↪ Word} {values : ∀ a, List (Value a)}
+    (hvalues : IsPolyTime encode (fun a => listEncoding (element a) (values a)))
+    (hcount : IsPolyTime encode (fun a => unaryEncoding (count a))) :
+    IsPolyTime encode (fun a => listEncoding (element a) ((values a).take (count a))) := by
+  have hw : IsPolyTime encode
+      (fun a => listEncoding wordEncoding ((values a).map (element a))) := by
+    simpa only [listEncoding_map (element _) wordEncoding (element _) (fun _ => rfl)] using hvalues
+  simpa only [← List.map_take,
+    listEncoding_map (element _) wordEncoding (element _) (fun _ => rfl)] using hw.list_take hcount
+
 /-- Skipping an indexed answer block charges for its unary length without decoding elements. -/
 theorem IsPolyTime.list_drop_indexed {Value : α → Type}
     {element : ∀ a, Value a ↪ Word} {values : ∀ a, List (Value a)}

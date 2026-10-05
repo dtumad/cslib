@@ -227,6 +227,9 @@ public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.HandlerBounds
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Output
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Signing
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Simulation
+public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Trace
+public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.TraceBounds
+public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.TracedExecution
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Verification
 public import Cslib.Crypto.Primitives.Schnorr.Reduction
 public import Cslib.Crypto.Primitives.Schnorr.Sampling
@@ -235,6 +238,7 @@ public import Cslib.Crypto.Primitives.Schnorr.Simulation
 public import Cslib.Crypto.Primitives.Schnorr.Simulation.LiftM
 public import Cslib.Crypto.Primitives.Schnorr.Simulation.Probability
 public import Cslib.Crypto.Primitives.Schnorr.Simulation.Seeded
+public import Cslib.Crypto.Primitives.Schnorr.Simulation.Trace
 public import Cslib.Crypto.Protocols.Commitment.Basic
 public import Cslib.Crypto.Protocols.Commitment.Defs
 public import Cslib.Crypto.Protocols.Commitment.Scheme
