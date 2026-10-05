@@ -108,6 +108,7 @@ public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.Unary
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.UnaryRepeat
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.WordsCfg
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic
+public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Closed
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape.Measure
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Composition
@@ -115,6 +116,7 @@ public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Cost
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Deterministic
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.ExtendChannels
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.ExtendTapes
+public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Handler
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.InputFromTape
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Measure
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.OutputPrefix
@@ -152,6 +154,7 @@ public import Cslib.Computability.PolynomialTime.Iteration
 public import Cslib.Computability.PolynomialTime.List
 public import Cslib.Computability.PolynomialTime.Machine
 public import Cslib.Computability.PolynomialTime.Machine.Bounds
+public import Cslib.Computability.PolynomialTime.Machine.Handler
 public import Cslib.Computability.PolynomialTime.Machine.Option
 public import Cslib.Computability.PolynomialTime.Machine.Replay
 public import Cslib.Computability.PolynomialTime.Machine.Rewind
@@ -173,6 +176,7 @@ public import Cslib.Computability.PolynomialTime.Realizer.Queries
 public import Cslib.Computability.PolynomialTime.Rejection
 public import Cslib.Computability.PolynomialTime.Sampling
 public import Cslib.Computability.PolynomialTime.Sampling.Finite
+public import Cslib.Computability.PolynomialTime.Sampling.Iteration
 public import Cslib.Computability.PolynomialTime.Sampling.Rejection
 public import Cslib.Computability.PolynomialTime.Sigma
 public import Cslib.Computability.PolynomialTime.Support
@@ -189,14 +193,17 @@ public import Cslib.Crypto.DiscreteLog.Security
 public import Cslib.Crypto.Game
 public import Cslib.Crypto.Negligible
 public import Cslib.Crypto.Primitives.ElGamal
+public import Cslib.Crypto.Primitives.ElGamal.Binary
 public import Cslib.Crypto.Primitives.ElGamal.Cost
 public import Cslib.Crypto.Primitives.ElGamal.Oracle
 public import Cslib.Crypto.Primitives.ElGamal.PFunctor
 public import Cslib.Crypto.Primitives.ElGamal.PolynomialTime
+public import Cslib.Crypto.Primitives.ElGamal.PolynomialTime.Oracle
 public import Cslib.Crypto.Primitives.ElGamal.PolynomialTime.Reduction
 public import Cslib.Crypto.Primitives.ElGamal.Resumption
 public import Cslib.Crypto.Primitives.ElGamal.Sampling
 public import Cslib.Crypto.Primitives.ElGamal.Security
+public import Cslib.Crypto.Primitives.ElGamal.Security.Binary
 public import Cslib.Crypto.Primitives.PRG.Asymptotic
 public import Cslib.Crypto.Primitives.PRG.Basic
 public import Cslib.Crypto.Primitives.PRG.Defs

@@ -159,6 +159,14 @@ their parameter through the compiled continuation, without a decoder or a defaul
 `ElGamal.Security` applies that certificate to uniform DDH hardness and proves negligible
 prediction bias. Its cutoff version derives the two-sample challenge error from local sampler
 laws; it leaves no assumed admissibility obligation for the ordinary reduction.
+`ElGamal.Security.Binary` completes the family theorem for the bounded binary implementation,
+including adaptive encryption requests before and after the challenge. The actual reduction
+has one uniform polynomial-time machine, obtained by compiling randomized oracle substitution.
+Replies preserve nonce-sampling exhaustion as an optional ciphertext, allowing the adversary
+to continue. The two challenge draws add at most `2 * 2⁻ᵃᵗᵗᵉᵐᵖᵗˢ` to the DDH advantage;
+oracle sampling is simulated identically in both worlds. An efficiently computed attempt budget
+at least the parameter makes this error negligible. Group operations, canonical parsing,
+encoding-size bounds, and DDH hardness remain explicit family assumptions.
 `Schnorr.PolynomialTime` gives uniform certificates for key generation, response arithmetic,
 transcript checking, and special-soundness extraction. Scalar decoding checks the binary range;
 the algebra certificates use independently supplied group and field encodings.
@@ -193,9 +201,8 @@ Reachability reflection transfers that postcondition to every completed path of 
 The tactics do not infer efficiency for arbitrary Lean functions or supply loop-size invariants.
 
 The remaining runtime work connects saved-tape machine execution and rewinding to the semantic
-fork, and certifies Schnorr's complete reduction and ElGamal's encryption
-oracle inlining. Group and field primitives
-and family parameter data require explicit uniform certificates.
+fork, and certifies Schnorr's complete reduction. Group and field primitives and family
+parameter data require explicit uniform certificates.
 Adaptive finite-sampling programs now have a whole-experiment cutoff bound
 `draws * 2⁻ᵃᵗᵗᵉᵐᵖᵗˢ` for every payoff in `[0, 1]`. Successful bounded executions are dominated
 by the ideal measure. Polynomially many draws and an attempt budget at least the security
@@ -206,8 +213,7 @@ ElGamal pays for both adaptive phases and two or three challenge exponents. Both
 concrete security theorems for the resulting cutoff implementations. A `ZMod 101` regression
 instantiates Schnorr's complete bound with the actual binary rejection sampler. Security
 transport supports polynomial loss, square-root loss, and separate negligible errors.
-The ordinary ElGamal family theorem uses actual uniform-machine admissibility. Extending it to
-explicit adaptive encryption oracles still requires certifying their inlining.
+ElGamal's ordinary and binary oracle family theorems use actual uniform-machine admissibility.
 The machine resumption exposes one coin per transition and an additional operation per oracle
 submission; ordinary effect truncation therefore differs from a transition clock.
 
