@@ -125,6 +125,7 @@ public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Rewind
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Sequential
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Simulation
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Snapshot
+public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.Snapshot.Option
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.UniformBits
 public import Cslib.Computability.Machines.Turing.MultiTape.Probabilistic.WP
 public import Cslib.Computability.Machines.Turing.MultiTape.Relabel
@@ -151,6 +152,7 @@ public import Cslib.Computability.PolynomialTime.Iteration
 public import Cslib.Computability.PolynomialTime.List
 public import Cslib.Computability.PolynomialTime.Machine
 public import Cslib.Computability.PolynomialTime.Machine.Bounds
+public import Cslib.Computability.PolynomialTime.Machine.Option
 public import Cslib.Computability.PolynomialTime.Machine.Replay
 public import Cslib.Computability.PolynomialTime.Machine.Rewind
 public import Cslib.Computability.PolynomialTime.Machine.Sampling

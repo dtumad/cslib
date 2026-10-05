@@ -6,6 +6,7 @@ Authors: Devon Tuma
 
 import Cslib.Computability.PolynomialTime.Machine.Replay
 import Cslib.Computability.PolynomialTime.Machine.Rewind
+import Cslib.Computability.PolynomialTime.Machine.Option
 import CslibTests.MachineRuntime
 import Cslib.Tactic.PolyTime
 
@@ -125,5 +126,59 @@ example : IsPolyTime wordEncoding (fun coins =>
     Function.Embedding.refl_apply]
   change request.length ≤ size + coins.length at hrequest
   omega
+
+def failSecond (_ : Bool) (_ : Word) : StateT Unit (OptionT (StateM ℕ)) Word :=
+  fun state => OptionT.mk do
+    let calls ← get
+    modify (· + 1)
+    pure (if calls = 0 then some ([false], state) else none)
+
+def aborted (coins : Word) : Option Word × ℕ :=
+  let ((snapshot, state), calls) := Id.run
+    (((adaptiveMachine.runSnapshotFromCoins [] (totalizeHandler failSecond) coins
+      (Snapshot.initial adaptiveMachine.initial)).run ((), true)).run 0)
+  (if state.2 && snapshot.state.isNone then some snapshot.output else none, calls)
+
+-- The source attempts three calls. After the second fails, finishing the machine's clock
+-- neither invokes the handler a third time nor exposes the machine's subsequent output.
+example : aborted [false, true, false, true, false] = (none, 2) := by decide
+example : aborted (List.replicate 12 false) = (none, 2) := by decide
+
+def echoChecked (port : Fin 1) (request : Word) (log : List Word) : Option (Word × List Word) :=
+  if request.headD false then none else some (echoLog port request log)
+
+theorem echoChecked_poly (port : Fin 1) : IsPolyTime (pairEncoding wordEncoding logEncoding)
+    (fun pair => optionEncoding (pairEncoding wordEncoding logEncoding)
+      (echoChecked port pair.1 pair.2)) := by
+  simpa only [echoChecked, apply_ite, optionEncoding_none, wordEncoding,
+    Function.Embedding.refl_apply] using
+    ((isPolyTime_fst wordEncoding logEncoding).headD false).cond
+      (isPolyTime_const _ []) (echoLog_poly port).option_some
+
+-- Optional replies compose with the same unbounded replay loop and cache-growth argument.
+example : IsPolyTime wordEncoding (fun coins =>
+    optionEncoding (pairEncoding (machineSnapshotEncoding 0 1 (finiteEncoding (Fin 2))) logEncoding)
+      (Id.run (((bufferedSource.runSnapshotFromCoins (m := StateT (List Word) (OptionT Id)) []
+        (fun port request log => OptionT.mk (pure (echoChecked port request log))) coins
+          (Snapshot.initial bufferedSource.initial)).run []).run))) := by
+  let start := Snapshot.initial (k := 0) (Symbol := Bool) (Oracle := Fin 1) bufferedSource.initial
+  let size := (machineSnapshotEncoding 0 1 (finiteEncoding (Fin 2)) start).length
+  apply isPolyTime_runSnapshotFromCoins_optionT_of_growth
+    bufferedSource echoChecked echoChecked_poly
+    (snapshot := fun _ => start)
+    (isPolyTime_const _ _) (isPolyTime_const _ []) (isPolyTime_input wordEncoding)
+    (isPolyTime_const _ []) (fun _ _ => True) (fun _ => trivial)
+    (reply := fun n => size + n) (growth := fun n => 2 * (size + n) + 1)
+    (by fun_prop) (by fun_prop)
+  intro coins port request log hrequest _ out hresult
+  simp only [echoChecked] at hresult
+  split at hresult
+  · cases hresult
+  · cases hresult
+    refine ⟨trivial, hrequest, ?_⟩
+    simp only [echoLog, logEncoding, listEncoding_cons, length_pairEncoding, wordEncoding,
+      Function.Embedding.refl_apply]
+    change request.length ≤ size + coins.length at hrequest
+    omega
 
 end MachineSnapshot

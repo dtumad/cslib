@@ -136,6 +136,8 @@ entire joint result-and-handler-state computation. Saved-coin replay now has a u
 certificate for certified deterministic handlers, with explicit bounds on reply lengths and
 per-call state growth. Request buffers grow by at most one bit per transition; the replay bound
 charges for copying complete snapshots, accumulated caches, and oracle replies.
+The interpreter also certifies aborting stateful handlers: failed runs remain rejected,
+and completing the machine's clock after failure performs no further handler effects.
 Sampling the private tape before execution preserves the joint output-and-oracle-state measure.
 Adaptive rewinding now has a uniform certificate using prefix replay. It restores both the
 finite snapshot and handler state and reuses the same private-coin suffix. A restart operation can
