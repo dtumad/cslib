@@ -76,6 +76,22 @@ def bitSum {β : Type*} (left : Encoding α Bool) (right : Encoding β Bool) :
     | true :: word => (right.decode word).map Sum.inr
   decode_encode value := by cases value <;> simp
 
+@[simp] theorem decodeChecked_bitSum_nil {β : Type*}
+    (left : Encoding α Bool) (right : Encoding β Bool) :
+    (left.bitSum right).decodeChecked [] = none := rfl
+
+@[simp] theorem decodeChecked_bitSum_false {β : Type*}
+    (left : Encoding α Bool) (right : Encoding β Bool) (word : List Bool) :
+    (left.bitSum right).decodeChecked (false :: word) =
+      (left.decodeChecked word).map Sum.inl := by
+  cases h : left.decode word <;> simp [decodeChecked, bitSum, h, Option.filter_some]
+
+@[simp] theorem decodeChecked_bitSum_true {β : Type*}
+    (left : Encoding α Bool) (right : Encoding β Bool) (word : List Bool) :
+    (left.bitSum right).decodeChecked (true :: word) =
+      (right.decodeChecked word).map Sum.inr := by
+  cases h : right.decode word <;> simp [decodeChecked, bitSum, h, Option.filter_some]
+
 /-- Optional values use the same empty-or-tagged representation as machine certificates.
 The outer optional result of decoding distinguishes malformed words from a valid `none`. -/
 def bitOption (element : Encoding α Bool) : Encoding (Option α) Bool where

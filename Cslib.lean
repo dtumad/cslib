@@ -199,6 +199,7 @@ public import Cslib.Crypto.Primitives.PRG.Basic
 public import Cslib.Crypto.Primitives.PRG.Defs
 public import Cslib.Crypto.Primitives.Schnorr
 public import Cslib.Crypto.Primitives.Schnorr.Cost
+public import Cslib.Crypto.Primitives.Schnorr.Encoding
 public import Cslib.Crypto.Primitives.Schnorr.Extraction
 public import Cslib.Crypto.Primitives.Schnorr.Fork
 public import Cslib.Crypto.Primitives.Schnorr.Fork.Cost
@@ -207,6 +208,9 @@ public import Cslib.Crypto.Primitives.Schnorr.Fork.Trace
 public import Cslib.Crypto.Primitives.Schnorr.Oracle
 public import Cslib.Crypto.Primitives.Schnorr.PFunctor
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime
+public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Execution
+public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Handler
+public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.HandlerBounds
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Signing
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Simulation
 public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Verification
@@ -216,6 +220,7 @@ public import Cslib.Crypto.Primitives.Schnorr.Security
 public import Cslib.Crypto.Primitives.Schnorr.Simulation
 public import Cslib.Crypto.Primitives.Schnorr.Simulation.LiftM
 public import Cslib.Crypto.Primitives.Schnorr.Simulation.Probability
+public import Cslib.Crypto.Primitives.Schnorr.Simulation.Seeded
 public import Cslib.Crypto.Protocols.Commitment.Basic
 public import Cslib.Crypto.Protocols.Commitment.Defs
 public import Cslib.Crypto.Protocols.Commitment.Scheme

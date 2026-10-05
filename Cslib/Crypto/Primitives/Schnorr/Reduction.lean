@@ -54,7 +54,7 @@ theorem liftM_simulatedForgery_hash (sample : P.FreeM F) (g pk : G)
       g pk adversary).run).liftM close =
         (simulatedForgery FreeM.lift sample (fun _ => sample) g pk adversary).run := by
   dsimp only
-  rw [liftM_simulatedForgery]
+  rw [map_simulatedForgery (FreeM.isMonadHom_liftM _)]
   simp only [FreeM.liftM_comp,
     FreeM.liftM_lift (P := P + PFunctor.mk (M × G) (fun _ => F)), FreeM.liftM_lift_eq_self]
 

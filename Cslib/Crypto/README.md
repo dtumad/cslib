@@ -167,6 +167,11 @@ The signing simulator now has the same uniform guarantee, including both binary 
 commitment arithmetic, cache lookup, and cache update. Its output distinguishes exhaustion
 from a programming collision, and its machine proof uses the same `simulateSign` definition
 as the security proof.
+The saved-tape simulator also has a uniform certificate for a complete clocked adversary run.
+Private simulator scalars and fresh hash answers have separate cursors; its state-size bound
+charges accumulated logs, caches, and retained tapes. The canonical word handler implements the
+typed handler exactly, and flattening the tape state preserves an entire adaptive typed program.
+Malformed requests, exhausted tapes, and programming collisions reject the execution.
 
 Samuel's `polytime` and `ppt` tactics have been adapted to these native certificates. Tests cover
 data-dependent sampling, captured continuations, calls to certified subprograms, and the ordinary
@@ -177,8 +182,8 @@ of an honest Schnorr transcript, leaving its algebraic identity as the final obl
 Reachability reflection transfers that postcondition to every completed path of a realizing machine.
 The tactics do not infer efficiency for arbitrary Lean functions or supply loop-size invariants.
 
-The remaining runtime work connects these handlers to adversary execution, connects machine-level
-rewinding to the semantic fork, and certifies Schnorr's complete reduction and ElGamal's encryption
+The remaining runtime work connects saved-tape machine execution and rewinding to the semantic
+fork, and certifies Schnorr's complete reduction and ElGamal's encryption
 oracle inlining. Group and field primitives
 and family parameter data require explicit uniform certificates.
 Adaptive finite-sampling programs now have a whole-experiment cutoff bound

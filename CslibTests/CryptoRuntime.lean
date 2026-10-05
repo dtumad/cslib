@@ -9,6 +9,7 @@ import Cslib.Crypto.Primitives.Schnorr.PolynomialTime
 import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Signing
 import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Simulation
 import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Verification
+import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Execution
 import Cslib.Crypto.RandomOracle.PolynomialTime
 import Cslib.Computability.PolynomialTime.Finite
 import Cslib.Computability.PolynomialTime.Encoding.Decoding
@@ -173,6 +174,54 @@ theorem fieldOp_poly (op : F → F → F) :
     (fun pair => scalarCode (op pair.1 pair.2))).comp_encoded
       (isPolyTime_input
         (sigmaEncoding unaryEncoding (fun _ => pairEncoding scalarCode scalarCode))).sigma_snd
+
+noncomputable def scalarEncoding : Computability.Encoding F Bool :=
+  .finEquiv scalar
+
+noncomputable def simulatorStateEncoding :=
+  Schnorr.seededSignatureMachineStateEncoding (fun _ => scalarEncoding) (fun _ => scalarCode)
+
+-- All saved tapes, logs, caches, keys, and the parameter are runtime inputs. The source machine
+-- is arbitrary, and a single certificate handles every clock length and every simulator state.
+example {State : Type} [Finite State] {k ports : ℕ}
+    (machine : Turing.MultiTapePTM k Bool State (Fin ports)) (control : State ↪ Word) :
+    IsPolyTime (pairEncoding wordEncoding simulatorStateEncoding) (fun arg =>
+      optionEncoding (pairEncoding (machineSnapshotEncoding k ports control)
+        simulatorStateEncoding)
+        (Id.run (((machine.runSnapshotFromCoins (m := StateT _ (OptionT Id)) []
+          (fun _ request st => OptionT.mk (pure
+            (Schnorr.seededSignatureMachineHandler (fun _ => scalarEncoding)
+              (fun _ => scalarCode) request st))) arg.1
+          (Turing.MultiTapeMachine.Snapshot.initial machine.initial)).run arg.2).run))) := by
+  obtain ⟨bound, hbound⟩ := Finite.exists_le (fun value => (scalarCode value).length)
+  apply Schnorr.isPolyTime_runSeededSignatureMachine
+    (F := fun _ => F) (G := fun _ => F) (fun _ => scalarEncoding) (fun _ => scalarCode)
+    (isPolyTime_const _ _) _ (fieldOp_poly (· • ·)) (fieldOp_poly (· - ·)) machine
+    (isPolyTime_const _ _) (isPolyTime_const _ [])
+    (isPolyTime_fst _ _) (isPolyTime_snd _ _)
+    (groupSize := fun _ => bound) (scalarSize := fun _ => bound)
+    (by fun_prop) (by fun_prop) (fun _ => hbound) (fun _ => hbound)
+  exact IsPolyTime.decode_finEquiv (parameter := Sigma.fst) (fun _ => scalar)
+    (isPolyTime_const _ _) (isPolyTime_input _).sigma_snd
+
+def adaptiveSimulation : (Schnorr.signatureEffects 0 Word F F).FreeM F := do
+  let _ ← FreeM.lift (P := Schnorr.signatureEffects 0 Word F F) (.inr (.inl ([], 1)))
+  let _ ← FreeM.lift (P := Schnorr.signatureEffects 0 Word F F) (.inr (.inr [true]))
+  FreeM.lift (P := Schnorr.signatureEffects 0 Word F F) (.inr (.inl ([], 1)))
+
+-- Signing leaves the hash tape alone; the repeated hash succeeds after that tape is exhausted.
+-- The untouched private suffix is retained for replay, alongside the updated log and cache.
+example : (adaptiveSimulation.liftM
+    (P := Schnorr.signatureEffects 0 Word F F)
+    (m := StateT ((List Word × List ((Word × F) × F)) × (List F × List F)) Option)
+    (fun | .inl op => isEmptyElim op
+         | .inr op => Schnorr.seededSignatureHandler (1 : F) 0 op)).run
+      (([], []), [0, 1, 0], [1]) =
+    some (1, ([[true]], [(([true], 1), 0), (([], 1), 1)]), [0], []) := rfl
+
+-- A programming collision remains failure even when both scalar tapes have enough entries.
+example : Schnorr.seededSignatureHandler (F := F) (1 : F) 0 (.inr ([] : Word))
+    (([], [(([], 1), 0)]), [0, 1], [1]) = none := by decide
 
 example : IsPPT (Oracle := Empty) unaryEncoding wordEncoding (fun parameter =>
     optionEncoding (pairEncoding scalarCode scalarCode) <$>

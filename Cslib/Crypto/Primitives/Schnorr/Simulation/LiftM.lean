@@ -17,80 +17,86 @@ namespace Cslib.Crypto.Schnorr
 
 open PFunctor
 
-variable {P Q R : PFunctor.{0, 0}} {F G M : Type}
+variable {P : PFunctor.{0, 0}} {F G M : Type}
   [Field F] [AddCommGroup G] [Module F G] [DecidableEq M] [DecidableEq G]
+  {m n : Type → Type*} [Monad m] [Monad n] [LawfulMonad m] [LawfulMonad n]
+  {f : ∀ {α}, m α → n α} (hf : IsMonadHom m n f)
+
+include hf
 
 /-- Sampling implementations commute with simulated signing, including its abort. -/
-theorem liftM_simulateSign (interp : (op : Q.A) → R.FreeM (Q.B op))
-    (sample : Q.FreeM F) (g pk : G) (message : M) (cache : List ((M × G) × F)) :
-    (((simulateSign sample g pk message).run cache).run).liftM interp =
-      ((simulateSign (sample.liftM interp) g pk message).run cache).run := by
+theorem map_simulateSign (sample : m F) (g pk : G) (message : M)
+    (cache : List ((M × G) × F)) :
+    f ((simulateSign sample g pk message).run cache).run =
+      ((simulateSign (f sample) g pk message).run cache).run := by
   simp only [simulateSign, simulateTranscript, StateT.run, OptionT.run, OptionT.mk,
-    bind_assoc, pure_bind, FreeM.liftM_bind, FreeM.liftM_pure]
+    bind_assoc, pure_bind, hf.map_bind, hf.map_pure]
 
 /-- Inlining each underlying effect commutes with the combined signing and hash handler. -/
-theorem liftM_simulatedSignatureHandler (interp : (op : Q.A) → R.FreeM (Q.B op))
-    (ambient : (op : P.A) → Q.FreeM (P.B op)) (sample : Q.FreeM F)
-    (hashSample : M × G → Q.FreeM F) (g pk : G)
+theorem map_simulatedSignatureHandler
+    (ambient : (op : P.A) → m (P.B op)) (sample : m F)
+    (hashSample : M × G → m F) (g pk : G)
     (op : (signatureEffects P M G F).A) (state : List M × List ((M × G) × F)) :
-    (((simulatedSignatureHandler ambient sample hashSample g pk op).run state).run).liftM interp =
-      ((simulatedSignatureHandler (fun op => (ambient op).liftM interp) (sample.liftM interp)
-        (fun input => (hashSample input).liftM interp) g pk op).run state).run := by
+    f ((simulatedSignatureHandler ambient sample hashSample g pk op).run state).run =
+      ((simulatedSignatureHandler (fun op => f (ambient op)) (f sample)
+        (fun input => f (hashSample input)) g pk op).run state).run := by
   rcases state with ⟨messages, cache⟩
   cases op with
-  | inl op => simp [simulatedSignatureHandler, StateT.run, OptionT.run, OptionT.mk]
+  | inl op =>
+    simp only [simulatedSignatureHandler, StateT.run, OptionT.run, OptionT.mk,
+      hf.map_bind, hf.map_pure]
   | inr op =>
     cases op with
     | inl input =>
       simp only [simulatedSignatureHandler, StateT.run, OptionT.run, OptionT.mk,
-        FreeM.liftM_bind, FreeM.liftM_pure]
-      rw [RandomOracle.map_query (FreeM.isMonadHom_liftM interp)]
+        hf.map_bind, hf.map_pure]
+      rw [RandomOracle.map_query hf]
     | inr message =>
       dsimp only [simulatedSignatureHandler, StateT.run, OptionT.run, Bind.bind,
         OptionT.instMonad, OptionT.bind, OptionT.mk]
-      rw [FreeM.bind_eq_bind, FreeM.liftM_bind]
-      have h := liftM_simulateSign interp sample g pk message cache
+      rw [hf.map_bind]
+      have h := map_simulateSign hf sample g pk message cache
       dsimp only [StateT.run, OptionT.run] at h
       rw [h]
       congr 1
       funext out
-      cases out <;> exact FreeM.liftM_pure _ _
+      cases out <;> exact hf.map_pure _
 
 /-- An implementation can replace fresh hash operations after the simulator has been inlined.
 The equality includes the signing log, shared cache, aborts, and final verification. -/
-theorem liftM_simulatedForgery (interp : (op : Q.A) → R.FreeM (Q.B op))
-    (ambient : (op : P.A) → Q.FreeM (P.B op)) (sample : Q.FreeM F)
-    (hashSample : M × G → Q.FreeM F) (g pk : G)
+theorem map_simulatedForgery
+    (ambient : (op : P.A) → m (P.B op)) (sample : m F)
+    (hashSample : M × G → m F) (g pk : G)
     (adversary : G → (signatureEffects P M G F).FreeM (M × G × F)) :
-    ((simulatedForgery ambient sample hashSample g pk adversary).run).liftM interp =
-      (simulatedForgery (fun op => (ambient op).liftM interp) (sample.liftM interp)
-        (fun input => (hashSample input).liftM interp) g pk adversary).run := by
+    f (simulatedForgery ambient sample hashSample g pk adversary).run =
+      (simulatedForgery (fun op => f (ambient op)) (f sample)
+        (fun input => f (hashSample input)) g pk adversary).run := by
   have hhandler : (fun op state => OptionT.mk
-      ((((simulatedSignatureHandler ambient sample hashSample g pk op).run state).run).liftM
-        interp)) =
-      simulatedSignatureHandler (fun op => (ambient op).liftM interp) (sample.liftM interp)
-        (fun input => (hashSample input).liftM interp) g pk := by
+      (f ((simulatedSignatureHandler ambient sample hashSample g pk op).run state).run)) =
+      simulatedSignatureHandler (fun op => f (ambient op)) (f sample)
+        (fun input => f (hashSample input)) g pk := by
     funext op state
-    exact liftM_simulatedSignatureHandler interp ambient sample hashSample g pk op state
-  have hstate := congrFun (((FreeM.isMonadHom_liftM interp).optionT.stateT
+    exact map_simulatedSignatureHandler hf ambient sample hashSample g pk op state
+  have hstate := congrFun ((hf.optionT.stateT
     (List M × List ((M × G) × F))).map_pfunctorFreeMLiftM
       (simulatedSignatureHandler ambient sample hashSample g pk) (adversary pk)) ([], [])
   rw [hhandler] at hstate
   dsimp only [OptionT.mk, OptionT.run, StateT.run] at hstate
-  dsimp only [simulatedForgery, OptionT.run, Bind.bind, OptionT.bind, OptionT.mk]
-  rw [FreeM.bind_eq_bind, FreeM.liftM_bind]
+  dsimp only [simulatedForgery, OptionT.run, Bind.bind, OptionT.bind, OptionT.mk, StateT.run]
+  rw [hf.map_bind, hstate]
   congr 1
   funext out
   cases out with
-  | none => exact FreeM.liftM_pure _ _
+  | none => exact hf.map_pure _
   | some out =>
     rcases out with ⟨⟨message, signature⟩, messages, cache⟩
-    simp only [verify, StateT.run_bind, StateT.run_pure, monadLift, MonadLift.monadLift,
-      OptionT.lift, OptionT.mk, FreeM.bind_eq_bind, bind_assoc, pure_bind, FreeM.liftM_bind]
-    dsimp only [StateT.run]
-    rw [RandomOracle.map_query (FreeM.isMonadHom_liftM interp)]
+    simp only [verify, monadLift, MonadLift.monadLift,
+      OptionT.lift, OptionT.mk, bind_assoc, pure_bind, hf.map_bind]
+    dsimp only [Bind.bind, StateT.bind, Pure.pure, StateT.pure]
+    simp only [hf.map_bind, hf.map_pure, bind_assoc, pure_bind]
+    rw [RandomOracle.map_query hf]
     congr 1
     funext out
-    split <;> exact FreeM.liftM_pure _ _
+    split <;> exact hf.map_pure _
 
 end Cslib.Crypto.Schnorr

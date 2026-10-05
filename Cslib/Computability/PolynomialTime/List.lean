@@ -230,6 +230,33 @@ theorem IsPolyTime.get? {word : α → Word}
     IsPolyTime encode (fun a => optionEncoding boolEncoding ((word a)[count a]?)) := by
   simpa only [List.head?_drop] using (hword.drop hcount).encode_list_bool.list_head?
 
+/-- Reading the first encoded element uses the same machine across an indexed type family. -/
+theorem IsPolyTime.list_head?_indexed {Value : α → Type}
+    {element : ∀ a, Value a ↪ Word} {values : ∀ a, List (Value a)}
+    (hvalues : IsPolyTime encode (fun a => listEncoding (element a) (values a))) :
+    IsPolyTime encode (fun a => optionEncoding (element a) (values a).head?) := by
+  let words (a : α) := (values a).map (element a)
+  have heq (a : α) : listEncoding wordEncoding (words a) =
+      listEncoding (element a) (values a) :=
+    listEncoding_map (element a) wordEncoding (element a) (fun _ => rfl) (values a)
+  have hw : IsPolyTime encode (fun a => listEncoding wordEncoding (words a)) := by
+    simpa only [heq] using hvalues
+  convert hw.list_head? using 1
+  funext a
+  dsimp only [words]
+  cases values a <;> rfl
+
+/-- Advancing an indexed answer tape requires only the encoded list's tail. -/
+theorem IsPolyTime.list_tail_indexed {Value : α → Type}
+    {element : ∀ a, Value a ↪ Word} {values : ∀ a, List (Value a)}
+    (hvalues : IsPolyTime encode (fun a => listEncoding (element a) (values a))) :
+    IsPolyTime encode (fun a => listEncoding (element a) (values a).tail) := by
+  convert hvalues.bitPair_snd using 1
+  funext a
+  cases values a with
+  | nil => rfl
+  | cons value values => exact (List.BitPair.snd_encode _ _).symm
+
 /-- Ordinary first-match association-list lookup charges for key comparison and scanning. -/
 theorem IsPolyTime.list_lookup [BEq Key] [LawfulBEq Key]
     {key : Key ↪ Word} {value : Value ↪ Word}

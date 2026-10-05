@@ -50,3 +50,30 @@ theorem optionT (hf : IsMonadHom m n F) :
     | some a => rfl
 
 end Cslib.IsMonadHom
+
+namespace Cslib
+
+/-- Flatten two state layers and reject either optional failure. A failed computation exposes
+neither state; successful computations retain both states in their original order. -/
+theorem isMonadHom_stateT_optionT_stateT (State Tape : Type) :
+    IsMonadHom (StateT State (OptionT (StateT Tape Option))) (StateT (State × Tape) Option)
+      (fun action (state, tape) => do
+        let (out, tape') ← (action state).run tape
+        let (value, state') ← out
+        pure (value, state', tape')) := by
+  apply IsMonadHom.mk'
+  · intro α value
+    rfl
+  · intro α β action cont
+    funext ⟨state, tape⟩
+    dsimp only [Bind.bind, StateT.bind, OptionT.bind, OptionT.mk, OptionT.run,
+      Pure.pure, StateT.pure, OptionT.pure]
+    cases h : action state tape with
+    | none => rfl
+    | some out =>
+      rcases out with ⟨out, tape'⟩
+      cases out with
+      | none => rfl
+      | some out => rfl
+
+end Cslib

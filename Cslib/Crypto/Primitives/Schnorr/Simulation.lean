@@ -31,18 +31,18 @@ open scoped ENNReal
 variable {F G M : Type} [Field F] [AddCommGroup G] [Module F G]
   [DecidableEq M] [DecidableEq G]
 
+/-- Program the simulated transcript if its commitment is fresh. -/
+def simulateSign.finish (message : M) (cache : List ((M × G) × F)) (transcript : G × F × F) :
+    Option ((G × F) × List ((M × G) × F)) :=
+  if cache.lookup (message, transcript.1) = none then
+    some ((transcript.1, transcript.2.2), ((message, transcript.1), transcript.2.1) :: cache)
+  else none
+
 /-- Program a fresh hash input with a simulated transcript, aborting if it was already queried. -/
 def simulateSign {m : Type → Type*} [Monad m] (sample : m F) (g pk : G) (message : M) :
     StateT (List ((M × G) × F)) (OptionT m) (G × F) := fun cache => OptionT.mk do
   let transcript ← simulateTranscript sample g pk
-  pure (finish message cache transcript)
-where
-  /-- Program the simulated transcript if its commitment is fresh. -/
-  finish (message : M) (cache : List ((M × G) × F)) (transcript : G × F × F) :
-      Option ((G × F) × List ((M × G) × F)) :=
-    if cache.lookup (message, transcript.1) = none then
-      some ((transcript.1, transcript.2.2), ((message, transcript.1), transcript.2.1) :: cache)
-    else none
+  pure (simulateSign.finish message cache transcript)
 
 variable {P : PFunctor.{0, 0}}
 
@@ -68,11 +68,11 @@ theorem simulateSign_sound (sample : P.FreeM F) (g pk : G) (message : M)
 /-- Simulate adaptive signing requests using only the public key, with one shared cache and
 the same signed-message log as the honest experiment. A programming collision aborts the run.
 `hashSample` may use a separate effect so forking can select fresh hash queries specifically. -/
-def simulatedSignatureHandler {Q : PFunctor.{0, 0}}
-    (ambient : (op : P.A) → Q.FreeM (P.B op)) (sample : Q.FreeM F)
-    (hashSample : M × G → Q.FreeM F) (g pk : G) :
+def simulatedSignatureHandler {m : Type → Type*} [Monad m]
+    (ambient : (op : P.A) → m (P.B op)) (sample : m F)
+    (hashSample : M × G → m F) (g pk : G) :
     (op : (signatureEffects P M G F).A) →
-      StateT (List M × List ((M × G) × F)) (OptionT Q.FreeM)
+      StateT (List M × List ((M × G) × F)) (OptionT m)
         ((signatureEffects P M G F).B op)
   | .inl op => fun state => OptionT.mk do
       let answer ← ambient op
@@ -86,10 +86,10 @@ def simulatedSignatureHandler {Q : PFunctor.{0, 0}}
 
 /-- Return an accepted forgery on a fresh message, using a supplied public key. Verification
 queries the same cache, including entries programmed by the signing simulator. -/
-def simulatedForgery {Q : PFunctor.{0, 0}} (ambient : (op : P.A) → Q.FreeM (P.B op))
-    (sample : Q.FreeM F) (hashSample : M × G → Q.FreeM F) (g pk : G)
+def simulatedForgery {m : Type → Type*} [Monad m] (ambient : (op : P.A) → m (P.B op))
+    (sample : m F) (hashSample : M × G → m F) (g pk : G)
     (adversary : G → (signatureEffects P M G F).FreeM (M × G × F)) :
-    OptionT Q.FreeM (M × G × F) := do
+    OptionT m (M × G × F) := do
   let ((message, signature), messages, cache) ←
     ((adversary pk).liftM (simulatedSignatureHandler ambient sample hashSample g pk)).run ([], [])
   let (valid, _) ← monadLift
