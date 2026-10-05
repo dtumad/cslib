@@ -102,6 +102,33 @@ theorem isMonadHom_optionT_stateT_option (State : Type) :
       rcases out with ⟨out, state'⟩
       cases out <;> rfl
 
+/-- Flatten optional failure around an effectful state computation. Either failure discards
+the state, while a successful result retains the state and all preceding ambient effects. -/
+theorem isMonadHom_optionT_stateT_optionT {m : Type → Type*} [Monad m] [LawfulMonad m]
+    (State : Type) :
+    IsMonadHom (OptionT (StateT State (OptionT m))) (StateT State (OptionT m))
+      (fun action state => do
+        let (out, state') ← action.run state
+        let value ← OptionT.mk (pure out)
+        pure (value, state')) := by
+  apply IsMonadHom.mk'
+  · intro α value
+    funext state
+    simp [Pure.pure, StateT.pure, OptionT.pure, OptionT.run, OptionT.mk,
+      Bind.bind, OptionT.bind]
+  · intro α β action cont
+    funext state
+    dsimp +instances only [Bind.bind, StateT.bind, OptionT.bind, OptionT.mk, OptionT.run,
+      Pure.pure, StateT.pure, OptionT.pure]
+    simp only [LawfulMonad.bind_assoc]
+    congr 1
+    funext out
+    cases out with
+    | none => simp
+    | some out =>
+      rcases out with ⟨out, state'⟩
+      cases out <;> simp [StateT.pure, Pure.pure, OptionT.pure, OptionT.mk]
+
 /-- Flatten two state layers and reject either optional failure. A failed computation exposes
 neither state; successful computations retain both states in their original order. -/
 theorem isMonadHom_stateT_optionT_stateT (State Tape : Type) :

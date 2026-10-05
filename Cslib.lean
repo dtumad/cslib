@@ -189,7 +189,6 @@ public import Cslib.Computability.URM.Execution
 public import Cslib.Computability.URM.StandardForm
 public import Cslib.Computability.URM.StraightLine
 public import Cslib.Crypto.DiscreteLog
-public import Cslib.Crypto.DiscreteLog.Probability
 public import Cslib.Crypto.DiscreteLog.Security
 public import Cslib.Crypto.Game
 public import Cslib.Crypto.Negligible
@@ -208,6 +207,7 @@ public import Cslib.Crypto.Primitives.PRG.Asymptotic
 public import Cslib.Crypto.Primitives.PRG.Basic
 public import Cslib.Crypto.Primitives.PRG.Defs
 public import Cslib.Crypto.Primitives.Schnorr
+public import Cslib.Crypto.Primitives.Schnorr.Binary
 public import Cslib.Crypto.Primitives.Schnorr.Cost
 public import Cslib.Crypto.Primitives.Schnorr.Extraction
 public import Cslib.Crypto.Primitives.Schnorr.Fork
@@ -228,6 +228,7 @@ public import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.TracedExecution
 public import Cslib.Crypto.Primitives.Schnorr.Reduction
 public import Cslib.Crypto.Primitives.Schnorr.Sampling
 public import Cslib.Crypto.Primitives.Schnorr.Security
+public import Cslib.Crypto.Primitives.Schnorr.Security.Binary
 public import Cslib.Crypto.Primitives.Schnorr.Simulation
 public import Cslib.Crypto.Primitives.Schnorr.Simulation.PrivateTape
 public import Cslib.Crypto.Primitives.Schnorr.Simulation.Probability

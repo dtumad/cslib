@@ -33,6 +33,28 @@ theorem lintegral_comap_some {α : Type*} [MeasurableSpace α]
       intro out
       cases out <;> simp
 
+/-- For probability measures on optional countable outcomes, the successful law determines
+the failure mass as well. This restores the whole law after an aborting-kernel comparison. -/
+theorem Measure.ext_of_comap_some {α : Type*} [MeasurableSpace α] [Countable α]
+    {μ ν : Measure (Option α)}
+    [IsProbabilityMeasure μ] [IsProbabilityMeasure ν]
+    (h : μ.comap some = ν.comap some) : μ = ν := by
+  apply Measure.ext_of_singleton
+  intro out
+  cases out with
+  | none =>
+    have hmass := congrArg (fun measure => measure Set.univ) h
+    simp only [Option.measurableEmbedding_some.comap_apply, Set.image_univ] at hmass
+    have hnone : ({none} : Set (Option α)) = (Set.range some)ᶜ := by
+      ext value
+      cases value <;> simp
+    rw [hnone, measure_compl Option.measurableEmbedding_some.measurableSet_range
+      (measure_ne_top μ _), measure_compl Option.measurableEmbedding_some.measurableSet_range
+      (measure_ne_top ν _), measure_univ, measure_univ, hmass]
+  | some value =>
+    simpa only [Option.measurableEmbedding_some.comap_apply, Set.image_singleton] using
+      congrArg (fun measure => measure {value}) h
+
 /-- Removing mass from a finite measure loses at most that mass for a postcondition in `[0, 1]`.
 The removed event need not be identified explicitly. -/
 theorem lintegral_le_lintegral_add_of_le {α : Type*} [MeasurableSpace α]

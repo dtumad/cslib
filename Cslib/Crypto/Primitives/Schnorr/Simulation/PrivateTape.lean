@@ -7,6 +7,7 @@ Authors: Devon Tuma
 module
 
 public import Cslib.Crypto.Primitives.Schnorr.Simulation.Trace
+public import Cslib.Foundations.Control.Monad.IsMonadHom.List
 public import Cslib.Foundations.Data.PFunctor.Free.Random.Tape
 
 /-!
@@ -565,6 +566,94 @@ theorem toMeasure_privateForgery
   conv_lhs => rw [FreeM.denote_bind_of_discrete]
   conv_rhs => rw [FreeM.denote_bind_of_discrete]
   exact congrArg (fun measure => measure.bind (fun out => FreeM.denote μ (finish out))) h
+
+/-- Closing the hash-only source with an ambient sampler preserves the private-tape law.
+This lets fair machine coins coexist with the scalar draws used by signing simulation. -/
+theorem toMeasure_privateForgery_liftM {Q : PFunctor.{0, 0}} [Nonempty M]
+    [∀ op, MeasurableSpace (Q.B op)] [∀ op, DiscreteMeasurableSpace (Q.B op)]
+    [MeasurableSpace F] [DiscreteMeasurableSpace F] [Countable F]
+    [MeasurableSpace G] [DiscreteMeasurableSpace G] [Countable G]
+    [MeasurableSpace M] [DiscreteMeasurableSpace M] [Countable M]
+    [MeasurableSpace (List M × List ((M × G) × F))]
+    [DiscreteMeasurableSpace (List M × List ((M × G) × F))]
+    (μ : OutputMeasure Q) [∀ op, MeasureTheory.IsProbabilityMeasure (μ op)]
+    (sample : Q.FreeM F) (g pk : G)
+    (program : OptionT (signatureEffects 0 M G F).FreeM (M × G × F))
+    (count : ℕ) (hcount : FreeM.queryBound program.run * 2 ≤ count) :
+    (do
+      let tape ← (List.replicate count ()).mapM (fun _ => sample)
+      (privateForgery g pk program tape).liftM (fun _ => sample)).toMeasure μ =
+    (do
+      let out ← ((program.run.liftM (P := signatureEffects 0 M G F)
+        (simulatedSignatureHandler (P := 0) (m := Q.FreeM) (M := M)
+          (fun op => isEmptyElim op) sample
+          (fun _ => sample) g pk)) ([], [])).run
+      match out with
+      | none | some (none, _) => pure (none : Option (M × G × F))
+      | some (some candidate, messages, cache) => do
+        let (valid, _) ← (verify (fun input => RandomOracle.query sample input)
+          g pk candidate.1 candidate.2).run cache
+        pure (if valid && decide (candidate.1 ∉ messages) then some candidate else none)
+      ).toMeasure μ := by
+  classical
+  let close : (op : (PFunctor.mk (M × G) (fun _ => F)).A) → Q.FreeM F := fun _ => sample
+  let draw := FreeM.lift (P := PFunctor.mk (M × G) (fun _ => F)) (Classical.ofNonempty, g)
+  let ν : OutputMeasure (PFunctor.mk (M × G) (fun _ => F)) :=
+    .ofMeasure (fun _ => sample.toMeasure μ)
+  have h := toMeasure_privateForgery ν draw g pk program count hcount
+  let handler := simulatedSignatureHandler (P := 0) (fun op => isEmptyElim op) draw
+    (FreeM.lift (P := PFunctor.mk (M × G) (fun _ => F))) g pk
+  have hhandler : (fun op state => OptionT.mk (((handler op) state).run.liftM close)) =
+      simulatedSignatureHandler (P := 0) (fun op => isEmptyElim op) sample
+        (fun _ => sample) g pk := by
+    funext op state
+    change ((handler op) state).run.liftM close =
+      (simulatedSignatureHandler (P := 0) (fun op => isEmptyElim op) sample
+        (fun _ => sample) g pk op state).run
+    have hm := map_simulatedSignatureHandler (FreeM.isMonadHom_liftM close)
+      (P := 0) (fun op => isEmptyElim op) draw
+      (FreeM.lift (P := PFunctor.mk (M × G) (fun _ => F))) g pk op state
+    have hempty : (fun op : (0 : PFunctor).A =>
+        (FreeM.liftM close (isEmptyElim op) : Q.FreeM ((0 : PFunctor).B op))) =
+        (fun op => isEmptyElim op) := funext fun op => isEmptyElim op
+    rw [hempty] at hm
+    simpa only [handler, draw, FreeM.liftM_lift (P := PFunctor.mk (M × G) (fun _ => F)),
+      close, StateT.run, OptionT.mk] using hm
+  have hstate := congrFun (((FreeM.isMonadHom_liftM close).optionT.stateT
+    (List M × List ((M × G) × F))).map_pfunctorFreeMLiftM handler program.run) ([], [])
+  dsimp only [StateT.run] at hstate
+  rw [hhandler] at hstate
+  have hstate := congrArg OptionT.run hstate
+  change ((program.run.liftM handler) ([], [])).run.liftM close =
+    ((program.run.liftM (simulatedSignatureHandler (P := 0) (fun op => isEmptyElim op)
+      sample (fun _ => sample) g pk)) ([], [])).run at hstate
+  change FreeM.denote (P := PFunctor.mk (M × G) (fun _ => F))
+    (fun _ => FreeM.denote μ sample) _ =
+    FreeM.denote (P := PFunctor.mk (M × G) (fun _ => F))
+      (fun _ => FreeM.denote μ sample) _ at h
+  rw [← FreeM.denote_liftM μ close, ← FreeM.denote_liftM μ close] at h
+  change FreeM.denote μ _ = FreeM.denote μ _
+  convert h using 2
+  · simp only [FreeM.liftM_bind, (FreeM.isMonadHom_liftM close).map_listMapM,
+      Function.comp_def, draw,
+      FreeM.liftM_lift (P := PFunctor.mk (M × G) (fun _ => F)), close]
+  · rw [FreeM.liftM_bind]
+    change _ = ((program.run.liftM handler) ([], [])).run.liftM close >>= _
+    rw [hstate]
+    apply bind_congr
+    intro out
+    cases out with
+    | none => simp
+    | some out =>
+      rcases out with ⟨candidate, messages, cache⟩
+      cases candidate with
+      | none => simp
+      | some candidate =>
+        simp only [verify, StateT.run_bind, StateT.run_pure, FreeM.liftM_bind,
+          FreeM.liftM_pure]
+        dsimp only [StateT.run]
+        rw [RandomOracle.map_query (FreeM.isMonadHom_liftM close)]
+        simp only [FreeM.liftM_lift (P := PFunctor.mk (M × G) (fun _ => F)), close]
 
 
 /-- The successful transcript of the entire saved-tape forgery experiment is the trace of

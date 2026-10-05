@@ -75,7 +75,7 @@ theorem canReturn_map (f : α → β) (x : P.FreeM α) (b : β) :
   simp only [Function.comp_apply, canReturn_pure, eq_comm]
 
 /-- Traversing a list preserves its length on every reachable execution. -/
-theorem length_of_canReturn_mapM {X Y : Type uB} (f : X → P.FreeM Y) (input : List X)
+theorem length_of_canReturn_mapM {X : Type v} {Y : Type uB} (f : X → P.FreeM Y) (input : List X)
     {output : List Y} (h : MonadAttach.CanReturn (input.mapM f) output) :
     output.length = input.length := by
   induction input generalizing output with

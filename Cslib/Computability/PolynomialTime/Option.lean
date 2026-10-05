@@ -7,6 +7,7 @@ Authors: Devon Tuma
 module
 
 public import Cslib.Computability.PolynomialTime.Encoding
+public import Cslib.Computability.PolynomialTime.Fold
 
 /-! # Polynomial-time optional values -/
 
@@ -98,5 +99,45 @@ theorem IsPolyTime.option_bind_getD {γ : α → Type} {output : ∀ a, γ a ↪
   convert hvalue.option_isSome.cond hcont (isPolyTime_const encode []) using 1
   funext a
   cases value a <;> rfl
+
+/-- Collect an encoded list of optional values, failing if any entry is absent. In particular,
+checking a presampled tape also checks the entries that its eventual consumer will not use. -/
+theorem IsPolyTime.list_sequence {Item : Type} {element : Item ↪ Word}
+    {values : α → List (Option Item)}
+    (hvalues : IsPolyTime encode (fun a => listEncoding (optionEncoding element) (values a))) :
+    IsPolyTime encode (fun a => optionEncoding (listEncoding element) ((values a).mapM id)) := by
+  let step (acc : Option (List Item)) (value : Option Item) : Option (List Item) := do
+    let before ← acc
+    let value ← value
+    pure (before ++ [value])
+  let input := pairEncoding (optionEncoding (listEncoding element)) (optionEncoding element)
+  have hi := isPolyTime_input input
+  have hstep : IsPolyTime input (fun arg => optionEncoding (listEncoding element)
+      (step arg.1 arg.2)) := by
+    have hsome := (hi.fst.tail.append
+      (hi.snd.tail.pair (left := wordEncoding) (right := wordEncoding)
+        (isPolyTime_const input []))).option_some (element := fun _ => wordEncoding)
+    convert (hi.fst.option_isSome.bool₂ hi.snd.option_isSome Bool.and).cond hsome
+      (isPolyTime_const input []) using 1
+    funext ⟨acc, value⟩
+    cases acc <;> cases value <;> simp [step, wordEncoding, pairEncoding_apply]
+    rfl
+  have hfold := hvalues.list_foldl_of_growth
+    (stateEncoding := optionEncoding (listEncoding element))
+    (initial := fun _ => some []) (step := step) (isPolyTime_const encode [true]) hstep
+    (growth := fun n => 2 * n + 1) (by fun_prop) (by
+      intro acc value
+      cases acc <;> cases value <;> simp [step]
+      omega)
+  have heq (values : List (Option Item)) (acc : Option (List Item)) :
+      values.foldl step acc =
+        (do let before ← acc; let rest ← values.mapM id; pure (before ++ rest))
+      := by
+    induction values generalizing acc with
+    | nil => simp
+    | cons value values ih =>
+      rw [List.foldl_cons, ih, List.mapM_cons]
+      cases acc <;> cases value <;> simp [step, List.append_assoc, Option.bind_assoc]
+  simpa [heq] using hfold
 
 end Turing.MultiTapeTM

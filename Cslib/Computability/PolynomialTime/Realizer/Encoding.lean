@@ -140,6 +140,75 @@ theorem Realizer.runKernel_sample_typed [Countable S] {Input : Type} {input : In
 
 end Typed
 
+private theorem liftM_run_optionT {P Q : PFunctor.{0, 0}} {m : Type → Type*}
+    [Monad m] [LawfulMonad m]
+    (encode : (op : P.A) → OptionT Q.FreeM (P.B op))
+    (interpret : (op : Q.A) → m (Q.B op)) (handler : (op : P.A) → m (P.B op))
+    (h : ∀ op, (encode op).run.liftM interpret = some <$> handler op)
+    {α : Type} (program : P.FreeM α) :
+    (program.liftM encode).run.liftM interpret = some <$> program.liftM handler := by
+  induction program with
+  | pure value => simp
+  | lift_bind op cont ih =>
+    simp only [FreeM.bind_eq_bind, FreeM.liftM_bind, FreeM.liftM_lift (P := P), OptionT.run_bind,
+      FreeM.liftM_bind, h, bind_map_left, Option.elimM, Option.elim_some, ih, map_bind]
+
+section Aborting
+
+variable {P Q : PFunctor.{0, 0}} {Input α S : Type}
+  [MeasurableSpace Word] [DiscreteMeasurableSpace Word]
+  [∀ op, MeasurableSpace (Q.B op)] [∀ op, DiscreteMeasurableSpace (Q.B op)]
+  [MeasurableSpace S] [DiscreteMeasurableSpace S] [Countable S]
+  {input : Input ↪ Word} {program : Input → (effects Unit).FreeM Word}
+
+/-- A chosen encoded machine preserves an aborting typed interpreter's complete joint law.
+Canonical decoding supplies the interface round trip. The interpreter may abort on programming
+collisions without conditioning either experiment, and malformed machine requests reject. -/
+theorem Realizer.toMeasure_sample_typed (μ : OutputMeasure Q)
+    [∀ op, IsProbabilityMeasure (μ op)]
+    (implementation : Realizer input wordEncoding program) (a : Input)
+    (request : Computability.Encoding P.A Bool)
+    (response : (op : P.A) → Computability.Encoding (P.B op) Bool)
+    (result : Option α → Word) (source : (PFunctor.mk Unit (fun _ => Bool) + P).FreeM α)
+    (hsource : program a = result <$> (source.liftM (encodeEffects request response)).run)
+    (handler : (op : (PFunctor.mk Unit (fun _ => Bool) + P).A) →
+      StateT S (OptionT Q.FreeM) ((PFunctor.mk Unit (fun _ => Bool) + P).B op))
+    (hcoin : ∀ state, FreeM.toMeasure (α := Option (Bool × S))
+      (handler (.inl ()) state).run μ =
+      (uniformOn (Set.univ : Set Bool)).map (fun bit => some (bit, state))) (state : S) :
+    let interpret : (op : (effects Unit).A) →
+        StateT S (OptionT Q.FreeM) ((effects Unit).B op)
+      | .inl token => handler (.inl token)
+      | .inr (_, word) => fun state => (request.decodeChecked word).elim failure fun op =>
+        (fun out => ((response op).encode out.1, out.2)) <$> handler (.inr op) state
+    ((((List.replicate (implementation.clock (input a).length) ()).mapM
+      (fun _ => coin) >>= implementation.runFromCoins a).liftM interpret) state).run.toMeasure μ =
+      (((fun value => some (result (some value))) <$> source.liftM handler) state).run.toMeasure
+        μ := by
+  intro interpret
+  have hencode : ∀ op, (encodeEffects request response op).run.liftM interpret =
+      some <$> handler op := by
+    intro op
+    cases op with
+    | inl token =>
+      cases token
+      simp only [encodeEffects, OptionT.run_monadLift, monadLift_self, FreeM.liftM_map,
+        coin, FreeM.liftM_lift (P := effects Unit), interpret]
+    | inr op =>
+      simp only [encodeEffects, encodeQuery, OptionT.run_mk, FreeM.liftM_map, query,
+        FreeM.liftM_lift (P := effects Unit), interpret]
+      funext state
+      change (fun out => ((response op).decodeChecked out.1, out.2)) <$>
+        ((request.decodeChecked (request.encode op)).elim failure fun op =>
+          (fun out => ((response op).encode out.1, out.2)) <$> handler (.inr op) state) = _
+      simp only [Computability.Encoding.decodeChecked_encode, Option.elim_some, Functor.map_map]
+      rfl
+  rw [implementation.toMeasure_sample_runFromCoins μ a interpret hcoin state, hsource]
+  simp only [FreeM.liftM_map, liftM_run_optionT (encodeEffects request response) interpret handler
+    hencode, Functor.map_map, wordEncoding, Function.Embedding.refl_apply]
+
+end Aborting
+
 variable {Input Output : Type} [MeasurableSpace Word] [DiscreteMeasurableSpace Word]
 
 /-- A chosen uniform machine's clock bounds the original typed requests. The signature and

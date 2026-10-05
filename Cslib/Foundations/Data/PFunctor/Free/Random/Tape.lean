@@ -28,7 +28,7 @@ section Answers
 
 open MeasureTheory
 
-universe u
+universe uA uQ u
 
 variable {Operation Answer α : Type u}
 
@@ -93,11 +93,54 @@ theorem runFromAnswers_isSome
     | cons answer rest =>
       exact ih answer rest (by simpa using hcost.2 answer)
 
-variable {P : PFunctor.{u, u}}
+variable {P : PFunctor.{uA, u}}
   [∀ op, MeasurableSpace (P.B op)] [∀ op, DiscreteMeasurableSpace (P.B op)]
   [MeasurableSpace Answer] [DiscreteMeasurableSpace Answer]
   [MeasurableSpace α] [DiscreteMeasurableSpace α] [Countable α]
   (μ : (op : P.A) → Measure (P.B op)) [∀ op, IsProbabilityMeasure (μ op)]
+
+omit [MeasurableSpace α] [DiscreteMeasurableSpace α] [Countable α]
+  [∀ op, IsProbabilityMeasure (μ op)] in
+/-- Independent copies depend only on the sample's law, not its source interface. -/
+theorem denote_replicate_congr {Q : PFunctor.{uQ, u}}
+    [∀ op, MeasurableSpace (Q.B op)] [∀ op, DiscreteMeasurableSpace (Q.B op)]
+    [MeasurableSpace (List Answer)] [DiscreteMeasurableSpace (List Answer)]
+    (ν : (op : Q.A) → Measure (Q.B op))
+    (sample : P.FreeM Answer) (sample' : Q.FreeM Answer)
+    (h : denote μ sample = denote ν sample') (count : ℕ) :
+    denote μ ((List.replicate count ()).mapM (fun _ => sample)) =
+      denote ν ((List.replicate count ()).mapM (fun _ => sample')) := by
+  induction count with
+  | zero => simp
+  | succ count ih =>
+    simp only [List.replicate_succ, List.mapM_cons, denote_bind_of_discrete]
+    rw [h]
+    congr 1
+    funext value
+    simp only [ih, denote_pure]
+
+omit [MeasurableSpace Answer] [DiscreteMeasurableSpace Answer]
+  [MeasurableSpace α] [DiscreteMeasurableSpace α] [Countable α]
+  [∀ op, MeasurableSpace (P.B op)] [∀ op, DiscreteMeasurableSpace (P.B op)]
+  [∀ op, IsProbabilityMeasure (μ op)] in
+/-- A presampled tape can be split into consecutive independent blocks. -/
+theorem bind_replicate_add (sample : P.FreeM Answer) (first second : ℕ)
+    (cont : List Answer → List Answer → P.FreeM α) :
+    ((List.replicate (first + second) ()).mapM (fun _ => sample) >>= fun tape =>
+      cont (tape.take first) (tape.drop first)) =
+    (do
+      let before ← (List.replicate first ()).mapM (fun _ => sample)
+      let after ← (List.replicate second ()).mapM (fun _ => sample)
+      cont before after) := by
+  rw [List.replicate_add, List.mapM_append]
+  simp only [bind_assoc]
+  apply bind_congr_of_canReturn
+  intro before hbefore
+  have hlength : before.length = first := by
+    simpa only [List.length_replicate] using length_of_canReturn_mapM _ _ hbefore
+  apply bind_congr
+  intro after
+  simp [← hlength]
 
 /-- Presampling independent answers preserves the whole output measure of an adaptive
 program. The pathwise bound ensures that tape exhaustion has zero probability. -/
@@ -137,6 +180,44 @@ theorem denote_runFromAnswers (sample : P.FreeM Answer)
       intro answer
       rw [ih answer count (by simpa using hcost.2 answer),
         Measure.map_apply Measurable.of_discrete hevent]
+
+omit [MeasurableSpace α] [DiscreteMeasurableSpace α] [Countable α] in
+/-- Preparing all fallible draws before checking them has the same optional output law as
+stopping at the first failure. Unused draws have total mass one. -/
+theorem denote_mapM_optionT {Index : Type u}
+    [MeasurableSpace (List Answer)] [DiscreteMeasurableSpace (List Answer)]
+    (sample : Index → P.FreeM (Option Answer)) (indices : List Index) :
+    denote μ (indices.mapM (fun index => OptionT.mk (sample index))).run =
+      denote μ (List.mapM id <$> indices.mapM sample) := by
+  let : MeasurableSpace (List (Option Answer)) := ⊤
+  induction indices with
+  | nil => rfl
+  | cons index indices ih =>
+    simp only [List.mapM_cons, OptionT.run_bind, OptionT.run_mk, OptionT.run_pure,
+      Option.elimM, ← bind_eq_bind, ← map_eq_map, FreeM.map_bind, FreeM.map_pure]
+    simp only [bind_eq_bind]
+    rw [denote_bind_of_discrete, denote_bind_of_discrete]
+    apply Measure.bind_congr_right
+    refine Filter.Eventually.of_forall fun value => ?_
+    cases value with
+    | none =>
+      simp only [Option.elim_none, id_eq, ← map_eq_pure_bind]
+      change denote μ (pure none) = denote μ ((fun _ : List (Option Answer) =>
+        (none : Option (List Answer))) <$> indices.mapM sample)
+      rw [← map_eq_map, denote_map μ _ _ Measurable.of_discrete, Measure.map_const]
+      simp
+    | some value =>
+      have hcont (out : Option (List Answer)) :
+          out.elim (pure none : P.FreeM (Option (List Answer)))
+            (fun rest => pure (some (value :: rest))) = pure (out.map (value :: ·)) := by
+        cases out <;> rfl
+      simp only [Option.elim_some, hcont, ← map_eq_pure_bind]
+      change denote μ (Option.map (value :: ·) <$>
+        (indices.mapM (fun index => OptionT.mk (sample index))).run) = _
+      rw [← map_eq_map, denote_map μ _ _ Measurable.of_discrete, ih]
+      rw [← denote_map μ _ _ Measurable.of_discrete]
+      simp only [map_eq_map, Functor.map_map]
+      congr 1
 
 end Answers
 

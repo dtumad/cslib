@@ -32,6 +32,26 @@ def runFromCoins (a : α) (coins : Word) : (effects Oracle).FreeM (Option Word) 
   (output? <$> implementation.machine.runConfigFromCoins query coins
     (implementation.machine.initialConfig (input a))).liftM (rename implementation.dispatch)
 
+/-- Interpreting saved-coin execution is exactly the finite snapshot interpreter with the
+same handler. The identity retains all effects and distinguishes timeout from completed output. -/
+theorem liftM_runFromCoins {m : Type → Type*} [Monad m] [LawfulMonad m]
+    (handler : (op : (effects Oracle).A) → m ((effects Oracle).B op)) (a : α) (coins : Word) :
+    (implementation.runFromCoins a coins).liftM handler =
+      (fun final => if final.state.isNone then some final.output else none) <$>
+        implementation.machine.runSnapshotFromCoins (input a)
+          (fun port word => handler (.inr (implementation.dispatch port, word))) coins
+          (MultiTapeMachine.Snapshot.initial implementation.machine.initial) := by
+  rw [runFromCoins, ← runSnapshotFromCoins_output (input := input a)
+    implementation.machine query coins
+    (MultiTapeMachine.Snapshot.initial implementation.machine.initial)
+    (implementation.machine.initialConfig (input a))
+    (MultiTapeMachine.Snapshot.represents_initial _ _)]
+  rw [(FreeM.isMonadHom_liftM handler).map_pfunctorFreeMLiftM]
+  simp only [FreeM.liftM_map]
+  rw [map_runSnapshotFromCoins (FreeM.isMonadHom_liftM _)]
+  simp only [query, FreeM.liftM_lift (P := effects (Fin implementation.ports)), rename,
+    FreeM.liftM_lift (P := effects Oracle)]
+
 /-- Every saved-tape execution is an execution of the same machine and transition clock. -/
 theorem canReturn_run_of_coins (a : α) (coins : Word)
     (hlen : coins.length = implementation.clock (input a).length) (result : Option Word)
@@ -84,5 +104,42 @@ theorem runKernel_sample_runFromCoins (a : α) {S : Type}
           (implementation.machine.initialConfig (input a)) (fun final => pure (output? final))
           state).symm
     _ = _ := implementation.realizes a S oracle state
+
+/-- Presampling the chosen machine preserves an aborting interpreter's whole joint law.
+Only private coins must be fair and leave the state unchanged. Oracle calls may reject or
+update shared state; their successful kernels determine the failure mass by normalization. -/
+theorem toMeasure_sample_runFromCoins {Q : PFunctor.{0, 0}}
+    [∀ op, MeasurableSpace (Q.B op)] [∀ op, DiscreteMeasurableSpace (Q.B op)]
+    (μ : OutputMeasure Q) [∀ op, IsProbabilityMeasure (μ op)] (a : α) {S : Type}
+    [MeasurableSpace S] [DiscreteMeasurableSpace S] [Countable S]
+    (handler : (op : (effects Oracle).A) →
+      StateT S (OptionT Q.FreeM) ((effects Oracle).B op))
+    (hcoin : ∀ state, (handler (.inl ()) state).run.toMeasure μ =
+      (uniformOn (Set.univ : Set Bool)).map (fun bit => some (bit, state))) (state : S) :
+    ((((List.replicate (implementation.clock (input a).length) ()).mapM
+      (fun _ => coin) >>= implementation.runFromCoins a).liftM handler) state).run.toMeasure μ =
+    ((((fun value => some (output value)) <$> program a).liftM handler)
+      state).run.toMeasure μ := by
+  let oracle : Oracle → Word → Kernel S (Word × S) := fun port word =>
+    ⟨fun state => ((handler (.inr (port, word)) state).run.toMeasure μ).comap some,
+      Measurable.of_discrete⟩
+  have hhandler : ∀ op state, ((handler op state).run.toMeasure μ).comap some =
+      effectKernel oracle op state := by
+    intro op state
+    cases op with
+    | inl token =>
+      cases token
+      rw [hcoin]
+      change _ = (uniformOn (Set.univ : Set Bool)).bind (fun bit => Measure.dirac (bit, state))
+      rw [Measure.bind_dirac_eq_map _ Measurable.of_discrete]
+      rw [show (fun bit => some (bit, state)) = some ∘ (fun bit => (bit, state)) from rfl,
+        ← Measure.map_map Measurable.of_discrete Measurable.of_discrete,
+        Option.measurableEmbedding_some.comap_map]
+    | inr request => rfl
+  change FreeM.denote μ _ = FreeM.denote μ _
+  apply Measure.ext_of_comap_some
+  rw [FreeM.denote_liftM_stateT_optionT μ handler (effectKernel oracle) hhandler,
+    FreeM.denote_liftM_stateT_optionT μ handler (effectKernel oracle) hhandler]
+  exact implementation.runKernel_sample_runFromCoins a oracle state
 
 end Turing.MultiTapePTM.Realizer

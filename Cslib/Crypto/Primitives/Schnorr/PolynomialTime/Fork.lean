@@ -321,6 +321,97 @@ theorem isPolyTime_forkSignatureFromAnswers
       (hp.comp_encoded hi.sigma_fst) (hg.comp_encoded hi.sigma_fst)
       (hpk.comp_encoded hi.sigma_fst) hi.sigma_snd
 
+/-- The complete saved-tape reduction, including scalar extraction, has a uniform machine.
+The arithmetic uses the four returned scalars; a failed replay still returns `none`. -/
+theorem isPolyTime_dlogReductionFromAnswers
+    (hscalarSub : IsPolyTime (sigmaEncoding unaryEncoding
+      (fun n => pairEncoding (scalar n).toEmbedding (scalar n).toEmbedding))
+      (fun arg => (scalar arg.1).encode (arg.2.1 - arg.2.2)))
+    (hscalarDiv : IsPolyTime (sigmaEncoding unaryEncoding
+      (fun n => pairEncoding (scalar n).toEmbedding (scalar n).toEmbedding))
+      (fun arg => (scalar arg.1).encode (arg.2.1 / arg.2.2)))
+    {Input : Type} (input : Input ↪ Word) {parameter : Input → ℕ}
+    {generator publicKey : ∀ a, G (parameter a)}
+    {privateScalars : ∀ a, List (F (parameter a))}
+    {k ports : ℕ} {State : Type} [Finite State] {control : State ↪ Word}
+    (machine : Turing.MultiTapePTM k Bool State (Fin ports))
+    {snapshot : Input → Snapshot k Bool State (Fin ports)} {word coins : Input → Word}
+    (hp : IsPolyTime input (fun a => unaryEncoding (parameter a)))
+    (hg : IsPolyTime input (fun a => (element (parameter a)).encode (generator a)))
+    (hpk : IsPolyTime input (fun a => (element (parameter a)).encode (publicKey a)))
+    (hs : IsPolyTime input (fun a => machineSnapshotEncoding k ports control (snapshot a)))
+    (hw : IsPolyTime input word) (hc : IsPolyTime input coins)
+    (hprivate : IsPolyTime input (fun a =>
+      listEncoding (scalar (parameter a)).toEmbedding (privateScalars a)))
+    {groupSize scalarSize : ℕ → ℕ}
+    (hgroup : PolynomiallyBounded groupSize) (hscalar : PolynomiallyBounded scalarSize)
+    (hgsize : ∀ n value, ((element n).encode value).length ≤ groupSize n)
+    (hfsize : ∀ n value, ((scalar n).encode value).length ≤ scalarSize n) :
+    IsPolyTime (sigmaEncoding input (fun i => pairEncoding
+      (listEncoding (scalar (parameter i)).toEmbedding)
+      (listEncoding (scalar (parameter i)).toEmbedding)))
+      (fun arg => optionEncoding (scalar (parameter arg.1)).toEmbedding
+        (dlogReductionFromAnswers (element (parameter arg.1)) (scalar (parameter arg.1))
+          machine (word arg.1) (coins arg.1) (snapshot arg.1) (generator arg.1)
+          (publicKey arg.1) (privateScalars arg.1) arg.2.1 arg.2.2)) := by
+  let output i := pairEncoding wordEncoding
+    (pairEncoding (element (parameter i)).toEmbedding (scalar (parameter i)).toEmbedding)
+  let operation i := pairEncoding wordEncoding (element (parameter i)).toEmbedding
+  let answer i := (scalar (parameter i)).toEmbedding
+  let events i := listEncoding (sigmaEncoding (operation i) (fun _ => answer i))
+  let result i := pairEncoding (pairEncoding (output i) (events i))
+    (sigmaEncoding (operation i) (fun _ => pairEncoding (answer i)
+      (pairEncoding (answer i) (pairEncoding (output i) (events i)))))
+  let encoding := sigmaEncoding input (fun i => pairEncoding
+    (listEncoding (answer i)) (listEncoding (answer i)))
+  have hi := isPolyTime_input encoding
+  let replay (arg : Σ i, List (F (parameter i)) × List (F (parameter i))) :=
+    FreeM.forkFromTracedAnswers
+      (runSignatureFromAnswers (element (parameter arg.1)) (scalar (parameter arg.1))
+        machine (word arg.1) (coins arg.1) (snapshot arg.1) (generator arg.1)
+        (publicKey arg.1) (privateScalars arg.1))
+      (fun out => findForkPoint (generator arg.1) (publicKey arg.1) (some out.1)
+        (out.2.map (fun event => (event.1, event.2)))) arg.2.1 arg.2.2
+  have hfork : IsPolyTime encoding (fun arg => optionEncoding (result arg.1) (replay arg)) :=
+    isPolyTime_forkSignatureFromAnswers element scalar hz hgroupDecode hscalarDecode hsmul
+      hadd hsub input machine hp hg hpk hs hw hc hprivate hgroup hscalar hgsize hfsize
+  have hn := hp.comp_encoded hi.sigma_fst
+  let decode (arg : Σ i, List (F (parameter i)) × List (F (parameter i))) code :=
+    ((scalar (parameter arg.1)).decode code).getD 0
+  have hdecode {words} (hwords : IsPolyTime encoding words) :
+      IsPolyTime encoding (fun arg => (scalar (parameter arg.1)).encode
+        (decode arg (words arg))) :=
+    (hscalarDecode.comp_encoded (f := fun arg => ⟨parameter arg.1, words arg⟩)
+      (hn.sigma hwords)).option_getD (hz.comp_encoded hn)
+  let raw arg := optionEncoding (result arg.1) (replay arg)
+  let firstChallenge arg := decode arg
+    (List.BitPair.fst (List.BitPair.snd (List.BitPair.snd (raw arg).tail)))
+  let firstResponse arg := decode arg
+    (List.BitPair.snd (List.BitPair.snd (List.BitPair.fst (List.BitPair.fst (raw arg).tail))))
+  let secondChallenge arg := decode arg
+    (List.BitPair.fst (List.BitPair.snd (List.BitPair.snd (List.BitPair.snd (raw arg).tail))))
+  let secondResponse arg := decode arg
+    (List.BitPair.snd (List.BitPair.snd (List.BitPair.fst
+      (List.BitPair.snd (List.BitPair.snd (List.BitPair.snd (List.BitPair.snd (raw arg).tail)))))))
+  have hc₁ := hdecode hfork.tail.bitPair_snd.bitPair_snd.bitPair_fst
+  have hz₁ := hdecode hfork.tail.bitPair_fst.bitPair_fst.bitPair_snd.bitPair_snd
+  have hc₂ := hdecode hfork.tail.bitPair_snd.bitPair_snd.bitPair_snd.bitPair_fst
+  have hz₂ := hdecode
+    hfork.tail.bitPair_snd.bitPair_snd.bitPair_snd.bitPair_snd.bitPair_fst.bitPair_snd.bitPair_snd
+  have hextract := isPolyTime_extract (fun n => (scalar n).toEmbedding) hscalarSub hscalarDiv
+  have hvalue := hextract.comp_encoded (encode := encoding)
+    (f := fun arg => ⟨parameter arg.1, (firstChallenge arg, firstResponse arg),
+      secondChallenge arg, secondResponse arg⟩)
+    (hn.sigma ((hc₁.pair (left := wordEncoding) (right := wordEncoding) hz₁).pair
+      (left := wordEncoding) (right := wordEncoding)
+      (hc₂.pair (left := wordEncoding) (right := wordEncoding) hz₂)))
+  convert hfork.option_isSome.cond hvalue.option_some (isPolyTime_const encoding []) using 1
+  funext arg
+  change optionEncoding (scalar (parameter arg.1)).toEmbedding ((replay arg).map _) = _
+  cases h : replay arg <;>
+    simp [h, firstChallenge, firstResponse, secondChallenge, secondResponse, decode, raw,
+      result, output, operation, answer, sigmaEncoding, pairEncoding_apply]
+
 end Replay
 
 end Cslib.Crypto.Schnorr

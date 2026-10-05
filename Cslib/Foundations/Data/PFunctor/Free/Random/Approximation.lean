@@ -7,7 +7,9 @@ Authors: Devon Tuma
 module
 
 public import Cslib.Foundations.Data.PFunctor.Free.Random
+public import Cslib.Foundations.Data.PFunctor.Free.Random.Tape
 public import Cslib.Foundations.Data.PFunctor.Free.Measure.Approximation
+public import Cslib.Foundations.Control.Monad.IsMonadHom.List
 
 /-!
 # Cutoff error for adaptive finite sampling
@@ -130,5 +132,38 @@ theorem lintegral_liftM_sampleFin_le_uniform {Operation α : Type}
       ∫⁻ value, post value ∂denote (fun _ => uniformOn Set.univ) program :=
   lintegral_liftM_option_le (fun _ => uniformOn Set.univ) μ _
     (fun op => comap_denote_sampleFin_le μ coin hcoin _ _ _ (hcover op)) program post
+
+/-- Preparing and checking every slot of a finite tape incurs one cutoff error per slot,
+including slots that a later consumer will leave unused. -/
+theorem lintegral_replicate_uniform_le_sampleFin_add (n bits attempts count : ℕ) [NeZero n]
+    [MeasurableSpace (List (Fin n))] [DiscreteMeasurableSpace (List (Fin n))]
+    (hcover : n ≤ 2 ^ bits) (hsize : 2 ^ bits ≤ 2 * n)
+    (post : List (Fin n) → ℝ≥0∞) (hpost : ∀ values, post values ≤ 1) :
+    ∫⁻ values, post values ∂denote (P := PFunctor.mk Unit (fun _ => Fin n))
+      (fun _ => uniformOn Set.univ) ((List.replicate count ()).mapM (fun _ => lift ())) ≤
+        (∫⁻ values, values.elim 0 post ∂denote μ
+          (List.mapM id <$>
+            (List.replicate count ()).mapM (fun _ => sampleFin coin n bits attempts))) +
+              count * (2 : ℝ≥0∞)⁻¹ ^ attempts := by
+  let program := (List.replicate count ()).mapM
+    (fun _ => lift (P := PFunctor.mk Unit (fun _ => Fin n)) ())
+  have hcount : queryBound program ≤ count := by
+    dsimp only [program]
+    induction count with
+    | zero => simp
+    | succ count ih =>
+      simp only [List.replicate_succ, List.mapM_cons, ← map_eq_pure_bind]
+      apply (queryBound_bind_le _ _ count (fun value => by simpa using ih)).trans
+      simp [queryBound_lift (P := PFunctor.mk Unit (fun _ => Fin n)), Nat.cast_add, add_comm]
+  have h := lintegral_uniform_le_liftM_sampleFin_add μ coin hcoin
+    (fun _ : Unit => n) (fun _ => bits) attempts count (fun _ => hcover) (fun _ => hsize)
+    program hcount post hpost
+  have hlift : (program.liftM (fun _ => OptionT.mk (sampleFin coin n bits attempts))) =
+      (List.replicate count ()).mapM (fun _ => OptionT.mk (sampleFin coin n bits attempts)) := by
+    dsimp only [program]
+    rw [(isMonadHom_liftM _).map_listMapM]
+    simp only [Function.comp_def, liftM_lift (P := PFunctor.mk Unit (fun _ => Fin n))]
+  rw [hlift, denote_mapM_optionT] at h
+  exact h
 
 end PFunctor.FreeM

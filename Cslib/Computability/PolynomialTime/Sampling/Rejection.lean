@@ -7,6 +7,7 @@ Authors: Devon Tuma
 module
 
 public import Cslib.Computability.PolynomialTime.Sampling
+public import Cslib.Computability.PolynomialTime.Sampling.Iteration
 public import Cslib.Computability.PolynomialTime.Rejection
 public import Cslib.Foundations.Data.PFunctor.Free.Random
 
@@ -137,5 +138,95 @@ theorem isPPT_sampleFin_size {input : α ↪ Word} {bound attempts : α → ℕ}
         FreeM.sampleFin ((fun b => (⟨b.toNat, Bool.toNat_lt b⟩ : Fin 2)) <$> coin)
           (bound a) (bound a).size (attempts a)) :=
   isPPT_sampleFin hbound hbound.binary_size hattempts
+
+omit [MeasurableSpace Word] [DiscreteMeasurableSpace Word] in
+private theorem foldlM_sample {m : Type → Type*} [Monad m] [LawfulMonad m] {β : Type}
+    (draw : m β) (count : ℕ) (values : List β) :
+    (List.replicate count ()).foldlM (fun values _ =>
+      (fun value => values ++ [value]) <$> draw) values =
+        (fun rest => values ++ rest) <$> (List.replicate count ()).mapM (fun _ => draw) := by
+  induction count generalizing values with
+  | zero => simp
+  | succ count ih =>
+    simp only [List.replicate_succ, List.foldlM_cons, List.mapM_cons, bind_map_left, ih,
+      map_bind, map_pure, List.append_assoc, List.singleton_append]
+    simp only [map_eq_pure_bind]
+
+omit [MeasurableSpace α] in
+/-- Prepare a polynomial number of independent bounded samples. Every slot is sampled, and
+its possible exhaustion is retained; callers can reject the whole tape if any slot failed. -/
+theorem isPPT_replicate_sampleFin {input : α ↪ Word} {bound bits attempts count : α → ℕ}
+    (hbound : IsPolyTime input (fun a => binaryEncoding (bound a)))
+    (hbits : IsPolyTime input (fun a => unaryEncoding (bits a)))
+    (hattempts : IsPolyTime input (fun a => unaryEncoding (attempts a)))
+    (hcount : IsPolyTime input (fun a => unaryEncoding (count a))) :
+    IsPPT (Oracle := Oracle) input (listEncoding (optionEncoding binaryEncoding)) (fun a =>
+      (List.replicate (count a) ()).mapM (fun _ =>
+        Option.map Fin.val <$>
+          FreeM.sampleFin ((fun b => (⟨b.toNat, Bool.toNat_lt b⟩ : Fin 2)) <$> coin)
+            (bound a) (bits a) (attempts a))) := by
+  let output := listEncoding (optionEncoding binaryEncoding)
+  let step a (values : List (Option ℕ)) (coins : Word) :=
+    values ++ [selectBelow (bound a) (bits a) (attempts a) coins]
+  let encoding := pairEncoding input (pairEncoding output wordEncoding)
+  have hi := isPolyTime_input encoding
+  have hdraw := (hbound.comp_encoded hi.fst).selectBelow
+    (hbits.comp_encoded hi.fst) (hattempts.comp_encoded hi.fst) hi.snd.snd
+  have hstep : IsPolyTime encoding (fun arg => output (step arg.1 arg.2.1 arg.2.2)) :=
+    hi.snd.fst.list_append
+      (hdraw.list_cons (rest := fun _ => []) (isPolyTime_const encoding []))
+  obtain ⟨cb, db, hb⟩ := hbits.length_le
+  obtain ⟨cc, dc, hc⟩ := hcount.length_le
+  simp only [unaryEncoding_apply, List.length_replicate] at hb hc
+  have hloop := isPPT_iterate_sampleBits (Oracle := Oracle) (stateEncoding := output)
+    (initial := fun _ : α => []) (step := step) (isPolyTime_const input [])
+    (hbits.unary_mul hattempts) hcount hstep
+    (fun a index values => (output values).length ≤ index * (2 * (bits a + 1) + 1))
+    (fun _ => by simp [output]) (by
+      intro a index values coins _ hvalues _
+      have hdraw := length_selectBelow_le (bound a) (bits a) (attempts a) coins
+      simp only [step, output, listEncoding_append, List.length_append, listEncoding_cons,
+        length_pairEncoding, listEncoding_nil, List.length_nil, Nat.add_zero]
+      dsimp only [output] at hvalues
+      nlinarith)
+    (size := fun n => cc * (n + 1) ^ dc * (2 * (cb * (n + 1) ^ db + 1) + 1))
+    (by fun_prop) (by
+      intro a index values hindex hvalues
+      refine hvalues.trans (Nat.mul_le_mul (hindex.trans (hc a)) ?_)
+      have := hb a
+      omega)
+  let : MeasurableSpace (List (Option ℕ)) := ⊤
+  apply hloop.congr
+  intro a S _ _ _ oracle state
+  have hstepRun current : step a current <$>
+      (List.replicate (bits a * attempts a) ()).mapM (fun _ => coin (Oracle := Oracle)) =
+      (fun value => current ++ [value]) <$>
+        (selectBelow (bound a) (bits a) (attempts a) <$>
+          (List.replicate (bits a * attempts a) ()).mapM (fun _ => coin)) := by
+    rw [Functor.map_map]
+  simp only [hstepRun]
+  rw [foldlM_sample]
+  simp only [List.nil_append, id_map']
+  have hkernel (count : ℕ) (state : S) :
+      FreeM.runKernel (effectKernel oracle)
+        ((List.replicate count ()).mapM (fun _ =>
+          selectBelow (bound a) (bits a) (attempts a) <$>
+            (List.replicate (bits a * attempts a) ()).mapM (fun _ => coin))) state =
+      FreeM.runKernel (effectKernel oracle)
+        ((List.replicate count ()).mapM (fun _ =>
+          Option.map Fin.val <$>
+            FreeM.sampleFin ((fun b => (⟨b.toNat, Bool.toNat_lt b⟩ : Fin 2)) <$> coin)
+              (bound a) (bits a) (attempts a))) state := by
+    induction count generalizing state with
+    | zero => rfl
+    | succ count ih =>
+      simp only [List.replicate_succ, List.mapM_cons, ← FreeM.bind_eq_bind]
+      rw [FreeM.runKernel_bind, FreeM.runKernel_bind, runKernel_selectBelow]
+      apply Measure.bind_congr_right
+      refine Filter.Eventually.of_forall fun out => ?_
+      simp only [FreeM.bind_eq_bind, ← map_eq_pure_bind, ← FreeM.map_eq_map,
+        FreeM.runKernel_map]
+      exact congrArg (Measure.map (fun value => (out.1 :: value.1, value.2))) (ih out.2)
+  exact hkernel (count a) state
 
 end Turing.MultiTapePTM

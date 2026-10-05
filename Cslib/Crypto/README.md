@@ -186,41 +186,34 @@ Private simulator scalars and fresh hash answers have separate cursors; its stat
 charges accumulated logs, caches, and retained tapes. The canonical word handler implements the
 typed handler exactly, and flattening the tape state preserves an entire adaptive typed program.
 Malformed requests, exhausted tapes, and programming collisions reject the execution.
-Adaptive replay now composes three such aborting executions with certified selection and
-restart. Skipping a saved hash-answer block preserves the prefix cache and both private
-randomness sources; the correspondence with the semantic fork's selected query remains open.
-The complete first run now includes checked output decoding and final forgery verification.
-It rejects timeout, malformed output, failed interfaces, and previously signed messages.
-Final verification shares the cache and hash tape and preserves private simulator randomness;
-its typed saved-tape execution equals the original `simulatedForgery` program.
-`FreeM.forkFromAnswers` implements the full fork by restarting with the recorded answer prefix
-and a fresh suffix. Two source-length tapes preserve the entire two-run measure, including
-adaptive selection and different paths after the fork. The general forking bound holds with
-one private seed shared by both runs. A traced interpreter and selector give a uniform machine
-for this replay construction, charging for both executions and prefix copying. Schnorr's
-fresh-hash selector has a uniform certificate, using ordinary `List.findIdx?`, scalar
-decoding, and the certified group operations. The checked machine interpreter now records its
-fresh-hash transcript, including the final verifier's query. Cache hits and simulated signatures
-add no positions. Forgetting the transcript recovers the original execution exactly, and every
-accepted forgery has an accepting recorded hash. Recorded answers form precisely the consumed
-hash-tape prefix. The uniform certificate charges for growing and copying the transcript, using
-only the existing arithmetic, parser, and representation-size certificates. Rejected executions
-remain `none` and expose no transcript. `FreeM.forkFromTracedAnswers` now supports this rejection
-behavior: its whole-measure equality and general forking bound allow failed-run logs to be
-discarded, with one private seed shared by both runs. Its machine certificate is uniform across
-indexed result, operation, and answer families and needs no default result. Fixing the machine
-coins and simulator scalars now gives an ordinary hash-only `FreeM` source. Its successful trace
-equals the complete checked machine run pointwise in both saved tapes, including timeout,
-malformed interfaces, signing collisions, cache hits, and final verification. The corresponding
-two-run replay has one uniform polynomial-time certificate derived from the existing primitive
-certificates and representation bounds. Its whole two-run measure agrees with the semantic fork
-of the source after fixing the machine coins and simulator scalars. Every accepted first run has
-a selected hash within `clock + 1` positions. Sampling `2 * clock` private simulator scalars in
-advance preserves the full first-run simulator law, including its log, cache, and final verifier.
-The clock is itself efficiently computable, and the chosen machine also bounds typed source
-requests. Connecting this first run to the original adversary's probability law, extraction
-postprocessing, binary tape preparation, and the final Schnorr family hardness theorem remain open.
+The checked machine includes canonical output decoding, final verification, and the signed-message
+freshness check. Its first-run joint measure equals the original typed adversary's simulated
+execution, including every rejection. Fixing the native machine coins and simulator scalars
+leaves an ordinary hash-only `FreeM` source. Its complete two-run replay agrees with the semantic
+fork: both runs share private randomness, retain the prefix cache, and refresh only the hash
+suffix. Every accepted forgery selects a hash within `clock + 1` positions.
 
+[`Schnorr.Binary`](Primitives/Schnorr/Binary.lean) implements the complete binary reduction and
+proves its uniform polynomial-time certificate. It prepares the machine coins once and
+`4 * clock + 2` scalar slots: two per possible signing request and two hash tapes including
+final verification. All scalar slots are checked, even unused ones. The certificate charges
+sampling, canonical parsing, cache traversal, transcript copying, replay, and extraction.
+The reduction receives an external discrete-logarithm challenge; it does not sample its secret.
+
+[`Schnorr.Security.Binary`](Primitives/Schnorr/Security/Binary.lean) proves negligible EUF-CMA
+success for the honest binary game under uniform discrete-logarithm hardness. For a polynomial
+transition budget `T`, scalar-space size `N`, and attempt budget `a`, its concrete bound is
+
+```text
+ε_EUF ≤ 2T²/N + (T+1)/N + sqrt((T+1) * (p_DL + (4T+2) * 2⁻ᵃ)).
+```
+
+Here `p_DL` is the actual binary reduction's success against an ideal externally sampled
+challenge. The chosen adversary machine supplies the source query budgets and the shared private
+tape. The certified zero guesser derives negligible `1/N` from DL hardness; no separate
+field-size assumption is needed. An efficiently computed `a ≥ n` makes the cutoff error negligible.
+The remaining family assumptions are explicit uniform arithmetic and parsing certificates,
+polynomial representation-size bounds, and the bijective scalar-to-public-key map.
 Samuel's `polytime` and `ppt` tactics have been adapted to these native certificates. Tests cover
 data-dependent sampling, captured continuations, calls to certified subprograms, and the ordinary
 Schnorr key generator and response arithmetic. Dependent tuple arguments and projections now let
@@ -230,9 +223,8 @@ of an honest Schnorr transcript, leaving its algebraic identity as the final obl
 Reachability reflection transfers that postcondition to every completed path of a realizing machine.
 The tactics do not infer efficiency for arbitrary Lean functions or supply loop-size invariants.
 
-The remaining runtime work connects the original adversary to the saved-machine simulator and
-certifies Schnorr's complete binary reduction. Group and field primitives and family parameter
-data require explicit uniform certificates.
+Both case studies now have uniform computational and asymptotic security theorems. Concrete
+production group families still need their arithmetic, parsing, and representation certificates.
 Adaptive finite-sampling programs now have a whole-experiment cutoff bound
 `draws * 2⁻ᵃᵗᵗᵉᵐᵖᵗˢ` for every payoff in `[0, 1]`. Successful bounded executions are dominated
 by the ideal measure. Polynomially many draws and an attempt budget at least the security
@@ -247,14 +239,10 @@ ElGamal's ordinary and binary oracle family theorems use actual uniform-machine 
 The machine resumption exposes one coin per transition and an additional operation per oracle
 submission; ordinary effect truncation therefore differs from a transition clock.
 
-For Schnorr, the concrete theorem assumes a finite scalar field, countable effects and messages,
-a uniform sampler, and a bijective scalar-to-public-key map. Computational and asymptotic
-security still require implementing and costing the reduction and proving admissibility for
-a group family. The cutoff theorem accounts for both fork executions, including simulator
-randomness and the final verifier. Aborting finite sampling can only remove successful forgeries.
-`DiscreteLog.Security` derives negligible inverse scalar-space size from uniform DL hardness:
-the certified always-zero guess succeeds with probability exactly `1 / |F|`. Thus the eventual
-Schnorr family theorem needs no separate asymptotic field-size assumption.
+The finite source-level Schnorr theorem supports countable message types. The computational
+theorem uses binary-word messages and a finite scalar field at each parameter. Both account
+for simulator randomness and final verification; aborting sampling can only remove successful
+forgeries. These are random-oracle security theorems, with explicit group-family assumptions.
 
 ## Plans and notes
 

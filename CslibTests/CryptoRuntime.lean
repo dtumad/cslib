@@ -11,6 +11,7 @@ import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Simulation
 import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Execution
 import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.TracedExecution
 import Cslib.Crypto.Primitives.Schnorr.PolynomialTime.Fork
+import Cslib.Crypto.Primitives.Schnorr.Binary
 import Cslib.Crypto.RandomOracle.PolynomialTime
 import Cslib.Computability.PolynomialTime.Finite
 import Cslib.Computability.PolynomialTime.Encoding.Decoding
@@ -332,6 +333,22 @@ example : FreeM.forkFromTracedAnswers
     (Schnorr.runSignatureFromAnswers scalarEncoding scalarEncoding queryOnce [] [false, false]
       (querySnapshot [true]) (1 : F) 0 [1, 0, 1])
     (fun _ => some 0) [0, 1] [0] = none := rfl
+
+def replayBits : (op : (effects Empty).A) → StateT Word Id ((effects Empty).B op)
+  | .inl _ => fun bits => (bits.headD false, bits.tail)
+  | .inr (oracle, _) => oracle.elim
+
+noncomputable def binaryReplay (bits : Word) : Option F × Word :=
+  Id.run (((Schnorr.dlogReductionWord scalarEncoding scalar queryOnce []
+    { querySnapshot [] with state := none } (1 : F) 0 1 1).liftM replayBits).run bits)
+
+-- One machine coin and six two-bit scalar proposals are prepared exactly once.
+example : binaryReplay (List.replicate 13 false) = (some 0, []) := by
+  change (some (Schnorr.extract (0 : F) 1 0 1), []) = (some 0, [])
+  simp [Schnorr.extract]
+
+-- The last slot is unused by the replay, but its rejected proposal must still abort.
+example : binaryReplay (List.replicate 11 false ++ [true, true]) = (none, []) := by decide
 
 -- A programming collision remains failure even when both scalar tapes have enough entries.
 example : Schnorr.seededSignatureHandler (F := F) (1 : F) 0 (.inr ([] : Word))

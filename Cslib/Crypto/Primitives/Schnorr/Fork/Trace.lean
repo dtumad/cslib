@@ -203,6 +203,27 @@ theorem forkPoint_lt (g pk : G) (candidate : Option (M × G × F))
 
 /-- Selecting the operation after a known prefix identifies the forgery's input and its
 accepting challenge. This applies to each of the two traces returned by a fork. -/
+theorem findForkPoint_spec_of_prefix (g pk : G) (candidate : Option (M × G × F))
+    (before events : List ((M × G) × F)) (input : M × G) (challenge : F)
+    (hprefix : before ++ [(input, challenge)] <+: events)
+    (hpoint : findForkPoint g pk candidate events = some before.length) :
+    ∃ response, candidate = some (input.1, input.2, response) ∧
+      Accepts g pk input.2 challenge response := by
+  cases candidate with
+  | none => cases hpoint
+  | some candidate =>
+    rcases candidate with ⟨message, commitment, response⟩
+    obtain ⟨after, rfl⟩ := hprefix
+    simp only [findForkPoint, List.append_assoc, List.singleton_append] at hpoint
+    obtain ⟨_, hgood, _⟩ := List.findIdx?_eq_some_iff_getElem.mp hpoint
+    simp only [List.getElem_append_right (by rfl), Nat.sub_self, List.getElem_cons_zero,
+      decide_eq_true_eq] at hgood
+    obtain ⟨hinput, haccepts⟩ := hgood
+    cases hinput
+    exact ⟨response, rfl, haccepts⟩
+
+/-- The selector counts only hashes in an interleaved transcript; its selected occurrence
+identifies the candidate and accepting challenge. -/
 theorem forkPoint_spec_of_prefix (g pk : G) (candidate : Option (M × G × F))
     (before events : List (Sigma (P + PFunctor.mk (M × G) (fun _ => F)).B))
     (input : M × G) (challenge : F)
@@ -211,34 +232,51 @@ theorem forkPoint_spec_of_prefix (g pk : G) (candidate : Option (M × G × F))
       some (before.countP (fun event => event.1.isRight))) :
     ∃ response, candidate = some (input.1, input.2, response) ∧
       Accepts g pk input.2 challenge response := by
-  cases candidate with
-  | none => cases hpoint
-  | some candidate =>
-    rcases candidate with ⟨message, commitment, response⟩
-    obtain ⟨after, rfl⟩ := hprefix
-    let hashes : List (Sigma (P + PFunctor.mk (M × G) (fun _ => F)).B) →
-        List ((M × G) × F) := List.filterMap fun
-      | ⟨.inl _, _⟩ => none
-      | ⟨.inr input, challenge⟩ => some (input, challenge)
-    have hlength : (hashes before).length = before.countP (fun event => event.1.isRight) := by
-      rw [List.length_filterMap_eq_countP]
-      congr 1
-      funext ⟨op, answer⟩
-      cases op <;> rfl
-    have hfind : (hashes before ++ (input, challenge) :: hashes after).findIdx?
-        (fun event => decide (event.1 = (message, commitment) ∧
-          Accepts g pk commitment event.2 response)) = some (hashes before).length := by
-      rw [hlength]
-      simp only [forkPoint, findForkPoint, hashes, List.filterMap_append, List.filterMap_cons,
-        List.filterMap_nil, List.append_assoc, List.singleton_append] at hpoint ⊢
-      convert hpoint using 2
-      congr 3
-    obtain ⟨_, hgood, _⟩ := List.findIdx?_eq_some_iff_getElem.mp hfind
-    simp only [List.getElem_append_right (by rfl), Nat.sub_self, List.getElem_cons_zero,
-      decide_eq_true_eq] at hgood
-    obtain ⟨hinput, haccepts⟩ := hgood
-    cases hinput
-    exact ⟨response, rfl, haccepts⟩
+  let hash : Sigma (P + PFunctor.mk (M × G) (fun _ => F)).B → Option ((M × G) × F)
+    | ⟨.inl _, _⟩ => none
+    | ⟨.inr input, challenge⟩ => some (input, challenge)
+  have hlength : (before.filterMap hash).length = before.countP (fun event => event.1.isRight) :=
+    by
+    rw [List.length_filterMap_eq_countP]
+    congr 1
+    funext ⟨op, answer⟩
+    cases op <;> rfl
+  apply findForkPoint_spec_of_prefix g pk candidate (before.filterMap hash)
+    (events.filterMap hash) input challenge
+  · simpa [hash] using hprefix.filterMap hash
+  · rw [hlength]
+    unfold forkPoint at hpoint
+    convert hpoint using 2
+    congr 1
+
+/-- With only hash effects visible, a semantic fork whose two selectors agree yields two
+accepting transcripts at the same input. Private randomness is already fixed in `program`. -/
+theorem accepts_of_findForkPoint_eq (g pk : G)
+    (program : (PFunctor.mk (M × G) (fun _ => F)).FreeM (Option (M × G × F)))
+    {first second : Option (M × G × F)}
+    {events events' : List (Sigma (PFunctor.mk (M × G) (fun _ => F)).B)}
+    {input : M × G} {challenge challenge' : F}
+    (h : CanReturn (FreeM.fork (fun _ => true)
+      (fun out => findForkPoint g pk out.1 (out.2.map (fun event => (event.1, event.2))))
+      (FreeM.trace program))
+      ((first, events), some ⟨input, challenge, challenge', second, events'⟩))
+    (hpoint : findForkPoint g pk second (events'.map (fun event => (event.1, event.2))) =
+      findForkPoint g pk first (events.map (fun event => (event.1, event.2)))) :
+    ∃ response response', first = some (input.1, input.2, response) ∧
+      second = some (input.1, input.2, response') ∧
+      Accepts g pk input.2 challenge response ∧ Accepts g pk input.2 challenge' response' := by
+  obtain ⟨before, n, hchoose, hcount, _, hfirst, hsecond⟩ :=
+    FreeM.fork_trace_prefix _ _ program h
+  have hchoose : findForkPoint g pk first (events.map (fun event => (event.1, event.2))) =
+      some (before.map (fun event => (event.1, event.2))).length := by
+    simpa only [← hcount, List.countP_true, List.length_map] using hchoose
+  obtain ⟨response, rfl, haccepts⟩ := findForkPoint_spec_of_prefix g pk first
+    (before.map (fun event => (event.1, event.2))) _ input challenge
+    (by simpa using hfirst.map (fun event => (event.1, event.2))) hchoose
+  obtain ⟨response', rfl, haccepts'⟩ := findForkPoint_spec_of_prefix g pk second
+    (before.map (fun event => (event.1, event.2))) _ input challenge'
+    (by simpa using hsecond.map (fun event => (event.1, event.2))) (hpoint.trans hchoose)
+  exact ⟨response, response', rfl, rfl, haccepts, haccepts'⟩
 
 /-- If both continuations select the forked occurrence, their forgeries use that same input
 and are accepted by the two recorded challenges. -/

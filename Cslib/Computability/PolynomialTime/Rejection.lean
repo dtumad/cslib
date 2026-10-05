@@ -31,6 +31,21 @@ def selectBelow (bound bits : ℕ) : ℕ → Word → Option ℕ
     let value := Nat.ofBitsList (coins.take bits).reverse
     if value < bound then some value else selectBelow bound bits attempts (coins.drop bits)
 
+/-- A selected value fits in one proposal block, including the optional result tag. -/
+theorem length_selectBelow_le (bound bits attempts : ℕ) (coins : Word) :
+    (optionEncoding binaryEncoding (selectBelow bound bits attempts coins)).length ≤ bits + 1 :=
+    by
+  induction attempts generalizing coins with
+  | zero => simp [selectBelow]
+  | succ attempts ih =>
+    simp only [selectBelow]
+    split
+    · simp only [optionEncoding_some, List.length_cons, binaryEncoding_apply]
+      have h := Nat.length_bits_ofBitsList_le (coins.take bits).reverse
+      simp only [List.length_reverse, List.length_take] at h
+      omega
+    · exact ih _
+
 private def rejectionStep (bound bits : ℕ) (state : Word × Option ℕ) : Word × Option ℕ :=
   (state.1.drop bits, state.2.orElse (fun _ =>
     let value := Nat.ofBitsList (state.1.take bits).reverse

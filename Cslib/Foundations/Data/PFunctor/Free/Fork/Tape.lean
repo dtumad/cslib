@@ -113,6 +113,35 @@ def forkFromAnswers (select : Operation → Bool) (choose : α → Option ℕ)
     (fun index => restartFromAnswers select index events program fresh)
   pure (first, second)
 
+omit [DecidableEq Operation] in
+/-- Every completed finite-tape fork is a possible semantic fork. This pathwise statement
+does not require random tapes, a sufficient tape length, or a probability interpretation. -/
+theorem canReturn_of_forkFromAnswers (select : Operation → Bool) (choose : α → Option ℕ)
+    (program : (PFunctor.mk Operation (fun _ => Answer)).FreeM α)
+    (answers fresh : List Answer) {out}
+    (h : forkFromAnswers select choose program answers fresh = some out) :
+    MonadAttach.CanReturn (fork select choose program) out := by
+  classical
+  unfold forkFromAnswers at h
+  obtain ⟨⟨first, events⟩, hfirst, h⟩ := Option.bind_eq_some_iff.mp h
+  have htrace := canReturn_of_runFromAnswers _ _ hfirst
+  rw [fork_eq_forkWithReplay]
+  unfold forkWithReplay
+  apply (canReturn_bind _ _ _).mpr
+  refine ⟨(first, events), htrace, ?_⟩
+  cases hc : choose first with
+  | none =>
+    simp only [hc, Option.elim_none] at h
+    cases h
+    simp [hc]
+  | some index =>
+    simp only [hc, Option.elim_some] at h ⊢
+    obtain ⟨second, hsecond, h⟩ := Option.bind_eq_some_iff.mp h
+    cases h
+    rw [restartFromAnswers_eq select index program htrace] at hsecond
+    exact (canReturn_bind _ _ _).mpr
+      ⟨second, canReturn_of_runFromAnswers _ _ hsecond, rfl⟩
+
 variable {P : PFunctor.{u, u}}
   [∀ op, MeasurableSpace (P.B op)] [∀ op, DiscreteMeasurableSpace (P.B op)]
   [Countable Operation] [MeasurableSpace Answer] [DiscreteMeasurableSpace Answer]
@@ -363,6 +392,35 @@ theorem forkFromTracedAnswers_eq
             | some second =>
               rcases second with ⟨second, events'⟩
               cases second <;> rfl
+
+/-- Successful checked replay retains the exact semantic fork trace, including both results
+and the selected old and new answers. Failed runs need not expose their logs. -/
+theorem canReturn_of_forkFromTracedAnswers
+    (program : (PFunctor.mk Operation (fun _ => Answer)).FreeM (Option α))
+    (run : List Answer → Option (α × List (Sigma (PFunctor.mk Operation (fun _ => Answer)).B)))
+    (hrun : ∀ tape, run tape = (runFromAnswers (trace program) tape).bind
+      (fun out => out.1.map (fun value => (value, out.2))))
+    (choose : α × List (Sigma (PFunctor.mk Operation (fun _ => Answer)).B) → Option ℕ)
+    (answers fresh : List Answer) {first second} {op : Operation} {answer answer' : Answer}
+    (h : forkFromTracedAnswers run choose answers fresh =
+      some (first, ⟨op, answer, answer', second⟩)) :
+    MonadAttach.CanReturn (fork (fun _ => true)
+      (fun out => out.1.bind (fun value => choose (value, out.2))) (trace program))
+      ((some first.1, first.2), some ⟨op, answer, answer', some second.1, second.2⟩) := by
+  rw [funext hrun, forkFromTracedAnswers_eq] at h
+  obtain ⟨⟨⟨candidate, events⟩, event⟩, hfork, h⟩ := Option.bind_eq_some_iff.mp h
+  cases candidate with
+  | none => cases h
+  | some candidate =>
+    cases event with
+    | none => cases h
+    | some event =>
+      rcases event with ⟨op, answer, answer', candidate', events'⟩
+      cases candidate' with
+      | none => cases h
+      | some candidate' =>
+        cases h
+        exact canReturn_of_forkFromAnswers _ _ _ _ _ hfork
 
 open MeasureTheory
 

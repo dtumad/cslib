@@ -24,6 +24,18 @@ abbrev bits : PFunctor := ⟨Unit, fun _ => Fin 2⟩
 
 def coin : bits.FreeM (Fin 2) := FreeM.lift ()
 
+-- Every prepared slot is checked, including an unused one after the returned head.
+def preparedHead : bits.FreeM (Option (Fin 3)) := do
+  let samples ← (List.replicate 2 ()).mapM (fun _ => FreeM.sampleFin coin 3 2 1)
+  pure (do
+    let tape ← samples.mapM id
+    tape.head?)
+
+#guard FreeM.runFromAnswers preparedHead [0, 0, 1, 0] == some (some 0)
+#guard FreeM.runFromAnswers preparedHead [0, 0, 1, 1] == some none
+-- Preparation still consumes the second slot after rejection of the first.
+#guard FreeM.runFromAnswers preparedHead [1, 1] == none
+
 noncomputable def answers (_ : bits.A) : Measure (Fin 2) := uniformOn Set.univ
 
 theorem denote_coin : FreeM.denote answers coin = uniformOn Set.univ :=
