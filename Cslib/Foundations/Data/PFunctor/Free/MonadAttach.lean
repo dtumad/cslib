@@ -6,16 +6,18 @@ Authors: Devon Tuma
 
 module
 
-public import Cslib.Foundations.Data.PFunctor.Free
+public import Cslib.Foundations.Data.PFunctor.Free.Fold
 public import Init.Control.Lawful.MonadAttach.Lemmas
 public import Mathlib.Data.Set.Countable
 public import Mathlib.Data.Set.Finite.Lattice
+public import Mathlib.Data.Set.Functor
 
 /-!
 # Attaching reachability proofs to polynomial free programs
 
-`possibleOutputs responses` records the results reachable using the given sets of operation
-responses. Its laws are independent of the choice of responses or a probabilistic interpretation.
+`possibleOutputs responses` interprets operations by the given sets of responses. It is the fold
+into `SetM`, allowing independent response and result universes. `possibleOutputs_eq_liftM` gives
+its monadic form when these universes agree.
 
 The `MonadAttach` instance specializes this to all responses. Its attachment preserves the original
 syntax, including every branch. For a chosen handler, `mem_possibleOutputs_of_canReturn_liftM`
@@ -33,9 +35,25 @@ universe uA uB v w
 variable {P : PFunctor.{uA, uB}} {α : Type v} {β : Type w}
 
 /-- The return values reachable using the given sets of operation responses. -/
-def possibleOutputs (responses : (op : P.A) → Set (P.B op)) : P.FreeM α → Set α
-  | .pure a => {a}
-  | .liftBind op cont => {a | ∃ b ∈ responses op, a ∈ possibleOutputs responses (cont b)}
+def possibleOutputs (responses : (op : P.A) → Set (P.B op)) : P.FreeM α → Set α :=
+  foldFreeM (fun a => {a}) (fun op cont => {a | ∃ b ∈ responses op, a ∈ cont b})
+
+/-- The possible-output interpretation is the universal monadic extension of its response sets. -/
+theorem interprets_possibleOutputs {α : Type uB} (responses : (op : P.A) → Set (P.B op)) :
+    Interprets (m := SetM) responses (possibleOutputs responses : P.FreeM α → SetM α) where
+  apply_pure _ := rfl
+  apply_lift_bind op cont := by
+    apply Set.ext
+    intro a
+    change (∃ b ∈ responses op, a ∈ possibleOutputs responses (cont b)) ↔
+      a ∈ ⋃ b ∈ responses op, possibleOutputs responses (cont b)
+    simp only [Set.mem_iUnion, exists_prop]
+
+/-- The monadic form of `possibleOutputs`. The fold definition also permits independent response
+and result universes, which the `Monad` interface does not. -/
+theorem possibleOutputs_eq_liftM {α : Type uB} (responses : (op : P.A) → Set (P.B op))
+    (x : P.FreeM α) : possibleOutputs responses x = (x.liftM (m := SetM) responses).run :=
+  congrFun (interprets_possibleOutputs responses).eq x
 
 @[simp]
 theorem possibleOutputs_pure (responses : (op : P.A) → Set (P.B op)) (a : α) :
@@ -51,7 +69,7 @@ theorem possibleOutputs_lift_bind (responses : (op : P.A) → Set (P.B op))
 
 @[simp]
 theorem possibleOutputs_lift (responses : (op : P.A) → Set (P.B op)) (op : P.A) :
-    possibleOutputs responses (lift op) = responses op := by
+    possibleOutputs (α := no_index (P.B op)) responses (lift op) = responses op := by
   ext b
   change (∃ c ∈ responses op, b = c) ↔ b ∈ responses op
   simp
@@ -107,11 +125,52 @@ theorem possibleOutputs_finite (responses : (op : P.A) → Set (P.B op))
     rw [possibleOutputs_lift_bind]
     exact (h op).biUnion fun b _ => ih b
 
+/-- Interpret operations with proofs that their responses are allowed, and attach the induced
+possible-output proof to the final result. -/
+def attachWith {m : Type uB → Type w} [Monad m] {α : Type uB}
+    (responses : (op : P.A) → Set (P.B op))
+    (interp : (op : P.A) → m {b // b ∈ responses op}) :
+    (x : P.FreeM α) → m {a // a ∈ possibleOutputs responses x}
+  | .pure a => pure ⟨a, rfl⟩
+  | .liftBind op cont => do
+    let b ← interp op
+    let a ← attachWith responses interp (cont b.1)
+    pure ⟨a.1, b.1, b.2, a.2⟩
+
+/-- Erasing the attached proofs recovers interpretation by the underlying query handler. -/
+theorem map_attachWith {m : Type uB → Type w} [Monad m] [LawfulMonad m] {α : Type uB}
+    (responses : (op : P.A) → Set (P.B op))
+    (interp : (op : P.A) → m {b // b ∈ responses op}) (x : P.FreeM α) :
+    Subtype.val <$> attachWith responses interp x =
+      x.liftM (fun op => Subtype.val <$> interp op) := by
+  induction x with
+  | pure a =>
+    change Subtype.val <$> (pure ⟨a, rfl⟩ : m {b // b = a}) = pure a
+    simp
+  | lift_bind op cont ih =>
+    change Subtype.val <$> (interp op >>= fun b =>
+      attachWith responses interp (cont b.1) >>= fun a => pure ⟨a.1, b.1, b.2, a.2⟩) =
+      (Subtype.val <$> interp op) >>= fun b => (cont b).liftM _
+    simp [_root_.map_bind, ih]
+
 /-- Attach a proof of structural reachability to each return value. -/
 def attach : (x : P.FreeM α) → P.FreeM {a // a ∈ possibleOutputs (fun _ => Set.univ) x}
   | .pure a => pure ⟨a, rfl⟩
   | .liftBind op cont => .liftBind op fun b =>
       (attach (cont b)).map fun a => ⟨a.1, b, Set.mem_univ b, a.2⟩
+
+/-- Structural attachment is `attachWith` for the query handler allowing every response. -/
+theorem attachWith_lift_eq_attach {α : Type uB} (x : P.FreeM α) :
+    attachWith (fun _ => Set.univ)
+      (fun op => map (fun b => ⟨b, Set.mem_univ b⟩) (lift (P := P) op)) x = attach x := by
+  induction x with
+  | pure a => rfl
+  | lift_bind op cont ih =>
+    change liftBind op _ = liftBind op _
+    congr 1
+    funext b
+    simp only [map_eq_map] at ih
+    simp [ih]
 
 instance : MonadAttach P.FreeM where
   CanReturn x a := a ∈ possibleOutputs (fun _ => Set.univ) x
@@ -132,7 +191,8 @@ theorem canReturn_lift_bind (op : P.A) (cont : P.B op → P.FreeM α) (a : α) :
 
 @[simp]
 theorem canReturn_lift (op : P.A) (b : P.B op) :
-    MonadAttach.CanReturn (lift (P := P) op) b := ⟨b, Set.mem_univ b, rfl⟩
+    MonadAttach.CanReturn (α := no_index (P.B op)) (lift (P := P) op) b :=
+  ⟨b, Set.mem_univ b, rfl⟩
 
 @[simp]
 theorem canReturn_bind (x : P.FreeM α) (f : α → P.FreeM β) (b : β) :

@@ -35,12 +35,26 @@ abbrev coin : PFunctor := ⟨Unit, fun _ => Bool⟩
 
 -- Different response assignments describe the same syntax without competing instances.
 example : FreeM.possibleOutputs (P := coin) (fun _ => {true}) (FreeM.lift ()) = {true} := by
-  exact FreeM.possibleOutputs_lift _ _
+  simp
 
 example : FreeM.possibleOutputs (P := coin) (fun _ => {false}) (FreeM.lift ()) = {false} := by
-  exact FreeM.possibleOutputs_lift _ _
+  simp
 
-example : CanReturn (FreeM.lift (P := coin) ()) false := FreeM.canReturn_lift _ _
+example : CanReturn (FreeM.lift (P := coin) ()) false := by simp
+
+-- The set interpretation uses the existing universal property into Mathlib's set monad.
+example (responses : (op : coin.A) → Set (coin.B op)) (x : coin.FreeM Bool) :
+    x.possibleOutputs responses = (x.liftM (m := SetM) responses).run :=
+  FreeM.possibleOutputs_eq_liftM responses x
+
+-- A chosen query handler attaches evidence about its own response assignment.
+example : FreeM.attachWith (P := coin) (m := Option) (fun _ => {true})
+    (fun _ => some ⟨true, rfl⟩) ((FreeM.lift ()).bind fun b => pure (!b)) =
+      some ⟨false, true, rfl, rfl⟩ := rfl
+
+-- An empty response assignment is meaningful for a handler that fails.
+example : FreeM.attachWith (P := coin) (m := Option) (fun _ => ∅)
+    (fun _ => none) (FreeM.lift ()) = none := rfl
 
 -- Chosen output sets also bound interpretations into ordinary monads.
 example (x : coin.FreeM Bool) {b : Bool}
