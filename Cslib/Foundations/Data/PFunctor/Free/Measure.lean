@@ -7,7 +7,7 @@ Authors: Devon Tuma
 module
 
 public import Cslib.Foundations.Control.Monad.MeasureSemantics
-public import Cslib.Foundations.Data.PFunctor.Free.Fold
+public import Cslib.Foundations.Data.PFunctor.Free.State
 public import Mathlib.MeasureTheory.Measure.ProbabilityMeasure
 
 /-!
@@ -26,7 +26,7 @@ probability measures whenever each `μ a` is one.
 
 open MeasureTheory
 
-universe uA uA' uB u v
+universe uA uA' uB uS u v
 
 namespace PFunctor.FreeM
 
@@ -134,6 +134,24 @@ theorem toMeasure_liftM {Q : PFunctor.{uA', uB}} [∀ b, MeasurableSpace (Q.B b)
     (ν : (b : Q.A) → Measure (Q.B b)) (h : (a : P.A) → Q.FreeM (P.B a)) (x : P.FreeM α) :
     (x.liftM h).toMeasure ν = x.toMeasure fun a => (h a).toMeasure ν := by
   simpa using ((isMeasureSemantics_toMeasure ν).comp (isMonadHom_liftM h)).eq_toMeasure x
+
+/-- Threading a state through operations whose answers neither depend on nor change it pairs the
+output with the initial state. -/
+theorem toMeasure_withState {S : Type uS} [MeasurableSpace S]
+    [∀ a, DiscreteMeasurableSpace (P.B a × S)]
+    {ν : (a : (P.withState S).A) → Measure ((P.withState S).B a)}
+    (hν : ∀ a s, ν (a, s) = (μ a).map (·, s)) (x : P.FreeM α) (s : S) :
+    (x.withState s).toMeasure ν = (x.toMeasure μ).map (·, s) := by
+  induction x generalizing s with
+  | pure a => exact (Measure.map_dirac' measurable_prodMk_right a).symm
+  | lift_bind a k ih =>
+    simp only [withState_lift_bind, toMeasure_lift_bind, hν, ih,
+      ← Measure.bind_dirac_eq_map _ measurable_prodMk_right]
+    have hs : Measurable fun x : α => Measure.dirac (x, s) :=
+      Measure.measurable_dirac.comp measurable_prodMk_right
+    rw [Measure.bind_bind Measurable.of_discrete.aemeasurable Measurable.of_discrete.aemeasurable,
+      Measure.bind_bind Measurable.of_discrete.aemeasurable hs.aemeasurable]
+    simp [Measure.dirac_bind Measurable.of_discrete]
 
 end Discrete
 

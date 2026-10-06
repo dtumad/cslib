@@ -32,6 +32,7 @@ import CslibTests.PFunctor
 import CslibTests.PFunctorFree
 import CslibTests.PFunctorMeasure
 import CslibTests.PRG
+import CslibTests.PolynomialTime
 import CslibTests.Reduction
 import CslibTests.Resumption
 import CslibTests.StatefulProcesses

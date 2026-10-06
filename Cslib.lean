@@ -96,6 +96,9 @@ public import Cslib.Computability.Machines.Turing.MultiTape.TapeLemmas
 public import Cslib.Computability.Machines.Turing.SingleTape.Defs
 public import Cslib.Computability.Machines.Turing.SingleTape.Deterministic
 public import Cslib.Computability.Machines.Turing.SingleTape.NonDeterministic
+public import Cslib.Computability.PolynomialTime.Defs
+public import Cslib.Computability.PolynomialTime.Expected
+public import Cslib.Computability.PolynomialTime.Probabilistic
 public import Cslib.Computability.URM.Basic
 public import Cslib.Computability.URM.Computable
 public import Cslib.Computability.URM.Defs
@@ -160,6 +163,7 @@ public import Cslib.Foundations.Logic.LogicalEquivalence
 public import Cslib.Foundations.Logic.Operators
 public import Cslib.Foundations.MeasureTheory.FiniteSupport
 public import Cslib.Foundations.MeasureTheory.Monotone
+public import Cslib.Foundations.MeasureTheory.Option
 public import Cslib.Foundations.Relation.Attr
 public import Cslib.Foundations.Relation.Basic
 public import Cslib.Foundations.Relation.Confluence
