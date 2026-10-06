@@ -99,6 +99,9 @@ public import Cslib.Computability.URM.Defs
 public import Cslib.Computability.URM.Execution
 public import Cslib.Computability.URM.StandardForm
 public import Cslib.Computability.URM.StraightLine
+public import Cslib.Crypto.Assumptions.DDH
+public import Cslib.Crypto.Primitives.ElGamal.Defs
+public import Cslib.Crypto.Primitives.ElGamal.Security
 public import Cslib.Crypto.Primitives.PRG.Asymptotic
 public import Cslib.Crypto.Primitives.PRG.Basic
 public import Cslib.Crypto.Primitives.PRG.Defs
