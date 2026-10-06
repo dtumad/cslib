@@ -59,6 +59,16 @@ equal at every security parameter. With fair coins as the only randomness, the a
 programs of coin flips and the experiments are resumptions that sample exponents exactly by
 rejection; every hypothesis of this analysis then holds.
 
+## Schnorr
+
+[`Primitives/Schnorr`](Primitives/Schnorr) defines Schnorr identification and signatures over a
+group that is a module over a field of scalars, as programs in an arbitrary monad. Two accepting
+transcripts with distinct challenges reveal a discrete logarithm of the public key (special
+soundness). Under any measure semantics with a uniform sampler of scalars, honest transcripts are
+distributed as simulated ones (honest-verifier zero knowledge), and running a prover's commitment
+once with two independent challenges extracts a discrete logarithm with probability at least
+`ε² - ε / |F|`, where `ε` is the prover's success probability.
+
 ## Plans and notes
 
 - We plan on developing applied calculi and logics for modelling and reasoning about security protocols.

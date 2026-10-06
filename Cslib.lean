@@ -101,6 +101,7 @@ public import Cslib.Computability.URM.StandardForm
 public import Cslib.Computability.URM.StraightLine
 public import Cslib.Crypto.Assumptions.DDH
 public import Cslib.Crypto.Assumptions.DDH.Asymptotic
+public import Cslib.Crypto.Assumptions.DiscreteLog
 public import Cslib.Crypto.Assumptions.GroupGen
 public import Cslib.Crypto.Primitives.ElGamal.Asymptotic
 public import Cslib.Crypto.Primitives.ElGamal.Coins
@@ -110,6 +111,9 @@ public import Cslib.Crypto.Primitives.PKE.Defs
 public import Cslib.Crypto.Primitives.PRG.Asymptotic
 public import Cslib.Crypto.Primitives.PRG.Basic
 public import Cslib.Crypto.Primitives.PRG.Defs
+public import Cslib.Crypto.Primitives.Schnorr.Defs
+public import Cslib.Crypto.Primitives.Schnorr.Extraction
+public import Cslib.Crypto.Primitives.Schnorr.HVZK
 public import Cslib.Crypto.Protocols.Commitment.Basic
 public import Cslib.Crypto.Protocols.Commitment.Defs
 public import Cslib.Crypto.Protocols.Commitment.Scheme
@@ -162,8 +166,11 @@ public import Cslib.Foundations.Lint.Basic
 public import Cslib.Foundations.Logic.InferenceSystem
 public import Cslib.Foundations.Logic.LogicalEquivalence
 public import Cslib.Foundations.Logic.Operators
+public import Cslib.Foundations.MeasureTheory.Collision
 public import Cslib.Foundations.MeasureTheory.FiniteSupport
 public import Cslib.Foundations.MeasureTheory.Monotone
+public import Cslib.Foundations.MeasureTheory.Option
+public import Cslib.Foundations.MeasureTheory.Quadratic
 public import Cslib.Foundations.MeasureTheory.Uniform
 public import Cslib.Foundations.Relation.Attr
 public import Cslib.Foundations.Relation.Basic
