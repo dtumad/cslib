@@ -34,6 +34,7 @@ import CslibTests.PFunctorFork
 import CslibTests.PFunctorFree
 import CslibTests.PFunctorMeasure
 import CslibTests.PRG
+import CslibTests.RandomOracle
 import CslibTests.Reduction
 import CslibTests.Resumption
 import CslibTests.Schnorr

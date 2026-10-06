@@ -114,6 +114,9 @@ public import Cslib.Crypto.Primitives.PRG.Defs
 public import Cslib.Crypto.Primitives.Schnorr.Defs
 public import Cslib.Crypto.Primitives.Schnorr.Extraction
 public import Cslib.Crypto.Primitives.Schnorr.HVZK
+public import Cslib.Crypto.Primitives.Schnorr.Oracle
+public import Cslib.Crypto.Primitives.Schnorr.Simulation
+public import Cslib.Crypto.Primitives.Schnorr.Simulation.Probability
 public import Cslib.Crypto.Protocols.Commitment.Basic
 public import Cslib.Crypto.Protocols.Commitment.Defs
 public import Cslib.Crypto.Protocols.Commitment.Scheme
@@ -125,12 +128,16 @@ public import Cslib.Crypto.Protocols.SecretSharing.Defs
 public import Cslib.Crypto.Protocols.SecretSharing.Scheme
 public import Cslib.Crypto.Protocols.SecretSharing.Shamir
 public import Cslib.Crypto.Protocols.SecretSharing.Shamir.Polynomial
+public import Cslib.Crypto.RandomOracle
+public import Cslib.Crypto.RandomOracle.Cost
+public import Cslib.Crypto.RandomOracle.Measure
 public import Cslib.Foundations.Combinatorics.InfiniteGraphRamsey
 public import Cslib.Foundations.Control.Monad.Free
 public import Cslib.Foundations.Control.Monad.Free.Effects
 public import Cslib.Foundations.Control.Monad.Free.Fold
 public import Cslib.Foundations.Control.Monad.IsMonadHom
 public import Cslib.Foundations.Control.Monad.IsMonadHom.List
+public import Cslib.Foundations.Control.Monad.IsMonadHom.Transformers
 public import Cslib.Foundations.Control.Monad.MeasureSemantics
 public import Cslib.Foundations.Data.BiTape
 public import Cslib.Foundations.Data.BitString
@@ -151,10 +158,12 @@ public import Cslib.Foundations.Data.OmegaSequence.Topology
 public import Cslib.Foundations.Data.PFunctor.Basic
 public import Cslib.Foundations.Data.PFunctor.Free
 public import Cslib.Foundations.Data.PFunctor.Free.Coin
+public import Cslib.Foundations.Data.PFunctor.Free.Cost
 public import Cslib.Foundations.Data.PFunctor.Free.Fold
 public import Cslib.Foundations.Data.PFunctor.Free.Fork
 public import Cslib.Foundations.Data.PFunctor.Free.Fork.Probability
 public import Cslib.Foundations.Data.PFunctor.Free.Measure
+public import Cslib.Foundations.Data.PFunctor.Free.Measure.StateT
 public import Cslib.Foundations.Data.PFunctor.Free.Measure.Support
 public import Cslib.Foundations.Data.PFunctor.Free.MonadAttach
 public import Cslib.Foundations.Data.PFunctor.Free.Trace
@@ -171,6 +180,7 @@ public import Cslib.Foundations.Lint.Basic
 public import Cslib.Foundations.Logic.InferenceSystem
 public import Cslib.Foundations.Logic.LogicalEquivalence
 public import Cslib.Foundations.Logic.Operators
+public import Cslib.Foundations.MeasureTheory.Abort
 public import Cslib.Foundations.MeasureTheory.Collision
 public import Cslib.Foundations.MeasureTheory.FiniteSupport
 public import Cslib.Foundations.MeasureTheory.Monotone
