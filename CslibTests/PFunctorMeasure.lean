@@ -5,7 +5,7 @@ Authors: Devon Tuma
 -/
 
 import Cslib.Foundations.Control.Monad.Free
-import Cslib.Foundations.Data.PFunctor.Resumption.Measure
+import Cslib.Foundations.Data.PFunctor.Resumption.Uniform
 
 /-! Tests for output measures of polynomial programs. -/
 
@@ -40,6 +40,11 @@ example {F : Type → Type} (interp : {ι : Type} → F ι → (y^Bool).FreeM ι
 -- lift.
 example [∀ a, IsProbabilityMeasure (μ a)] (x : (y^Bool).FreeM Bool) :
     IsProbabilityMeasure ((monadLift x : Resumption (y^Bool) Bool).toMeasure μ) := by
+  infer_instance
+
+-- Sampling from `Fin 3` by rejection returns almost surely, which no free program of fair coin
+-- flips can do exactly.
+example : IsProbabilityMeasure ((Resumption.uniformFin 3).toMeasure fairCoins) := by
   infer_instance
 
 end CslibTests.PFunctorMeasure

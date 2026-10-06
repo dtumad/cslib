@@ -138,13 +138,16 @@ public import Cslib.Foundations.Data.OmegaSequence.Temporal
 public import Cslib.Foundations.Data.OmegaSequence.Topology
 public import Cslib.Foundations.Data.PFunctor.Basic
 public import Cslib.Foundations.Data.PFunctor.Free
+public import Cslib.Foundations.Data.PFunctor.Free.Coin
 public import Cslib.Foundations.Data.PFunctor.Free.Fold
 public import Cslib.Foundations.Data.PFunctor.Free.Measure
 public import Cslib.Foundations.Data.PFunctor.Free.MonadAttach
 public import Cslib.Foundations.Data.PFunctor.Free.W
 public import Cslib.Foundations.Data.PFunctor.M
 public import Cslib.Foundations.Data.PFunctor.Resumption
+public import Cslib.Foundations.Data.PFunctor.Resumption.Iterate
 public import Cslib.Foundations.Data.PFunctor.Resumption.Measure
+public import Cslib.Foundations.Data.PFunctor.Resumption.Uniform
 public import Cslib.Foundations.Data.Set.Saturation
 public import Cslib.Foundations.Data.StackTape
 public import Cslib.Foundations.Lint.Basic
@@ -153,6 +156,7 @@ public import Cslib.Foundations.Logic.LogicalEquivalence
 public import Cslib.Foundations.Logic.Operators
 public import Cslib.Foundations.MeasureTheory.FiniteSupport
 public import Cslib.Foundations.MeasureTheory.Monotone
+public import Cslib.Foundations.MeasureTheory.Uniform
 public import Cslib.Foundations.Relation.Attr
 public import Cslib.Foundations.Relation.Basic
 public import Cslib.Foundations.Relation.Confluence
