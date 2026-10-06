@@ -198,7 +198,8 @@ theorem toMeasure_unforgeabilityExperiment_le_simulatedForgery_add
       funext op
       rcases op with op | (input | message) <;> rfl
     rw [heq, Nat.cast_add]
-    exact (FreeM.queryBoundP_or_le isHashQuery isSignQuery _).trans (add_le_add (hhash pk) (hsign pk))
+    exact (FreeM.queryBoundP_or_le isHashQuery isSignQuery _).trans
+      (add_le_add (hhash pk) (hsign pk))
   have hsim (secret : F) :
       FreeM.toMeasure
           (simulatedForgery FreeM.lift sample (fun _ => sample) g (secret • g) adversary).run μ
