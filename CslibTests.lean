@@ -30,6 +30,7 @@ import CslibTests.Modal.UnimodalCube
 import CslibTests.MultiTapeComplexity
 import CslibTests.PACLearning
 import CslibTests.PFunctor
+import CslibTests.PFunctorFork
 import CslibTests.PFunctorFree
 import CslibTests.PFunctorMeasure
 import CslibTests.PRG

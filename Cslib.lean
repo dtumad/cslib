@@ -152,8 +152,13 @@ public import Cslib.Foundations.Data.PFunctor.Basic
 public import Cslib.Foundations.Data.PFunctor.Free
 public import Cslib.Foundations.Data.PFunctor.Free.Coin
 public import Cslib.Foundations.Data.PFunctor.Free.Fold
+public import Cslib.Foundations.Data.PFunctor.Free.Fork
+public import Cslib.Foundations.Data.PFunctor.Free.Fork.Probability
 public import Cslib.Foundations.Data.PFunctor.Free.Measure
+public import Cslib.Foundations.Data.PFunctor.Free.Measure.Support
 public import Cslib.Foundations.Data.PFunctor.Free.MonadAttach
+public import Cslib.Foundations.Data.PFunctor.Free.Trace
+public import Cslib.Foundations.Data.PFunctor.Free.Trace.Handler
 public import Cslib.Foundations.Data.PFunctor.Free.W
 public import Cslib.Foundations.Data.PFunctor.M
 public import Cslib.Foundations.Data.PFunctor.Resumption
@@ -171,6 +176,7 @@ public import Cslib.Foundations.MeasureTheory.FiniteSupport
 public import Cslib.Foundations.MeasureTheory.Monotone
 public import Cslib.Foundations.MeasureTheory.Option
 public import Cslib.Foundations.MeasureTheory.Quadratic
+public import Cslib.Foundations.MeasureTheory.Sigma
 public import Cslib.Foundations.MeasureTheory.Uniform
 public import Cslib.Foundations.Relation.Attr
 public import Cslib.Foundations.Relation.Basic
