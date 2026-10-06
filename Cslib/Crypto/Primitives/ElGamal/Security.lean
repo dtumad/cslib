@@ -15,11 +15,13 @@ public import Mathlib.MeasureTheory.Measure.WithDensity
 # Security of ElGamal encryption under DDH
 
 We analyse the chosen-plaintext experiment in a monad `m` with a measure semantics `sem`
-(`Cslib.IsMeasureSemantics`), such as the output measures of polynomial programs or resumptions
-whose operations are answered according to given distributions. The exponent sampler, the
-challenge coin and both phases of the adversary are arbitrary computations in `m`: they may use any
-randomness or oracles `m` provides, and need not return within a bounded number of steps, as when
-exponents are drawn by rejection sampling from fair coins.
+(`Cslib.IsMeasureSemantics`). The exponent sampler, the challenge coin and both phases of the
+adversary are arbitrary computations in `m`, which may use any randomness or oracles `m` provides.
+For instance, `m` may be the polynomial programs with an operation selecting a uniform element of
+each `Fin k`, so that exponents are sampled in one step
+(`PFunctor.FreeM.isMeasureSemantics_toMeasure`), or the resumptions over a single fair coin, so
+that exponents are drawn by rejection sampling, which returns almost surely but not within a
+bounded number of flips (`PFunctor.Resumption.isMeasureSemantics_toMeasure`).
 
 Run on a Diffie–Hellman triple, `ddhReduction` plays exactly the chosen-plaintext experiment
 (`sem_realExperiment_ddhReduction`). Run on a triple with an independent third exponent, the

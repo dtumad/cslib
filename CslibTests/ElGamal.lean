@@ -9,13 +9,42 @@ import Cslib.Foundations.Control.Monad.Free
 import Cslib.Foundations.Data.PFunctor.Basic
 import Cslib.Foundations.Data.PFunctor.Free.Measure
 
-/-! ElGamal in the group of order two, with every random choice, including the adversary's, made
-by flipping a fair coin. Programs are written in the free monad of a coin-flip effect; their
-semantics answers each flip by the operation of `y^Bool`, distributed uniformly. -/
+/-! ElGamal with two sources of randomness: an operation selecting a uniform element of each
+`Fin (k + 1)`, in a group of order three; and fair coin flips alone, in the group of order two. -/
 
 namespace CslibTests.ElGamal
 
 open Cslib Cslib.Crypto ElGamal PFunctor MeasureTheory ProbabilityTheory
+
+section Selection
+
+/-- One operation for each `k`, answered by an element of `Fin (k + 1)`. -/
+abbrev Select : PFunctor := ⟨ℕ, fun k => Fin (k + 1)⟩
+
+noncomputable abbrev uniform (k : Select.A) : Measure (Select.B k) := uniformOn Set.univ
+
+abbrev G₃ := Multiplicative (ZMod 3)
+
+instance : MeasurableSpace G₃ := ⊤
+
+instance : DiscreteMeasurableSpace G₃ := ⟨fun _ => trivial⟩
+
+-- Exponents are selected in one step, whatever the order of the group, and the challenge coin is
+-- a selection from `Fin 2`.
+example {State : Type} [MeasurableSpace State] [MeasurableSingletonClass State] [Countable State]
+    (choose : G₃ → Select.FreeM (G₃ × G₃ × State)) (guess : State → G₃ × G₃ → Select.FreeM Bool) :=
+  cpa_advantage_eq_ddh_advantage (PFunctor.FreeM.isMeasureSemantics_toMeasure uniform)
+    (PFunctor.FreeM.lift (P := Select) 2) (finTwoEquiv <$> PFunctor.FreeM.lift (P := Select) 1)
+    (.ofAdd 1) choose guess (by decide) (PFunctor.FreeM.toMeasure_lift _ _) (by simp)
+
+end Selection
+
+/-! With fair coin flips alone, programs are written in the free monad of a coin-flip effect, whose
+semantics answers each flip by the operation of `y^Bool`, distributed uniformly. Exponents are
+sampled exactly in a group whose order is a power of two; other orders need rejection sampling,
+as a resumption. -/
+
+section Coin
 
 abbrev G := Multiplicative (ZMod 2)
 
@@ -55,5 +84,7 @@ example {State : Type} [MeasurableSpace State] [MeasurableSingletonClass State] 
     (guess : State → G × G → Cslib.FreeM Flip Bool) :=
   cpa_advantage_eq_ddh_advantage isMeasureSemantics exponent flip g choose guess (by decide)
     toMeasure_exponent toMeasure_flip
+
+end Coin
 
 end CslibTests.ElGamal

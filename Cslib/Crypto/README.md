@@ -44,8 +44,8 @@ Under any measure semantics of the monad (`Cslib.IsMeasureSemantics`), such as t
 measures of free programs and resumptions, the reduction to the decisional Diffie–Hellman
 experiments of [`Assumptions/DDH`](Assumptions/DDH.lean) is exact: an adversary's advantage
 equals the reduction's distinguishing advantage. Adversaries and samplers are arbitrary
-computations, and may run unboundedly, as when exponents are drawn by rejection sampling from
-fair coins.
+computations: exponents may be selected uniformly by a primitive operation of a free program, or
+drawn from fair coins alone by rejection sampling, as a resumption that returns almost surely.
 
 ## Plans and notes
 
