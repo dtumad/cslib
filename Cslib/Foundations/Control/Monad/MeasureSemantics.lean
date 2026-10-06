@@ -8,6 +8,7 @@ module
 
 public import Cslib.Foundations.Control.Monad.IsMonadHom
 public import Mathlib.MeasureTheory.Measure.GiryMonad
+public import Mathlib.MeasureTheory.Measure.Prod
 
 /-!
 # Measure semantics of monads
@@ -84,6 +85,15 @@ theorem map_map [LawfulMonad m] (x : m α) {f : α → β} (hf : Measurable f) :
 theorem map_map_of_discrete [LawfulMonad m] [DiscreteMeasurableSpace α] (x : m α) (f : α → β) :
     sem (f <$> x) = (sem x).map f :=
   hsem.map_map x .of_discrete
+
+/-- Running two computations independently and pairing their results gives the product of their
+measures. -/
+theorem map_bind_bind_prod [LawfulMonad m] [DiscreteMeasurableSpace α] (x : m α) (y : m β) :
+    sem (x >>= fun a => y >>= fun b => pure (a, b)) = (sem x).prod (sem y) := by
+  rw [hsem.map_bind_of_discrete, Measure.prod]
+  congr 1
+  funext a
+  rw [bind_pure_comp, hsem.map_map y measurable_prodMk_left]
 
 end
 
