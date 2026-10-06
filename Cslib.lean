@@ -97,6 +97,7 @@ public import Cslib.Computability.Machines.Turing.SingleTape.Defs
 public import Cslib.Computability.Machines.Turing.SingleTape.Deterministic
 public import Cslib.Computability.Machines.Turing.SingleTape.NonDeterministic
 public import Cslib.Computability.PolynomialTime.Defs
+public import Cslib.Computability.PolynomialTime.Encoding
 public import Cslib.Computability.PolynomialTime.Expected
 public import Cslib.Computability.PolynomialTime.Probabilistic
 public import Cslib.Computability.URM.Basic
@@ -106,6 +107,7 @@ public import Cslib.Computability.URM.Execution
 public import Cslib.Computability.URM.StandardForm
 public import Cslib.Computability.URM.StraightLine
 public import Cslib.Crypto.Assumptions.DDH
+public import Cslib.Crypto.Primitives.ElGamal.Asymptotic
 public import Cslib.Crypto.Primitives.ElGamal.Defs
 public import Cslib.Crypto.Primitives.ElGamal.Security
 public import Cslib.Crypto.Primitives.PRG.Asymptotic
@@ -135,6 +137,7 @@ public import Cslib.Foundations.Data.DecidableEqZero
 public import Cslib.Foundations.Data.FinFun.Basic
 public import Cslib.Foundations.Data.FinFun.Update
 public import Cslib.Foundations.Data.HasFresh
+public import Cslib.Foundations.Data.List.BitPair
 public import Cslib.Foundations.Data.List.IsChainFromTo
 public import Cslib.Foundations.Data.Nat.Asymptotics
 public import Cslib.Foundations.Data.Nat.Factorial
