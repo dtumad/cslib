@@ -6,6 +6,7 @@ Authors: Devon Tuma
 
 module
 
+public import Cslib.Foundations.Control.Monad.MeasureSemantics
 public import Cslib.Foundations.Data.PFunctor.Free.Fold
 public import Mathlib.MeasureTheory.Measure.ProbabilityMeasure
 
@@ -16,15 +17,19 @@ Given a measure `μ a` on the responses of each operation `a`, a program `x : P.
 output measure `x.toMeasure μ`: each operation is answered according to `μ`, and the returned value
 is observed. It is the fold of `x` into Mathlib's Giry bind, so it follows `Measure.bind`'s
 convention for continuations that are not measurable. When the response spaces are discrete, every
-continuation is measurable, `toMeasure` sends `bind` to the Giry bind (`toMeasure_bind`), and it
-sends programs to probability measures whenever each `μ a` is one.
+continuation is measurable, `toMeasure` sends `bind` to the Giry bind (`toMeasure_bind`), so it is a
+measure semantics of `P.FreeM` (`isMeasureSemantics_toMeasure`), and it sends programs to
+probability measures whenever each `μ a` is one. Every measure semantics of `P.FreeM` is of this
+form, for the measures it gives the operations (`Cslib.IsMeasureSemantics.eq_toMeasure`); in
+particular, interpreting operations as programs over another polynomial functor answers each by
+the output measure of its program (`toMeasure_liftM`).
 -/
 
 @[expose] public section
 
 open MeasureTheory
 
-universe uA uB u v
+universe uA uA' uB u v
 
 namespace PFunctor.FreeM
 
@@ -54,6 +59,10 @@ theorem toMeasure_lift_bind' {α : Type uB} [MeasurableSpace α] (a : P.A) (k : 
 theorem toMeasure_lift (a : P.A) : toMeasure (α := no_index (P.B a)) (lift a) μ = μ a :=
   Measure.bind_dirac
 
+theorem isPureMeasureSemantics_toMeasure :
+    Cslib.IsPureMeasureSemantics P.FreeM fun x => x.toMeasure μ :=
+  ⟨toMeasure_pure μ⟩
+
 section Discrete
 
 variable [∀ a, DiscreteMeasurableSpace (P.B a)]
@@ -67,6 +76,11 @@ theorem toMeasure_bind (x : P.FreeM α) {f : α → P.FreeM β}
     rw [liftBind_bind, toMeasure_lift_bind, toMeasure_lift_bind,
       Measure.bind_bind Measurable.of_discrete.aemeasurable hf.aemeasurable]
     exact congrArg _ (funext ih)
+
+theorem isMeasureSemantics_toMeasure :
+    Cslib.IsMeasureSemantics P.FreeM fun x => x.toMeasure μ where
+  toIsPureMeasureSemantics := isPureMeasureSemantics_toMeasure μ
+  map_bind x _ hf := toMeasure_bind μ x hf
 
 theorem toMeasure_map (x : P.FreeM α) {f : α → β} (hf : Measurable f) :
     (x.map f).toMeasure μ = (x.toMeasure μ).map f := by
@@ -102,6 +116,27 @@ instance [∀ a, IsProbabilityMeasure (μ a)] (x : P.FreeM α) :
   | pure a => exact Measure.dirac.isProbabilityMeasure
   | lift_bind a k ih =>
     exact isProbabilityMeasure_bind Measurable.of_discrete.aemeasurable (.of_forall ih)
+
+/-- A measure semantics of `P.FreeM` is the output measure for the measures it gives the
+operations. -/
+theorem _root_.Cslib.IsMeasureSemantics.eq_toMeasure {α : Type uB} [MeasurableSpace α]
+    {sem : ∀ {α : Type uB} [MeasurableSpace α], P.FreeM α → Measure α}
+    (hsem : Cslib.IsMeasureSemantics P.FreeM sem) (x : P.FreeM α) :
+    sem x = x.toMeasure fun a => sem (lift a) := by
+  induction x with
+  | pure a => exact hsem.map_pure a
+  | lift_bind a k ih =>
+    simp only [toMeasure_lift_bind, ← ih]
+    exact hsem.map_bind_of_discrete (lift a) k
+
+/-- Interpreting each operation `a` as a program over `Q` answers it by the output measure of that
+program. -/
+@[simp]
+theorem toMeasure_liftM {Q : PFunctor.{uA', uB}} [∀ b, MeasurableSpace (Q.B b)]
+    [∀ b, DiscreteMeasurableSpace (Q.B b)] {α : Type uB} [MeasurableSpace α]
+    (ν : (b : Q.A) → Measure (Q.B b)) (h : (a : P.A) → Q.FreeM (P.B a)) (x : P.FreeM α) :
+    (x.liftM h).toMeasure ν = x.toMeasure fun a => (h a).toMeasure ν := by
+  simpa using ((isMeasureSemantics_toMeasure ν).comp (isMonadHom_liftM h)).eq_toMeasure x
 
 end Discrete
 
