@@ -178,6 +178,17 @@ abbrev Cfg.Halted (cfg : Cfg k Symbol State input) : Prop := cfg.state = none
     Cfg k Symbol State input :=
   ⟨c.state, c.inputPos, c.workTapes, c.workTapePos, out⟩
 
+/-- Prepend output accumulated before this configuration's computation. -/
+@[simps] def Cfg.prependOutput (cfg : Cfg k Symbol State input) (pre : List Symbol) :
+    Cfg k Symbol State input :=
+  { cfg with output := pre ++ cfg.output }
+
+@[simp] lemma Cfg.prependOutput_inputSymbol (cfg : Cfg k Symbol State input)
+    (pre : List Symbol) : (cfg.prependOutput pre).inputSymbol = cfg.inputSymbol := rfl
+
+@[simp] lemma Cfg.prependOutput_workTapeSymbols (cfg : Cfg k Symbol State input)
+    (pre : List Symbol) : (cfg.prependOutput pre).workTapeSymbols = cfg.workTapeSymbols := rfl
+
 /-- The same configuration in a different control state, possibly of a different state type. -/
 @[simps] def Cfg.withState (cfg : Cfg k Symbol State input)
     {State' : Type*} (q : Option State') : Cfg k Symbol State' input :=
@@ -210,6 +221,12 @@ def Action.apply (action : Action k Symbol State) (cfg : Cfg k Symbol State inpu
     | some s => Function.update (cfg.workTapes i) (cfg.workTapePos i) s
   workTapePos i := cfg.workTapePos i + (action.workTapes i).2
   output := cfg.output ++ action.output.toList
+
+/-- An action cannot inspect or overwrite previously accumulated output. -/
+theorem Action.apply_prependOutput (action : Action k Symbol State)
+    (cfg : Cfg k Symbol State input) (pre : List Symbol) :
+    action.apply (cfg.prependOutput pre) = (action.apply cfg).prependOutput pre := by
+  simp [Action.apply, Cfg.prependOutput, List.append_assoc]
 
 /-- A work tape head moves by at most one cell when an action is applied. -/
 lemma workTapePos_apply_le (action : Action k Symbol State)

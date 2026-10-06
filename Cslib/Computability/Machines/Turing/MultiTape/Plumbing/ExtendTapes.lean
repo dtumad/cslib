@@ -6,8 +6,8 @@ Authors: Christian Reitwiessner
 
 module
 
-public import Mathlib.Algebra.BigOperators.Fin
 public import Mathlib.Data.Fintype.Inv
+public import Cslib.Computability.Machines.Turing.MultiTape.TapeLemmas
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.TransformsTapes
 
 /-!
@@ -155,6 +155,95 @@ public lemma runFrom_embed (tm : MultiTapeTM k Symbol State) (e : Fin k ↪ Fin 
       = embed e (tm.runFrom cfg n) extraTapes extraPos :=
   (Function.Semiconj.iterate_right (f := (embed e · extraTapes extraPos))
     (fun c => (step_embed tm e c extraTapes extraPos).symm) n cfg).symm
+
+/-- A tape outside the embedding retains its supplied contents. -/
+@[simp] public lemma workTapes_embed_of_notMem_range (e : Fin k ↪ Fin k')
+    (cfg : Cfg k Symbol State input) (extraTapes : Fin k' → ℤ → Option Symbol)
+    (extraPos : Fin k' → ℤ) {j : Fin k'} (hj : j ∉ Set.range e) :
+    (embed e cfg extraTapes extraPos).workTapes j = extraTapes j := by
+  simp [embed, partialInv_eq_none e hj]
+
+/-- A tape outside the embedding retains its supplied head position. -/
+@[simp] public lemma workTapePos_embed_of_notMem_range (e : Fin k ↪ Fin k')
+    (cfg : Cfg k Symbol State input) (extraTapes : Fin k' → ℤ → Option Symbol)
+    (extraPos : Fin k' → ℤ) {j : Fin k'} (hj : j ∉ Set.range e) :
+    (embed e cfg extraTapes extraPos).workTapePos j = extraPos j := by
+  simp [embed, partialInv_eq_none e hj]
+
+/-- The extended machine starts with blank native and extra tapes. -/
+public lemma initCfg_extendTapes (tm : MultiTapeTM k Symbol State) (e : Fin k ↪ Fin k')
+    (input : List Symbol) :
+    (tm.extendTapes e).initCfg input =
+      embed e (tm.initCfg input) (fun _ _ => none) (fun _ => 0) := by
+  apply Cfg.ext <;> try rfl
+  · funext j
+    cases hi : partialInv e j <;> simp [embed, hi]
+  · funext j
+    cases hi : partialInv e j <;> simp [embed, hi]
+
+/-- Starting with blank work tapes commutes with tape extension. -/
+public lemma runFrom_extendTapes (tm : MultiTapeTM k Symbol State) (e : Fin k ↪ Fin k')
+    (input : List Symbol) (n : ℕ) :
+    (tm.extendTapes e).runFrom ((tm.extendTapes e).initCfg input) n =
+      embed e (tm.runFrom (tm.initCfg input) n) (fun _ _ => none) (fun _ => 0) := by
+  rw [initCfg_extendTapes, runFrom_embed]
+
+/-- A machine can start on a fresh block of tapes while retaining all other tapes and output.
+Adapted from the `concat-combinator` branch's `ExtendTapes.eq_embed_initCfg` contract. -/
+public lemma eq_embed_initCfg (e : Fin k ↪ Fin k') (tm : MultiTapeTM k Symbol State)
+    (cfg : Cfg k' Symbol State input) (hstate : cfg.state = some tm.q₀) (hpos : cfg.inputPos = 1)
+    (hblank : ∀ i, cfg.workTapes (e i) = fun _ => none)
+    (hzero : ∀ i, cfg.workTapePos (e i) = 0) :
+    cfg = (embed e (tm.initCfg input) cfg.workTapes cfg.workTapePos).prependOutput cfg.output := by
+  refine Cfg.ext ?_ ?_ ?_ ?_ ?_
+  · simpa [embed] using hstate
+  · simpa [embed] using hpos
+  · funext j
+    by_cases hj : j ∈ Set.range e
+    · obtain ⟨i, rfl⟩ := hj
+      simpa [Cfg.prependOutput, embed] using hblank i
+    · simp [Cfg.prependOutput, embed, partialInv_eq_none e hj]
+  · funext j
+    by_cases hj : j ∈ Set.range e
+    · obtain ⟨i, rfl⟩ := hj
+      simpa [Cfg.prependOutput, embed] using hzero i
+    · simp [Cfg.prependOutput, embed, partialInv_eq_none e hj]
+  · simp [embed]
+
+/-- Embedding selected word tapes and keeping the remaining words reconstructs the configuration. -/
+public theorem embed_wordsCfg (e : Fin k ↪ Fin k') (state : Option State)
+    (words : Fin k' → List Symbol) (output : List Symbol) :
+    embed e (wordsCfg input state (words ∘ e) output)
+      (fun i => tapeOfList (words i)) (fun _ => 0) =
+      wordsCfg input state words output := by
+  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext i <;>
+    cases h : partialInv e i with
+  | none => simp [embed, wordsCfg, h]
+  | some j =>
+    have he := partialInv_eq_some e h
+    simp [embed, wordsCfg, h, he]
+
+/-- A word-level run lifts through a tape embedding when all unselected words are preserved. -/
+public theorem runFrom_extendTapes_words (tm : MultiTapeTM k Symbol State) (e : Fin k ↪ Fin k')
+    (words words' : Fin k' → List Symbol) (output output' : List Symbol) (time : ℕ)
+    (h : tm.runFrom (wordsCfg input (some tm.q₀) (words ∘ e) output) time =
+      wordsCfg input none (words' ∘ e) output')
+    (hframe : ∀ i, i ∉ Set.range e → words' i = words i) :
+    (tm.extendTapes e).runFrom
+      (wordsCfg input (some (tm.extendTapes e).q₀) words output) time =
+      wordsCfg input none words' output' := by
+  change (tm.extendTapes e).runFrom (wordsCfg input (some tm.q₀) words output) time = _
+  rw [← embed_wordsCfg e (some tm.q₀) words output, runFrom_embed, h]
+  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext i <;>
+    cases hp : partialInv e i with
+  | none =>
+    have hi : i ∉ Set.range e := by
+      rintro ⟨j, rfl⟩
+      simp at hp
+    simp [embed, wordsCfg, hp, hframe i hi]
+  | some j =>
+    have he := partialInv_eq_some e hp
+    simp [embed, wordsCfg, hp, he]
 
 section Space
 
