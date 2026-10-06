@@ -19,8 +19,9 @@ it returns within `n` operations. This is the least-fixed-point reading of a pos
 non-terminating program: runs that never return contribute no mass, so `r.toMeasure μ` may have
 total mass below `1` even when each `μ a` is a probability measure.
 
-With discrete response spaces, `toMeasure` unfolds like `PFunctor.FreeM.toMeasure`, and the two
-agree along `PFunctor.FreeM.toResumption` (`PFunctor.FreeM.toMeasure_toResumption`).
+With discrete response spaces, `toMeasure` unfolds like `PFunctor.FreeM.toMeasure`, so it is a
+measure semantics of `Resumption P` (`isMeasureSemantics_toMeasure`), and the two agree along
+`PFunctor.FreeM.toResumption` (`PFunctor.FreeM.toMeasure_toResumption`).
 -/
 
 @[expose] public section
@@ -67,6 +68,10 @@ theorem approxMeasure_le_toMeasure (n : ℕ) (r : Resumption P α) :
 @[simp]
 theorem toMeasure_pure (a : α) : (pure a : Resumption P α).toMeasure μ = .dirac a := by
   simp [toMeasure]
+
+theorem isPureMeasureSemantics_toMeasure :
+    Cslib.IsPureMeasureSemantics (Resumption P) fun r => r.toMeasure μ :=
+  ⟨toMeasure_pure μ⟩
 
 section Discrete
 
@@ -117,6 +122,11 @@ theorem toMeasure_bind (r : Resumption P α) {k : α → Resumption P β}
       | lift_bind a f =>
         simpa [toMeasure_lift_bind, Measure.bind_bind Measurable.of_discrete.aemeasurable
           hk.aemeasurable] using Measure.bind_mono_right_of_discrete fun b => ih (f b)
+
+theorem isMeasureSemantics_toMeasure :
+    Cslib.IsMeasureSemantics (Resumption P) fun r => r.toMeasure μ where
+  toIsPureMeasureSemantics := isPureMeasureSemantics_toMeasure μ
+  map_bind r _ hk := toMeasure_bind μ r hk
 
 theorem toMeasure_map (r : Resumption P α) {f : α → β} (hf : Measurable f) :
     (r.map f).toMeasure μ = (r.toMeasure μ).map f := by
@@ -179,6 +189,12 @@ variable {P : PFunctor.{uA, uB}} [∀ a, MeasurableSpace (P.B a)]
 @[simp]
 theorem toMeasure_toResumption (x : P.FreeM α) : x.toResumption.toMeasure μ = x.toMeasure μ := by
   induction x <;> simp [*]
+
+/-- A free program embedded as a resumption returns almost surely. -/
+instance [∀ a, IsProbabilityMeasure (μ a)] (x : P.FreeM α) :
+    IsProbabilityMeasure (x.toResumption.toMeasure μ) := by
+  rw [toMeasure_toResumption]
+  infer_instance
 
 end PFunctor.FreeM
 

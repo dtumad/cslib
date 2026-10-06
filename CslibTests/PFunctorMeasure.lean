@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Devon Tuma
 -/
 
+import Cslib.Foundations.Control.Monad.Free
 import Cslib.Foundations.Data.PFunctor.Resumption.Measure
 
 /-! Tests for output measures of polynomial programs. -/
@@ -28,5 +29,11 @@ example : flips.toMeasure μ = (μ ()).bind fun b => (μ ()).map fun c => b && !
 example : (do let b ← flips; let c ← flips; pure (b && c)).toMeasure μ =
     (flips.toMeasure μ).bind fun b => (flips.toMeasure μ).map fun c => b && c := by
   simp
+
+-- Programs in the free monad of an effect family, which lives one universe up, get a measure
+-- semantics by interpreting their operations as polynomial programs.
+example {F : Type → Type} (interp : {ι : Type} → F ι → (y^Bool).FreeM ι) :
+    Cslib.IsMeasureSemantics (Cslib.FreeM F) fun x => (x.liftM interp).toMeasure μ :=
+  (FreeM.isMeasureSemantics_toMeasure μ).comp (Cslib.FreeM.isMonadHom_liftM interp)
 
 end CslibTests.PFunctorMeasure

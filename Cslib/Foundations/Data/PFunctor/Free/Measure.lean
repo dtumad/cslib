@@ -6,6 +6,7 @@ Authors: Devon Tuma
 
 module
 
+public import Cslib.Foundations.Control.Monad.MeasureSemantics
 public import Cslib.Foundations.Data.PFunctor.Free.Fold
 public import Mathlib.MeasureTheory.Measure.ProbabilityMeasure
 
@@ -16,8 +17,9 @@ Given a measure `μ a` on the responses of each operation `a`, a program `x : P.
 output measure `x.toMeasure μ`: each operation is answered according to `μ`, and the returned value
 is observed. It is the fold of `x` into Mathlib's Giry bind, so it follows `Measure.bind`'s
 convention for continuations that are not measurable. When the response spaces are discrete, every
-continuation is measurable, `toMeasure` sends `bind` to the Giry bind (`toMeasure_bind`), and it
-sends programs to probability measures whenever each `μ a` is one.
+continuation is measurable, `toMeasure` sends `bind` to the Giry bind (`toMeasure_bind`), so it is a
+measure semantics of `P.FreeM` (`isMeasureSemantics_toMeasure`), and it sends programs to
+probability measures whenever each `μ a` is one.
 -/
 
 @[expose] public section
@@ -54,6 +56,10 @@ theorem toMeasure_lift_bind' {α : Type uB} [MeasurableSpace α] (a : P.A) (k : 
 theorem toMeasure_lift (a : P.A) : toMeasure (α := no_index (P.B a)) (lift a) μ = μ a :=
   Measure.bind_dirac
 
+theorem isPureMeasureSemantics_toMeasure :
+    Cslib.IsPureMeasureSemantics P.FreeM fun x => x.toMeasure μ :=
+  ⟨toMeasure_pure μ⟩
+
 section Discrete
 
 variable [∀ a, DiscreteMeasurableSpace (P.B a)]
@@ -67,6 +73,11 @@ theorem toMeasure_bind (x : P.FreeM α) {f : α → P.FreeM β}
     rw [liftBind_bind, toMeasure_lift_bind, toMeasure_lift_bind,
       Measure.bind_bind Measurable.of_discrete.aemeasurable hf.aemeasurable]
     exact congrArg _ (funext ih)
+
+theorem isMeasureSemantics_toMeasure :
+    Cslib.IsMeasureSemantics P.FreeM fun x => x.toMeasure μ where
+  toIsPureMeasureSemantics := isPureMeasureSemantics_toMeasure μ
+  map_bind x _ hf := toMeasure_bind μ x hf
 
 theorem toMeasure_map (x : P.FreeM α) {f : α → β} (hf : Measurable f) :
     (x.map f).toMeasure μ = (x.toMeasure μ).map f := by

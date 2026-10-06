@@ -119,6 +119,7 @@ public import Cslib.Foundations.Control.Monad.Free.Effects
 public import Cslib.Foundations.Control.Monad.Free.Fold
 public import Cslib.Foundations.Control.Monad.IsMonadHom
 public import Cslib.Foundations.Control.Monad.IsMonadHom.List
+public import Cslib.Foundations.Control.Monad.MeasureSemantics
 public import Cslib.Foundations.Data.BiTape
 public import Cslib.Foundations.Data.BitString
 public import Cslib.Foundations.Data.DecidableEqZero
