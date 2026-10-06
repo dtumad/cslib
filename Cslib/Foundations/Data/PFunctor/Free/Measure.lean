@@ -26,7 +26,7 @@ probability measures whenever each `μ a` is one.
 
 open MeasureTheory
 
-universe uA uB u v
+universe uA uA' uB u v
 
 namespace PFunctor.FreeM
 
@@ -113,6 +113,27 @@ instance [∀ a, IsProbabilityMeasure (μ a)] (x : P.FreeM α) :
   | pure a => exact Measure.dirac.isProbabilityMeasure
   | lift_bind a k ih =>
     exact isProbabilityMeasure_bind Measurable.of_discrete.aemeasurable (.of_forall ih)
+
+/-- A measure semantics of `P.FreeM` is the output measure for the measures it gives the
+operations. -/
+theorem _root_.Cslib.IsMeasureSemantics.eq_toMeasure {α : Type uB} [MeasurableSpace α]
+    {sem : ∀ {α : Type uB} [MeasurableSpace α], P.FreeM α → Measure α}
+    (hsem : Cslib.IsMeasureSemantics P.FreeM sem) (x : P.FreeM α) :
+    sem x = x.toMeasure fun a => sem (lift a) := by
+  induction x with
+  | pure a => exact hsem.map_pure a
+  | lift_bind a k ih =>
+    simp only [toMeasure_lift_bind, ← ih]
+    exact hsem.map_bind_of_discrete (lift a) k
+
+/-- Interpreting each operation `a` as a program over `Q` answers it by the output measure of that
+program. -/
+@[simp]
+theorem toMeasure_liftM {Q : PFunctor.{uA', uB}} [∀ b, MeasurableSpace (Q.B b)]
+    [∀ b, DiscreteMeasurableSpace (Q.B b)] {α : Type uB} [MeasurableSpace α]
+    (ν : (b : Q.A) → Measure (Q.B b)) (h : (a : P.A) → Q.FreeM (P.B a)) (x : P.FreeM α) :
+    (x.liftM h).toMeasure ν = x.toMeasure fun a => (h a).toMeasure ν := by
+  simpa using ((isMeasureSemantics_toMeasure ν).comp (isMonadHom_liftM h)).eq_toMeasure x
 
 end Discrete
 

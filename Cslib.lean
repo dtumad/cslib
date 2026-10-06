@@ -138,12 +138,16 @@ public import Cslib.Foundations.Data.OmegaSequence.Temporal
 public import Cslib.Foundations.Data.OmegaSequence.Topology
 public import Cslib.Foundations.Data.PFunctor.Basic
 public import Cslib.Foundations.Data.PFunctor.Free
+public import Cslib.Foundations.Data.PFunctor.Free.Cost
 public import Cslib.Foundations.Data.PFunctor.Free.Fold
 public import Cslib.Foundations.Data.PFunctor.Free.Measure
+public import Cslib.Foundations.Data.PFunctor.Free.State
 public import Cslib.Foundations.Data.PFunctor.Free.W
 public import Cslib.Foundations.Data.PFunctor.M
 public import Cslib.Foundations.Data.PFunctor.Resumption
+public import Cslib.Foundations.Data.PFunctor.Resumption.Cost
 public import Cslib.Foundations.Data.PFunctor.Resumption.Measure
+public import Cslib.Foundations.Data.PFunctor.Resumption.State
 public import Cslib.Foundations.Data.Set.Saturation
 public import Cslib.Foundations.Data.StackTape
 public import Cslib.Foundations.Lint.Basic
