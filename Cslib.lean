@@ -141,6 +141,7 @@ public import Cslib.Foundations.Data.PFunctor.Free
 public import Cslib.Foundations.Data.PFunctor.Free.Cost
 public import Cslib.Foundations.Data.PFunctor.Free.Fold
 public import Cslib.Foundations.Data.PFunctor.Free.Measure
+public import Cslib.Foundations.Data.PFunctor.Free.MonadAttach
 public import Cslib.Foundations.Data.PFunctor.Free.State
 public import Cslib.Foundations.Data.PFunctor.Free.W
 public import Cslib.Foundations.Data.PFunctor.M
