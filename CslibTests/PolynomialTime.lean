@@ -13,8 +13,9 @@ namespace CslibTests.PolynomialTime
 open Turing MultiTapePTM MultiTapeTM
 
 -- A coin flip indexed by a security parameter given in unary runs in expected polynomial time.
-example : IsExpectedPolyTime (Oracle := Empty) parameterEncoding boolEncoding
+example : IsExpectedPolyTime (Oracle := Empty) (parameterEncoding fun _ => wordEncoding)
+    (fun _ => boolEncoding)
     fun _ => (coin : (effects Empty).FreeM Bool).toResumption :=
-  (isPPT_coin parameterEncoding).isExpectedPolyTime
+  (isPPT_coin _).isExpectedPolyTime
 
 end CslibTests.PolynomialTime

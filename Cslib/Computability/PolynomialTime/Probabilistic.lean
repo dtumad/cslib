@@ -170,14 +170,21 @@ def Realizes {k : ℕ} {State Ports α : Type} [DecidableEq Ports]
       env.run ((fun a => some (encode a)) <$> program) s
 
 /-- One finite-control machine with finitely many oracle ports realizes `program a` on the encoding
-`input a`, halting on every path within `c * (n + 1) ^ d` transitions, where `n` is its length. -/
-def IsPPT {α β : Type} (input : α ↪ Word) (output : β ↪ Word)
-    (program : α → (effects Oracle).FreeM β) : Prop :=
+`input a`, with its outputs encoded by `output a`, halting on every path within
+`c * (n + 1) ^ d` transitions, where `n` is the length of `input a`. -/
+def IsPPT {α : Type} {β : α → Type} (input : α ↪ Word) (output : ∀ a, β a ↪ Word)
+    (program : (a : α) → (effects Oracle).FreeM (β a)) : Prop :=
   Finite Oracle ∧ ∃ (k ports : ℕ) (State : Type) (_ : Finite State)
     (machine : MultiTapePTM k Bool State (Fin ports)) (dispatch : Fin ports → Oracle) (c d : ℕ),
     ∀ a,
       machine.HaltsWithin (c * ((input a).length + 1) ^ d) (machine.initialConfig (input a)) ∧
-      machine.Realizes dispatch (c * ((input a).length + 1) ^ d) (input a) output (program a)
+      machine.Realizes dispatch (c * ((input a).length + 1) ^ d) (input a) (output a) (program a)
+
+/-- A family of programs indexed by a security parameter `n` runs in probabilistic polynomial time
+in `n` and the length of its input, reading `n` in unary before the input. -/
+abbrev IsPPTFamily {α : ℕ → Type} {β : ∀ n, α n → Type} (input : ∀ n, α n ↪ Word)
+    (output : ∀ n a, β n a ↪ Word) (program : ∀ n a, (effects Oracle).FreeM (β n a)) : Prop :=
+  IsPPT (parameterEncoding input) (fun x => output x.1 x.2) fun x => program x.1 x.2
 
 variable {k : ℕ} {State Ports α : Type} [DecidableEq Ports]
   {machine : MultiTapePTM k Bool State Ports} {dispatch : Ports → Oracle} {fuel : ℕ}
@@ -192,11 +199,11 @@ theorem Realizes.mono (h : machine.Realizes dispatch fuel input encode program)
   simpa only [run, runFrom, hhalt.runConfigFrom_add] using h env s
 
 /-- A program that runs like a polynomial-time one is polynomial-time. -/
-theorem IsPPT.congr {β : Type} {input : α ↪ Word} {output : β ↪ Word}
-    {first second : α → (effects Oracle).FreeM β} (hfirst : IsPPT input output first)
+theorem IsPPT.congr {β : α → Type} {input : α ↪ Word} {output : ∀ a, β a ↪ Word}
+    {first second : (a : α) → (effects Oracle).FreeM (β a)} (hfirst : IsPPT input output first)
     (h : ∀ a (env : OracleEnv Oracle) s,
-      env.run ((fun b => some (output b)) <$> first a) s =
-        env.run ((fun b => some (output b)) <$> second a) s) :
+      env.run ((fun b => some (output a b)) <$> first a) s =
+        env.run ((fun b => some (output a b)) <$> second a) s) :
     IsPPT input output second := by
   obtain ⟨hf, k, ports, State, hs, machine, dispatch, c, d, hm⟩ := hfirst
   exact ⟨hf, k, ports, State, hs, machine, dispatch, c, d,
@@ -233,7 +240,7 @@ def coinMachine : MultiTapePTM 0 Bool Unit (Fin 0) where
 
 /-- Flipping a fair coin is in probabilistic polynomial time. -/
 theorem isPPT_coin [Finite Oracle] {α : Type} (input : α ↪ Word) :
-    IsPPT input boolEncoding fun _ => (coin : (effects Oracle).FreeM Bool) := by
+    IsPPT input (fun _ => boolEncoding) fun _ => (coin : (effects Oracle).FreeM Bool) := by
   refine ⟨inferInstance, 0, 0, Unit, inferInstance, coinMachine, Fin.elim0, 1, 0, fun a => ⟨?_, ?_⟩⟩
   · simp [HaltsWithin, runConfigFrom, step, coinMachine, MultiTapeMachine.initialConfig, Cfg.init,
       MultiTapeMachine.Config.step, or_imp, forall_and]

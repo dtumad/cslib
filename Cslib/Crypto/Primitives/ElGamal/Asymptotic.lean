@@ -151,12 +151,12 @@ structure DDHAdversary where
   /-- Guess whether a triple of elements of the group described by `d` is a DH triple. -/
   run : ℕ → (d : 𝒢.Desc) → 𝒢.Elem d → 𝒢.Elem d → 𝒢.Elem d → Prog Bool
 
-/-- The distinguisher runs in probabilistic polynomial time, given the security parameter in
-unary, the description, and the triple. -/
+/-- The distinguisher runs in probabilistic polynomial time in the security parameter and the
+representations of the description and the triple. -/
 def DDHAdversary.IsPPT {𝒢 : GroupGen} (D : 𝒢.DDHAdversary) : Prop :=
-  MultiTapePTM.IsPPT (sigmaEncoding unaryEncoding fun _ => sigmaEncoding 𝒢.encDesc fun d =>
-      pairEncoding (𝒢.encElem d) (pairEncoding (𝒢.encElem d) (𝒢.encElem d))) boolEncoding
-    fun x => D.run x.1 x.2.1 x.2.2.1 x.2.2.2.1 x.2.2.2.2
+  MultiTapePTM.IsPPTFamily (fun _ => sigmaEncoding 𝒢.encDesc fun d =>
+      pairEncoding (𝒢.encElem d) (pairEncoding (𝒢.encElem d) (𝒢.encElem d)))
+    (fun _ _ => boolEncoding) fun n x => D.run n x.1 x.2.1 x.2.2.1 x.2.2.2
 
 /-- The DDH experiment on a Diffie–Hellman triple. -/
 def ddhReal (D : 𝒢.DDHAdversary) (n : ℕ) : Exp Bool := do
@@ -227,15 +227,13 @@ instance (A : S.EavAdversary) : DiscreteMeasurableSpace A.State := ⟨fun _ => t
 
 instance (A : S.EavAdversary) : Countable A.State := A.encState.injective.countable
 
-/-- Both phases run in probabilistic polynomial time in the security parameter, given in unary,
-and their inputs. -/
+/-- Both phases run in probabilistic polynomial time in the security parameter and the
+representations of their inputs. -/
 def EavAdversary.IsPPT (A : S.EavAdversary) : Prop :=
-  MultiTapePTM.IsPPT (sigmaEncoding unaryEncoding fun _ => S.encPK) wordEncoding
-      (fun x => pairEncoding (S.encMsg x.2) (pairEncoding (S.encMsg x.2) A.encState) <$>
-        A.choose x.1 x.2) ∧
-    MultiTapePTM.IsPPT (sigmaEncoding unaryEncoding fun _ =>
-      pairEncoding A.encState (sigmaEncoding S.encPK S.encCtxt)) boolEncoding
-      fun x => A.guess x.1 x.2.1 x.2.2.1 x.2.2.2
+  MultiTapePTM.IsPPTFamily (fun _ => S.encPK)
+      (fun _ pk => pairEncoding (S.encMsg pk) (pairEncoding (S.encMsg pk) A.encState)) A.choose ∧
+    MultiTapePTM.IsPPTFamily (fun _ => pairEncoding A.encState (sigmaEncoding S.encPK S.encCtxt))
+      (fun _ _ => boolEncoding) fun n x => A.guess n x.1 x.2.1 x.2.2
 
 variable (S)
 

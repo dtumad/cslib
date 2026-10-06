@@ -17,9 +17,9 @@ within `c * (n + 1) ^ d` transitions, where `n` is the length of the encoded inp
 polynomial case of `ComputableInTimeAndSpace` (`IsPolyTime.computableInTimeAndSpace`,
 `isPolyTime_of_computableInTimeAndSpace`).
 
-Algorithms indexed by a security parameter `n` read it in unary, followed by a delimiter and their
-remaining input (`parameterEncoding`), so a polynomial bound in the input length is polynomial in
-`n` and the length of the remaining input.
+Algorithms indexed by a security parameter `n` read it in unary, followed by a delimiter and the
+encoding of their remaining input (`parameterEncoding`), so a polynomial bound in the input length
+is polynomial in `n` and the length of the remaining input.
 -/
 
 @[expose] public section
@@ -51,17 +51,17 @@ theorem parameterInput_inj {n m : ℕ} {input input' : Word} :
 /-- Binary words encode themselves. -/
 def wordEncoding : Word ↪ Word := Function.Embedding.refl _
 
-/-- The encoding of a security parameter together with the remaining input. -/
-def parameterEncoding : (ℕ × Word) ↪ Word where
-  toFun pair := parameterInput pair.1 pair.2
+/-- The encoding of a security parameter `n` together with an input encoded by `input n`. -/
+def parameterEncoding {α : ℕ → Type} (input : ∀ n, α n ↪ Word) : (Σ n, α n) ↪ Word where
+  toFun x := parameterInput x.1 (input x.1 x.2)
   inj' := by
-    rintro ⟨n, input⟩ ⟨m, input'⟩ h
-    obtain ⟨rfl, rfl⟩ := parameterInput_inj.mp h
-    rfl
+    rintro ⟨n, a⟩ ⟨m, b⟩ h
+    obtain ⟨rfl, h⟩ := parameterInput_inj.mp h
+    exact congrArg (Sigma.mk n) ((input n).injective h)
 
 @[simp]
-theorem parameterEncoding_apply (input : ℕ × Word) :
-    parameterEncoding input = parameterInput input.1 input.2 := rfl
+theorem parameterEncoding_apply {α : ℕ → Type} (input : ∀ n, α n ↪ Word) (x : Σ n, α n) :
+    parameterEncoding input x = parameterInput x.1 (input x.1 x.2) := rfl
 
 /-- A Boolean is encoded by a single bit. -/
 def boolEncoding : Bool ↪ Word := ⟨fun b => [b], by intro a b h; simpa using h⟩

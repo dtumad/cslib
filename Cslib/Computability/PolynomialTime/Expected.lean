@@ -82,11 +82,11 @@ noncomputable def expectedTime (machine : MultiTapePTM k Bool State Ports)
 /-- One finite-control machine with finitely many oracle ports realizes `r a` on `input a`, within
 expected time `c * (n + 1) ^ d`, where `n` is its length, under every environment whose answers are
 at most probabilities. -/
-def IsExpectedPolyTime {β : Type} (input : α ↪ Word) (output : β ↪ Word)
-    (r : α → Resumption (effects Oracle) β) : Prop :=
+def IsExpectedPolyTime {β : α → Type} (input : α ↪ Word) (output : ∀ a, β a ↪ Word)
+    (r : (a : α) → Resumption (effects Oracle) (β a)) : Prop :=
   Finite Oracle ∧ ∃ (k ports : ℕ) (State : Type) (_ : Finite State)
     (machine : MultiTapePTM k Bool State (Fin ports)) (dispatch : Fin ports → Oracle) (c d : ℕ),
-    ∀ a, machine.RealizesUnbounded dispatch (input a) output (r a) ∧
+    ∀ a, machine.RealizesUnbounded dispatch (input a) (output a) (r a) ∧
       ∀ env : OracleEnv Oracle, (∀ oracle word s, env.answer oracle word s Set.univ ≤ 1) →
         ∀ s, machine.expectedTime dispatch env (input a) s ≤ (c * ((input a).length + 1) ^ d : ℕ)
 
@@ -154,8 +154,8 @@ theorem Realizes.realizesUnbounded {fuel : ℕ} {encode : α ↪ Word}
   exact hsome _ _ this
 
 /-- Probabilistic polynomial time programs are in expected polynomial time. -/
-theorem IsPPT.isExpectedPolyTime {β : Type} {input : α ↪ Word} {output : β ↪ Word}
-    {program : α → (effects Oracle).FreeM β} (h : IsPPT input output program) :
+theorem IsPPT.isExpectedPolyTime {β : α → Type} {input : α ↪ Word} {output : ∀ a, β a ↪ Word}
+    {program : (a : α) → (effects Oracle).FreeM (β a)} (h : IsPPT input output program) :
     IsExpectedPolyTime input output fun a => (program a).toResumption := by
   obtain ⟨hf, k, ports, State, hs, machine, dispatch, c, d, hm⟩ := h
   exact ⟨hf, k, ports, State, hs, machine, dispatch, c, d, fun a =>

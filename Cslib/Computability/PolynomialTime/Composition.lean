@@ -264,8 +264,9 @@ open Cslib in
 /-- Polynomial-time programs compose, sharing the oracles and their state. -/
 theorem IsPPT.bind {input : α ↪ Word} {middle : β ↪ Word} {output : γ ↪ Word}
     {first : α → (effects Oracle).FreeM β} {second : β → (effects Oracle).FreeM γ}
-    (hfirst : IsPPT input middle first) (hsecond : IsPPT middle output second) :
-    IsPPT input output fun a => first a >>= second := by
+    (hfirst : IsPPT input (fun _ => middle) first)
+    (hsecond : IsPPT middle (fun _ => output) second) :
+    IsPPT input (fun _ => output) fun a => first a >>= second := by
   obtain ⟨hfin, k₀, ports₀, State₀, _, source, dispatch₀, c₀, d₀, h₀⟩ := hfirst
   obtain ⟨-, k₁, ports₁, State₁, _, target, dispatch₁, c₁, d₁, h₁⟩ := hsecond
   let : MeasurableSpace β := ⊤
@@ -314,7 +315,7 @@ theorem IsPPT.bind {input : α ↪ Word} {middle : β ↪ Word} {output : γ ↪
 /-- Deterministic polynomial-time functions are probabilistic polynomial-time programs. -/
 theorem _root_.Turing.MultiTapeTM.IsPolyTime.isPPT [Finite Oracle] {input : α ↪ Word}
     {output : β ↪ Word} {f : α → β} (h : IsPolyTime input fun a => output (f a)) :
-    IsPPT input output fun a => (pure (f a) : (effects Oracle).FreeM β) := by
+    IsPPT input (fun _ => output) fun a => (pure (f a) : (effects Oracle).FreeM β) := by
   obtain ⟨k, State, _, machine, c, d, h⟩ := h
   refine ⟨inferInstance, k, 0, State, inferInstance, ofDeterministic machine, Fin.elim0, c, d,
     fun a => ⟨fun cfg hcfg => ?_, fun env s => ?_⟩⟩
@@ -327,17 +328,19 @@ theorem _root_.Turing.MultiTapeTM.IsPolyTime.isPPT [Finite Oracle] {input : α �
 
 /-- A deterministic polynomial-time function may process a probabilistic result. -/
 theorem IsPPT.map {input : α ↪ Word} {middle : β ↪ Word} {output : γ ↪ Word}
-    {program : α → (effects Oracle).FreeM β} {f : β → γ} (hprogram : IsPPT input middle program)
+    {program : α → (effects Oracle).FreeM β} {f : β → γ}
+    (hprogram : IsPPT input (fun _ => middle) program)
     (hf : IsPolyTime middle fun b => output (f b)) :
-    IsPPT input output fun a => f <$> program a :=
+    IsPPT input (fun _ => output) fun a => f <$> program a :=
   have := hprogram.1
   by simpa only [bind_pure_comp] using hprogram.bind hf.isPPT
 
 /-- A deterministic polynomial-time function may prepare a probabilistic program's input. -/
 theorem IsPPT.comp {input : α ↪ Word} {middle : β ↪ Word} {output : γ ↪ Word}
-    {program : β → (effects Oracle).FreeM γ} {f : α → β} (hprogram : IsPPT middle output program)
+    {program : β → (effects Oracle).FreeM γ} {f : α → β}
+    (hprogram : IsPPT middle (fun _ => output) program)
     (hf : IsPolyTime input fun a => middle (f a)) :
-    IsPPT input output fun a => program (f a) :=
+    IsPPT input (fun _ => output) fun a => program (f a) :=
   have := hprogram.1
   by simpa only [pure_bind] using hf.isPPT.bind hprogram
 
