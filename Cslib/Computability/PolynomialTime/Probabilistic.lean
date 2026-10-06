@@ -143,6 +143,20 @@ theorem run_ofStateless (answer : Oracle → Word → Measure Word) (x : (effect
     (ofStateless answer).run x s = (x.toMeasure (statelessMeasure answer)).map (·, s) :=
   FreeM.toMeasure_withState _ (fun a _ => by rcases a with _ | ⟨_, _⟩ <;> rfl) x s
 
+/-- Fair coins, for programs without oracles. -/
+noncomputable abbrev fairCoins [IsEmpty Oracle] :
+    (a : (effects Oracle).A) → Measure ((effects Oracle).B a) :=
+  statelessMeasure fun oracle => isEmptyElim oracle
+
+omit [Countable α] [MeasurableSingletonClass α] in
+/-- Without oracles, running a program flips fair coins and leaves the state unchanged. -/
+theorem run_of_isEmpty [IsEmpty Oracle] (x : (effects Oracle).FreeM α) (s : env.State) :
+    env.run x s = (x.toMeasure fairCoins).map (·, s) :=
+  FreeM.toMeasure_withState _ (fun a _ => by
+    rcases a with _ | ⟨oracle, _⟩
+    · rfl
+    · exact isEmptyElim oracle) x s
+
 end OracleEnv
 
 /-- `machine`, calling the oracle `dispatch p` through each port `p`, realizes `program` on `input`
@@ -201,6 +215,16 @@ theorem Realizes.toMeasure_eq (h : machine.Realizes dispatch fuel input encode p
   rwa [Measure.map_map measurable_fst measurable_prodMk_right,
     Measure.map_map measurable_fst measurable_prodMk_right, Function.comp_def, Function.comp_def,
     Measure.map_id', Measure.map_id'] at this
+
+/-- Without oracles, a machine realizes a program exactly when, with fair coins, its output is
+distributed as the encoded output of the program. -/
+theorem realizes_iff_toMeasure_eq [IsEmpty Oracle] [IsEmpty Ports] :
+    machine.Realizes dispatch fuel input encode program ↔
+      (machine.run fuel input).toMeasure OracleEnv.fairCoins =
+        ((fun a => some (encode a)) <$> program).toMeasure OracleEnv.fairCoins := by
+  refine ⟨fun h => ?_, fun h env s => ?_⟩
+  · convert h.toMeasure_eq fun oracle => isEmptyElim oracle using 3
+  · rw [OracleEnv.run_of_isEmpty, OracleEnv.run_of_isEmpty, h]
 
 /-- The machine writing one fair coin to its output and halting. -/
 def coinMachine : MultiTapePTM 0 Bool Unit (Fin 0) where
