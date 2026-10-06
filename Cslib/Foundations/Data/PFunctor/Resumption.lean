@@ -357,6 +357,19 @@ theorem toResumption_map' {α β : Type u} (f : α → β) (x : P.FreeM α) :
     toResumption (f <$> x) = f <$> toResumption x :=
   toResumption_map f x
 
+/-- Free programs lift to resumptions, so that a free program can be used where a resumption is
+expected. -/
+instance : MonadLift P.FreeM (Resumption P) where
+  monadLift := toResumption
+
+instance : LawfulMonadLift P.FreeM (Resumption P) where
+  monadLift_pure := toResumption_pure
+  monadLift_bind := toResumption_bind'
+
+@[simp]
+theorem monadLift_eq_toResumption (x : P.FreeM α) :
+    (monadLift x : Resumption P α) = toResumption x := rfl
+
 /-- `toResumption` interprets each operation as the corresponding resumption operation. -/
 theorem toResumption_eq_liftM {α : Type uB} (x : P.FreeM α) :
     toResumption x = x.liftM Resumption.lift := by
