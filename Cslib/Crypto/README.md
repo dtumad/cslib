@@ -69,6 +69,14 @@ distributed as simulated ones (honest-verifier zero knowledge), and running a pr
 once with two independent challenges extracts a discrete logarithm with probability at least
 `ε² - ε / |F|`, where `ε` is the prover's success probability.
 
+Signatures are unforgeable under chosen-message attacks in the random-oracle model, by a reduction
+to discrete logarithms. A lazily sampled random oracle answers hash queries, an honest simulator
+answers signing queries without the secret key, and the general forking lemma for free programs
+rewinds the forger at its forgery's hash query. The concrete bound loses the simulation's
+collisions and the forking square root; asymptotically, Schnorr signatures are secure against
+admissible forgers making polynomially many queries, if discrete logarithms are hard against
+admissible solvers and forking an admissible forger is admissible.
+
 ## Plans and notes
 
 - We plan on developing applied calculi and logics for modelling and reasoning about security protocols.

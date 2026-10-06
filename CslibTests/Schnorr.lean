@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Devon Tuma
 -/
 
-import Cslib.Crypto.Primitives.Schnorr.Extraction
+import Cslib.Crypto.Primitives.Schnorr.Asymptotic
 import Cslib.Foundations.Data.PFunctor.Resumption.Uniform
 import Mathlib.Algebra.Field.ZMod
 
@@ -42,5 +42,22 @@ example (g pk : ZMod 3) (commit : coinOracle.FreeM (ZMod 3 × Bool))
     (response : Bool → ZMod 3 → coinOracle.FreeM (ZMod 3)) :=
   le_sem_extractor (Resumption.isMeasureSemantics_toMeasure fairCoins) scalar g pk
     (monadLift commit) (fun state c => monadLift (response state c)) toMeasure_scalar
+
+/-- One operation, answered by a scalar. -/
+abbrev Scalars : PFunctor := ⟨Unit, fun _ => ZMod 3⟩
+
+noncomputable abbrev uniformScalars (a : Scalars.A) : Measure (Scalars.B a) := uniformOn Set.univ
+
+theorem bijective_smul_one : Function.Bijective fun scalar : ZMod 3 => scalar • (1 : ZMod 3) :=
+  ⟨fun a b h => by simpa using h, fun b => ⟨b, by simp⟩⟩
+
+-- The concrete EUF-CMA bound applies to every forger with bounded signing and hash queries.
+example
+    (adversary : ZMod 3 →
+      (signatureEffects Scalars Bool (ZMod 3) (ZMod 3)).FreeM (Bool × ZMod 3 × ZMod 3))
+    (qS qH : ℕ) (hsign : ∀ pk, FreeM.queryBoundP isSignQuery (adversary pk) ≤ qS)
+    (hhash : ∀ pk, FreeM.queryBoundP isHashQuery (adversary pk) ≤ qH) :=
+  euf_cma_bound_sqrt uniformScalars (FreeM.lift (P := Scalars) ()) 1 adversary bijective_smul_one
+    (FreeM.toMeasure_lift _ _) qS qH hsign hhash
 
 end CslibTests.Schnorr

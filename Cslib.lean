@@ -111,10 +111,17 @@ public import Cslib.Crypto.Primitives.PKE.Defs
 public import Cslib.Crypto.Primitives.PRG.Asymptotic
 public import Cslib.Crypto.Primitives.PRG.Basic
 public import Cslib.Crypto.Primitives.PRG.Defs
+public import Cslib.Crypto.Primitives.Schnorr.Asymptotic
+public import Cslib.Crypto.Primitives.Schnorr.Cost
 public import Cslib.Crypto.Primitives.Schnorr.Defs
 public import Cslib.Crypto.Primitives.Schnorr.Extraction
+public import Cslib.Crypto.Primitives.Schnorr.Fork
+public import Cslib.Crypto.Primitives.Schnorr.Fork.Measure
+public import Cslib.Crypto.Primitives.Schnorr.Fork.Trace
 public import Cslib.Crypto.Primitives.Schnorr.HVZK
 public import Cslib.Crypto.Primitives.Schnorr.Oracle
+public import Cslib.Crypto.Primitives.Schnorr.Reduction
+public import Cslib.Crypto.Primitives.Schnorr.Security
 public import Cslib.Crypto.Primitives.Schnorr.Simulation
 public import Cslib.Crypto.Primitives.Schnorr.Simulation.Probability
 public import Cslib.Crypto.Protocols.Commitment.Basic
@@ -131,6 +138,7 @@ public import Cslib.Crypto.Protocols.SecretSharing.Shamir.Polynomial
 public import Cslib.Crypto.RandomOracle
 public import Cslib.Crypto.RandomOracle.Cost
 public import Cslib.Crypto.RandomOracle.Measure
+public import Cslib.Foundations.Analysis.SuperpolynomialDecay
 public import Cslib.Foundations.Combinatorics.InfiniteGraphRamsey
 public import Cslib.Foundations.Control.Monad.Free
 public import Cslib.Foundations.Control.Monad.Free.Effects
@@ -148,6 +156,7 @@ public import Cslib.Foundations.Data.HasFresh
 public import Cslib.Foundations.Data.List.IsChainFromTo
 public import Cslib.Foundations.Data.Nat.Asymptotics
 public import Cslib.Foundations.Data.Nat.Factorial
+public import Cslib.Foundations.Data.Nat.PolynomialBound
 public import Cslib.Foundations.Data.Nat.Segment
 public import Cslib.Foundations.Data.OmegaSequence.Defs
 public import Cslib.Foundations.Data.OmegaSequence.Flatten
