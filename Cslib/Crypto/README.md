@@ -47,6 +47,18 @@ equals the reduction's distinguishing advantage. Adversaries and samplers are ar
 computations: exponents may be selected uniformly by a primitive operation of a free program, or
 drawn from fair coins alone by rejection sampling, as a resumption that returns almost surely.
 
+Asymptotically, [`Primitives/PKE`](Primitives/PKE) defines public-key encryption over a monad
+and security against eavesdroppers, [`Assumptions/GroupGen`](Assumptions/GroupGen.lean) defines
+group generators, and [`Assumptions/DDH/Asymptotic`](Assumptions/DDH/Asymptotic.lean) the DDH
+assumption relative to them. Adversaries and group
+generators are algorithms, programs in their own monad lifted into the monad of the experiments,
+so that they may use fewer resources, such as only fair coins. As for pseudorandom generators, security is relative to a predicate on
+adversaries supplied by the caller: ElGamal is secure against the eavesdroppers whose reductions
+are admissible, if DDH is hard against admissible distinguishers, since the two advantages are
+equal at every security parameter. With fair coins as the only randomness, the algorithms are free
+programs of coin flips and the experiments are resumptions that sample exponents exactly by
+rejection; every hypothesis of this analysis then holds.
+
 ## Plans and notes
 
 - We plan on developing applied calculi and logics for modelling and reasoning about security protocols.
