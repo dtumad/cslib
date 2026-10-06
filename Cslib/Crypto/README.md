@@ -36,6 +36,17 @@ are consequently insecure against any class admitting this test, with both `Fin 
 and `BitVec n` versions and nonexistence corollaries. Zero-error security against all tests
 is equivalent to exactly uniform output; the identity generator is a nonexpanding example.
 
+## ElGamal encryption
+
+[`Primitives/ElGamal`](Primitives/ElGamal) defines ElGamal encryption and its chosen-plaintext
+experiment as programs in an arbitrary monad; decryption is correct as an equation of programs.
+Under any measure semantics of the monad (`Cslib.IsMeasureSemantics`), such as the output
+measures of free programs and resumptions, the reduction to the decisional Diffie–Hellman
+experiments of [`Assumptions/DDH`](Assumptions/DDH.lean) is exact: an adversary's advantage
+equals the reduction's distinguishing advantage. Adversaries and samplers are arbitrary
+computations: exponents may be selected uniformly by a primitive operation of a free program, or
+drawn from fair coins alone by rejection sampling, as a resumption that returns almost surely.
+
 ## Plans and notes
 
 - We plan on developing applied calculi and logics for modelling and reasoning about security protocols.
