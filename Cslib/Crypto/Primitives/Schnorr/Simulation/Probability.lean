@@ -98,8 +98,7 @@ theorem lintegral_liftM_signatureHandler_le {α : Type} [MeasurableSpace α]
     (hsample : FreeM.toMeasure sample μ = uniformOn Set.univ)
     (x : (signatureEffects P M G F).FreeM α)
     (messages : List M) (cache : List ((M × G) × F)) (qS q : ℕ)
-    (hsign : FreeM.queryBoundP (fun op : (signatureEffects P M G F).A => match op with
-      | .inr (.inr _) => true | _ => false) x ≤ qS)
+    (hsign : FreeM.queryBoundP isSignQuery x ≤ qS)
     (hqueries : FreeM.queryBoundP (fun op : (signatureEffects P M G F).A => op.isRight) x ≤ q)
     (post : α × (List M × List ((M × G) × F)) → ℝ≥0∞) (hpost : ∀ out, post out ≤ 1) :
     (∫⁻ out, post out ∂FreeM.toMeasure ((x.liftM (signatureHandler sample g secret)).run
@@ -123,11 +122,9 @@ theorem lintegral_liftM_signatureHandler_le {α : Type} [MeasurableSpace α]
     · exact inferInstanceAs (Countable (P.B op))
     · exact inferInstanceAs (Countable F)
     · exact inferInstanceAs (Countable (G × F))
-  let risk := fun op : (signatureEffects P M G F).A => match op with
-    | .inr (.inr _) => true | _ => false
   apply FreeM.lintegral_liftM_stateT_le_add μ (signatureHandler sample g secret)
     (simulatedSignatureHandler FreeM.lift sample (fun _ => sample) g (secret • g))
-    risk (fun op => op.isRight) (fun state => state.2.length) (cache.length + q)
+    isSignQuery (fun op => op.isRight) (fun state => state.2.length) (cache.length + q)
     (((cache.length + q : ℕ) : ℝ≥0∞) / Nat.card F)
     (signatureHandler_cache_length sample g secret) _ x (messages, cache) qS _ hsign post hpost
   · intro op state hstate f hf
@@ -135,7 +132,7 @@ theorem lintegral_liftM_signatureHandler_le {α : Type} [MeasurableSpace α]
     cases op with
     | inl op =>
       simp only [signatureHandler, simulatedSignatureHandler, StateT.run, OptionT.run,
-        OptionT.mk, risk, Bool.false_eq_true, ↓reduceIte, add_zero,
+        OptionT.mk, isSignQuery, Bool.false_eq_true, ↓reduceIte, add_zero,
         FreeM.toMeasure_bind_of_discrete', FreeM.toMeasure_pure,
         Measure.lintegral_bind Measurable.of_discrete.aemeasurable
           Measurable.of_discrete.aemeasurable, lintegral_dirac' _ Measurable.of_discrete,
@@ -144,7 +141,7 @@ theorem lintegral_liftM_signatureHandler_le {α : Type} [MeasurableSpace α]
       cases op with
       | inl input =>
         simp only [signatureHandler, simulatedSignatureHandler, StateT.run, OptionT.run,
-          OptionT.mk, risk, Bool.false_eq_true, ↓reduceIte, add_zero,
+          OptionT.mk, isSignQuery, Bool.false_eq_true, ↓reduceIte, add_zero,
           FreeM.toMeasure_bind_of_discrete', FreeM.toMeasure_pure,
           Measure.lintegral_bind Measurable.of_discrete.aemeasurable
             Measurable.of_discrete.aemeasurable, lintegral_dirac' _ Measurable.of_discrete,
@@ -169,7 +166,7 @@ theorem lintegral_liftM_signatureHandler_le {α : Type} [MeasurableSpace α]
               ∫⁻ result, result.elim 0 f
                 ∂FreeM.toMeasure (pure (some (out.1, message :: messages', out.2))) μ
             simp [lintegral_dirac' _ Measurable.of_discrete]
-        · dsimp only [risk]
+        · dsimp only [isSignQuery]
           simp only [↓reduceIte]
           gcongr
   · simpa only [Nat.cast_add] using add_le_add (le_rfl : (cache.length : ℕ∞) ≤ _) hqueries
@@ -181,10 +178,8 @@ theorem toMeasure_unforgeabilityExperiment_le_simulatedForgery_add
     (adversary : G → (signatureEffects P M G F).FreeM (M × G × F))
     (hg : Function.Bijective (fun scalar : F => scalar • g))
     (hsample : FreeM.toMeasure sample μ = uniformOn Set.univ) (qS qH : ℕ)
-    (hsign : ∀ pk, FreeM.queryBoundP (fun op : (signatureEffects P M G F).A => match op with
-      | .inr (.inr _) => true | _ => false) (adversary pk) ≤ qS)
-    (hhash : ∀ pk, FreeM.queryBoundP (fun op : (signatureEffects P M G F).A => match op with
-      | .inr (.inl _) => true | _ => false) (adversary pk) ≤ qH) :
+    (hsign : ∀ pk, FreeM.queryBoundP isSignQuery (adversary pk) ≤ qS)
+    (hhash : ∀ pk, FreeM.queryBoundP isHashQuery (adversary pk) ≤ qH) :
     FreeM.toMeasure (unforgeabilityExperiment sample g adversary) μ {true} ≤
       (∫⁻ secret, FreeM.toMeasure
           (simulatedForgery FreeM.lift sample (fun _ => sample) g (secret • g) adversary).run μ
@@ -198,16 +193,12 @@ theorem toMeasure_unforgeabilityExperiment_le_simulatedForgery_add
   have hqueries pk : FreeM.queryBoundP
       (fun op : (signatureEffects P M G F).A => op.isRight) (adversary pk) ≤
         ((qH + qS : ℕ) : ℕ∞) := by
-    let hash := fun op : (signatureEffects P M G F).A => match op with
-      | .inr (.inl _) => true | _ => false
-    let signing := fun op : (signatureEffects P M G F).A => match op with
-      | .inr (.inr _) => true | _ => false
     have heq : (fun op : (signatureEffects P M G F).A => op.isRight) =
-        fun op => hash op || signing op := by
+        fun op => isHashQuery op || isSignQuery op := by
       funext op
       rcases op with op | (input | message) <;> rfl
     rw [heq, Nat.cast_add]
-    exact (FreeM.queryBoundP_or_le hash signing _).trans (add_le_add (hhash pk) (hsign pk))
+    exact (FreeM.queryBoundP_or_le isHashQuery isSignQuery _).trans (add_le_add (hhash pk) (hsign pk))
   have hsim (secret : F) :
       FreeM.toMeasure
           (simulatedForgery FreeM.lift sample (fun _ => sample) g (secret • g) adversary).run μ

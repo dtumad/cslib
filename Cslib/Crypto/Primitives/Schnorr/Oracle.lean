@@ -52,6 +52,16 @@ abbrev signatureEffects (P : PFunctor.{0, 0}) (M G F : Type) : PFunctor.{0, 0} :
 
 variable {P : PFunctor.{0, 0}}
 
+/-- Whether an operation of a forger is a hash request. -/
+def isHashQuery : (signatureEffects P M G F).A → Bool
+  | .inr (.inl _) => true
+  | _ => false
+
+/-- Whether an operation of a forger is a signing request. -/
+def isSignQuery : (signatureEffects P M G F).A → Bool
+  | .inr (.inr _) => true
+  | _ => false
+
 /-- The concrete handler keeps the signing log and hash cache together throughout the game. -/
 def signatureHandler (sample : P.FreeM F) (g : G) (secret : F) :
     (op : (signatureEffects P M G F).A) →
