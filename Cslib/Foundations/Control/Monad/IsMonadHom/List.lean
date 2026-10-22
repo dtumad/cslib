@@ -93,6 +93,19 @@ theorem map_listFoldrM {F : ∀ {α}, m α → n α} (hf : IsMonadHom m n F)
   exact hf.map_listFoldlM (fun s a => f a s) init l.reverse
 
 @[grind .]
+theorem map_listForIn' {F : ∀ {α}, m α → n α} (hf : IsMonadHom m n F)
+    {α : Type v} {β : Type u} (l : List α) (init : β)
+    (f : (a : α) → a ∈ l → β → m (ForInStep β)) :
+    F (forIn' l init f) = forIn' l init fun a h b => F (f a h b) := by
+  induction l generalizing init with grind
+
+@[grind .]
+theorem map_listForIn {F : ∀ {α}, m α → n α} (hf : IsMonadHom m n F)
+    {α : Type v} {β : Type u} (l : List α) (init : β) (f : α → β → m (ForInStep β)) :
+    F (forIn l init f) = forIn l init fun a b => F (f a b) := by
+  induction l generalizing init with grind
+
+@[grind .]
 theorem map_listFindSomeM?
     {F : ∀ {α}, m α → n α} (hf : IsMonadHom m n F)
     {α : Type v} {β : Type u} (f : α → m (Option β)) (l : List α) :
