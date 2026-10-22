@@ -63,6 +63,23 @@ example (n : Nat) (cont : Fin n → (⟨Nat, Fin⟩ : PFunctor).FreeM (ULift.{1}
       onEffect n (fun b => FreeM.foldFreeM ULift.down onEffect (cont b)) := by
   simp
 
+-- The same holds for the bind and interpretation equations of `lift`.
+example (n : Nat) (cont : Fin n → (⟨Nat, Fin⟩ : PFunctor).FreeM Bool)
+    (f : Bool → (⟨Nat, Fin⟩ : PFunctor).FreeM Nat) :
+    ((FreeM.lift (P := ⟨Nat, Fin⟩) n).bind cont).bind f =
+      (FreeM.lift (P := ⟨Nat, Fin⟩) n).bind (fun b => (cont b).bind f) := by
+  simp only [FreeM.liftBind_bind]
+
+example (interp : (n : Nat) → Option (Fin n)) (n : Nat)
+    (cont : Fin n → (⟨Nat, Fin⟩ : PFunctor).FreeM Bool) :
+    (FreeM.lift (P := ⟨Nat, Fin⟩) n >>= cont).liftM interp =
+      interp n >>= fun b => (cont b).liftM interp := by
+  simp only [FreeM.liftM_lift_bind]
+
+example (interp : (n : Nat) → Option (Fin n)) (n : Nat) :
+    (FreeM.lift (P := ⟨Nat, Fin⟩) n).liftM interp = interp n := by
+  simp only [FreeM.liftM_lift]
+
 -- Both free monads expose the same connection between handler composition and folding.
 example {Q : PFunctor.{u, uB}} {m : Type uB → Type v} [Monad m] [LawfulMonad m]
     {δ : Type uB} (x : P.FreeM δ)
