@@ -8,6 +8,7 @@ module
 public import Cslib.Init
 public import Cslib.Foundations.Control.Monad.IsMonadHom
 public import Mathlib.Data.List.Monad
+public import Std.Internal.ForIn
 
 import all Init.Data.List.Control
 import Mathlib.Data.List.Basic
@@ -17,13 +18,15 @@ import Mathlib.Data.List.Basic
 
 This file proves that monadic operations on lists commute with monad homomorphisms
 (and applicative homomorphisms), and that `List.reverse` is a monad homomorphism on `List`.
+The `forIn` and `forIn'` lemmas extend to every container whose loop is a loop over a list,
+such as arrays and ranges.
 -/
 
 public section
 
 namespace Cslib
 
-universe u um un v
+universe u um un v w
 variable {m : Type u → Type um} {n : Type u → Type un}
 
 /-! ### Preservation of list operations under applicative homomorphisms -/
@@ -146,6 +149,35 @@ theorem map_listFilterM {m n : Type → Type v} [Monad m] [Monad n]
     {α : Type} (p : α → m Bool) (l : List α) :
     F (l.filterM p) = l.filterM (F ∘ p) := by
   grind [List.filterM]
+
+end IsMonadHom
+
+/-! ### Preservation of loops over containers that iterate over a list
+
+`Std.Internal.PureForIn` and `Std.Internal.PureForIn'` identify the containers, such as arrays and
+ranges, whose loop is the loop over the list `ForIn.toList` computes. -/
+
+namespace IsMonadHom
+variable [Monad m] [Monad n]
+
+@[grind .]
+theorem map_forIn_of_pureForIn {F : ∀ {α}, m α → n α} (hf : IsMonadHom m n F)
+    {ρ : Type w} {α : Type v} {β : Type u} [ForIn m ρ α] [ForIn n ρ α] [ForIn Id ρ α]
+    [Std.Internal.PureForIn m ρ α] [Std.Internal.PureForIn n ρ α]
+    (xs : ρ) (init : β) (f : α → β → m (ForInStep β)) :
+    F (forIn xs init f) = forIn xs init fun a b => F (f a b) := by
+  rw [Std.Internal.PureForIn.forIn_eq (m := m), Std.Internal.PureForIn.forIn_eq (m := n)]
+  exact hf.map_listForIn ..
+
+@[grind .]
+theorem map_forIn'_of_pureForIn' {F : ∀ {α}, m α → n α} (hf : IsMonadHom m n F)
+    {ρ : Type w} {α : Type v} {β : Type u} {d : Membership α ρ}
+    [ForIn' m ρ α d] [ForIn' n ρ α d] [ForIn Id ρ α] [Std.Internal.LawfulMemForInId ρ α]
+    [Std.Internal.PureForIn' m ρ α] [Std.Internal.PureForIn' n ρ α]
+    (xs : ρ) (init : β) (f : (a : α) → a ∈ xs → β → m (ForInStep β)) :
+    F (forIn' xs init f) = forIn' xs init fun a h b => F (f a h b) := by
+  rw [Std.Internal.PureForIn'.forIn'_eq (m := m), Std.Internal.PureForIn'.forIn'_eq (m := n)]
+  exact hf.map_listForIn' ..
 
 end IsMonadHom
 
