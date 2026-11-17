@@ -195,7 +195,8 @@ theorem map_bind (f : β → γ) (x : P.FreeM α) (cont : α → P.FreeM β) :
 
 @[simp]
 lemma liftBind_bind (a : P.A) (cont : P.B a → P.FreeM β) (f : β → P.FreeM γ) :
-    ((FreeM.lift a).bind cont).bind f = (FreeM.lift a).bind (fun u ↦ (cont u).bind f) := by
+    ((FreeM.lift a).bind (α := no_index (P.B a)) cont).bind f =
+      (FreeM.lift a).bind (fun u ↦ (cont u).bind f) := by
   simp only [lift]
   exact FreeM.bind_assoc (FreeM.liftBind a pure) cont f
 
@@ -286,7 +287,7 @@ lemma liftM_pure (a : α) : (Pure.pure a : P.FreeM α).liftM interp = Pure.pure 
 
 @[simp]
 lemma liftM_lift_bind (a : P.A) (cont : P.B a → P.FreeM α) :
-    FreeM.liftM interp (FreeM.lift a >>= cont) =
+    FreeM.liftM interp (Bind.bind (α := no_index (P.B a)) (FreeM.lift a) cont) =
       (do let u ← interp a; (cont u).liftM interp) := by
   dsimp only [FreeM.liftM, FreeM.bind, FreeM.lift]
   rfl
@@ -384,7 +385,7 @@ lemma liftM_seqRight {α β : Type uB}
 
 @[simp]
 lemma liftM_lift (interp : (a : P.A) → m (P.B a)) (a : P.A) :
-    (FreeM.lift a).liftM interp = interp a := by
+    (FreeM.lift a).liftM (α := no_index (P.B a)) interp = interp a := by
   simpa [bind_pure] using
     (liftM_lift_bind (interp := interp) (a := a) (cont := pure))
 
