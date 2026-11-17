@@ -8,6 +8,7 @@ module
 
 public import Cslib.Init
 public import Cslib.Foundations.Data.List.IsChainFromTo
+public import Cslib.Foundations.Relation.Defs
 public import Mathlib.Data.Set.Card
 public import Mathlib.Logic.Relation
 
@@ -24,6 +25,10 @@ The lemma `RelatesInSteps.exists_isChainFromTo` allows to obtain a chain
 
 Another result is `Relation.ReflTransGen.relatesInSteps_lt_encard`, which states that any element
 reachable from `a` is reachable in fewer steps than there are elements reachable from `a`.
+
+For a deterministic relation, `Relation.RelatesInSteps.rightUnique` shows that the element reached
+in `n` steps is unique, and `Relation.RelatesInSteps.steps_eq_of_normal` that every run to a normal
+element takes the same number of steps.
 -/
 
 @[expose] public section
@@ -157,6 +162,39 @@ lemma RelatesInSteps.map {α α' : Type*}
   | refl => exact RelatesInSteps.refl (g _)
   | tail t' t'' m _ hstep ih =>
     exact .tail (g _) (g t') (g t'') m ih (hg t' t'' hstep)
+
+/-- For a deterministic relation, the element reached in exactly `n` steps is unique. -/
+theorem RelatesInSteps.rightUnique (hr : Relator.RightUnique r) (n : ℕ) :
+    Relator.RightUnique (RelatesInSteps r · · n) := by
+  intro a b c hb hc
+  induction hb generalizing c with
+  | refl => exact zero_iff.mp hc
+  | tail t' t'' k _ hstep ih =>
+    obtain ⟨u, hu, huc⟩ := hc.succ
+    exact hr hstep (ih hu ▸ huc)
+
+/-- For a deterministic relation, all runs from `a` to a normal element `b` take the same number
+of steps. -/
+theorem RelatesInSteps.steps_eq_of_normal (hr : Relator.RightUnique r) (hb : Normal r b)
+    (hn : RelatesInSteps r a b n) (hm : RelatesInSteps r a b m) : n = m := by
+  induction n generalizing a m with
+  | zero =>
+    obtain rfl := zero_iff.mp hn
+    cases m with
+    | zero => rfl
+    | succ m =>
+      obtain ⟨t, hat, -⟩ := succ' hm
+      exact absurd ⟨t, hat⟩ hb
+  | succ n ih =>
+    obtain ⟨t, hat, htb⟩ := succ' hn
+    cases m with
+    | zero =>
+      obtain rfl := zero_iff.mp hm
+      exact absurd ⟨t, hat⟩ hb
+    | succ m =>
+      obtain ⟨t', hat', ht'b⟩ := succ' hm
+      obtain rfl := hr hat hat'
+      rw [ih htb ht'b]
 
 /-! ## Translating between `RelatesInSteps` and chains (`List.IsChainFromTo`) -/
 
