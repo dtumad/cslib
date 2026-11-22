@@ -33,6 +33,7 @@ import CslibTests.MultiTapeConcatenate
 import CslibTests.PACLearning
 import CslibTests.PFunctor
 import CslibTests.PFunctorFree
+import CslibTests.PFunctorFreeStateT
 import CslibTests.PRG
 import CslibTests.Query
 import CslibTests.QueryComplexity
