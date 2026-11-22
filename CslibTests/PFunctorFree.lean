@@ -6,6 +6,7 @@ Authors: Devon Tuma
 
 import Cslib.Foundations.Control.Monad.Free.Fold
 import Cslib.Foundations.Data.PFunctor.Free.Fold
+import Cslib.Foundations.Data.PFunctor.Free.Spine
 import Cslib.Foundations.Data.PFunctor.Free.W
 
 /-! Tests for polynomial free monads across independent universes and ordinary module imports. -/
@@ -100,5 +101,17 @@ example : W.toFreeM (α := Nat) leaf = (FreeM.lift (P := arity) 0).bind (fun b =
   congr 1
   funext b
   exact Fin.elim0 b
+
+open PFunctor.FreeM.Cursor
+
+-- The selected reply determines the residual even when responses depend on the operation.
+example (a : P.A) (k : P.B a → P.FreeM α) (b : P.B a) (r : P.FreeM α)
+    (tail : Spine (k b) r) : Spine ((PFunctor.FreeM.lift a).bind k) r :=
+  .down b tail
+
+-- A returned Boolean has no path to a different return value.
+example : ¬ Nonempty (Spine (PFunctor.FreeM.pure (P := P) false) (.pure true)) := by
+  rintro ⟨h⟩
+  nomatch h
 
 end CslibTests.PFunctorFree
